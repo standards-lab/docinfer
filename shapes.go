@@ -171,7 +171,7 @@ type Counts struct {
 	Metadata int `json:"metadata"` // metadata texts: one per job
 	Embedded int `json:"embedded"` // chunks with a vector
 	Rejected int `json:"rejected"` // chunks refused, or failed on the last delivery
-	Held     int `json:"held"`     // of those, read from the cache
+	Held     int `json:"held"`     // of those, read from the cache or another call's request
 	Requests int `json:"requests"` // embeddings requests sent
 	Images   int `json:"images"`   // image outputs, vision run or not
 	// Vision is nil when vision is skipped.

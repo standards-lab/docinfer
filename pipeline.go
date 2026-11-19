@@ -31,6 +31,8 @@ type Config struct {
 type Pipeline struct {
 	cfg     Config
 	profile Profile
+	// claims joins the work in flight of every job the pipeline runs, by Key.
+	claims claims
 }
 
 // New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or

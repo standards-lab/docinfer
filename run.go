@@ -117,8 +117,16 @@ var errNotYet = errors.New("docinfer: not yet built")
 // goes on. An error stops the job: Run cancels its requests, waits for them, and yields the error
 // alone, last. A cancelled context yields ctx.Err() alone, last.
 //
+// The pipeline joins work in flight across its jobs by Key: a chunk's embedding another job is
+// asking for, read from neither the cache nor the model, is waited for, holding no Bounds slot,
+// and counted Held. A waited-for refusal is the chunk's Error, and a permanent failure stops this
+// job too; a job that ends without a result, cancelled, failing otherwise, or panicking, leaves
+// its waiters to ask the model themselves, and a cancelled job stops waiting at once.
+//
 // yield is called from the goroutine ranging over Run alone, and Run waits for its requests in
-// flight, and for its current pull of inputs, before it returns, stopped early or not.
+// flight, and for its current pull of inputs, before it returns, stopped early or not. A panic on
+// one of the job's goroutines, a Cache's or the input stream's, stops the job, and Run panics with
+// its value on the goroutine ranging over it once the job's other goroutines have ended.
 func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs iter.Seq2[Input, error], opts Options) iter.Seq2[Result, error] {
 	return func(yield func(Result, error) bool) {
 		if opts.Extract != nil {
@@ -129,6 +137,7 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		r := &run{
 			p:       p,
 			ctx:     jobCtx,
+			cancel:  cancel,
 			content: content,
 			opts:    opts,
 			events:  make(chan event),
@@ -138,8 +147,9 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		defer func() {
 			cancel()
 			r.wg.Wait()
+			r.repanic()
 		}()
-		r.wg.Go(func() { r.feed(inputs) })
+		r.spawn(func() { r.feed(inputs) })
 		err := r.coordinate(ctx, yield)
 		if err == nil {
 			return
@@ -147,6 +157,7 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		// The job stops: its requests are cancelled and waited for before the error, last.
 		cancel()
 		r.wg.Wait()
+		r.repanic()
 		if ctx.Err() != nil {
 			err = ctx.Err()
 		}
@@ -158,6 +169,7 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 type run struct {
 	p       *Pipeline
 	ctx     context.Context // the job's: cancelled when Run stops, which ends every request
+	cancel  context.CancelFunc
 	content dispatch.Content
 	opts    Options
 	embedID Identity
@@ -169,6 +181,12 @@ type run struct {
 	// finished.
 	slots chan struct{}
 	wg    sync.WaitGroup
+
+	// panicMu guards panicked and panicValue: the first panic on one of the job's goroutines,
+	// which Run panics with once they have ended.
+	panicMu    sync.Mutex
+	panicked   bool
+	panicValue any
 
 	// The coordinator's alone.
 	counts  Counts
@@ -240,6 +258,38 @@ func (r *run) send(e event) bool {
 // fail hands err to the coordinator, which stops the job with it.
 func (r *run) fail(err error) { r.send(errEvent{err}) }
 
+// spawn runs f on a goroutine of the job's, which Run waits for. A panic in f is recovered, once
+// f's deferred calls, a lease's release among them, have run: it stops the job, and Run panics
+// with its value on its own goroutine, so the panic reaches Run's caller rather than ending the
+// process.
+func (r *run) spawn(f func()) {
+	r.wg.Go(func() {
+		defer func() {
+			if v := recover(); v != nil {
+				r.panicMu.Lock()
+				if !r.panicked {
+					r.panicked, r.panicValue = true, v
+				}
+				r.panicMu.Unlock()
+				r.cancel()
+			}
+		}()
+		f()
+	})
+}
+
+// repanic panics with the value a goroutine of the job's panicked with, if one did, once. Run
+// calls it after waiting for the job's goroutines.
+func (r *run) repanic() {
+	r.panicMu.Lock()
+	v, ok := r.panicValue, r.panicked
+	r.panicValue, r.panicked = nil, false
+	r.panicMu.Unlock()
+	if ok {
+		panic(v)
+	}
+}
+
 // feed pulls the inputs, each only once a slot is free, and hands them to the coordinator. It
 // takes a slot before each pull, so no more than Config.Pending inputs are admitted and not
 // finished, and the input stream is never read ahead of that.
@@ -278,6 +328,8 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 		case e = <-r.events:
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-r.ctx.Done(): // a goroutine of the job's panicked
+			return r.ctx.Err()
 		}
 		// Nothing derived from the job is yielded once its context has ended.
 		if err := ctx.Err(); err != nil {
@@ -395,7 +447,7 @@ func (r *run) start(st *inputState, text func() (string, error)) error {
 		return err
 	}
 	st.partJSON = b
-	r.wg.Go(func() {
+	r.spawn(func() {
 		s, err := text()
 		if err != nil {
 			r.fail(err)
