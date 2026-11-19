@@ -1,0 +1,140 @@
+# docinfer
+
+docinfer infers over what docproc extracts. `github.com/standards-lab/docinfer` is its Go base
+module, the inference library above go-ai's tier: over the parts docproc's dispatcher prepares, it
+describes images, transcribes audio windows, extracts by a caller's prompt and JSON schema, and
+chunks and embeds text. It yields each result in batches as it is made, and holds every model
+result behind a cache, so content seen before is replayed rather than asked again.
+
+The base module requires docproc v0.3.0 and go-ai v0.4.0 alone, and calls go-ai directly. Only
+the layers above go-ai's tier use it.
+
+## Install
+
+```sh
+go get github.com/standards-lab/docinfer
+```
+
+The module's releases are tagged `vX.Y.Z`, and [`CHANGELOG.md`](CHANGELOG.md) states what each
+changes. Each package's documentation, `go doc github.com/standards-lab/docinfer/...`, is the
+reference for its exported names, and its doc comment lists them.
+
+## Usage
+
+A host builds a go-ai client per endpoint, one `Bounds` shared by every pipeline, a cache, and a
+`Pipeline`, then runs each job's inputs: the output events docproc's dispatcher yields, and the
+input's metadata text on the input's own event.
+
+```go
+client, err := ai.New("http://localhost:8000/v1", http.DefaultClient,
+	completions.New(completions.Options{}), ai.Options{})
+if err != nil {
+	return err
+}
+// The requests in flight per capability: vision, transcription, extraction, embeddings.
+bounds, err := docinfer.NewBounds(4, 4, 2, 8)
+if err != nil {
+	return err
+}
+cache, err := docinfer.NewFileCache("/var/cache/docinfer")
+if err != nil {
+	return err
+}
+p, err := docinfer.New(docinfer.Config{
+	Vision:     &docinfer.Vision{Client: client, Model: "vision-model", Prompt: "Describe the image.", MaxTokens: 1024},
+	Embeddings: docinfer.Embeddings{Client: client, Model: "embedding-model"},
+	Chunker:    chunk.Splitter{Bound: 1000},
+	Dimensions: 1024,
+	Cache:      cache,
+	Bounds:     bounds,
+	Pending:    16,
+	EmbedBatch: 32,
+	BatchBytes: 512 << 10,
+	Join:       join.Request{WordsPerSecond: 3},
+})
+if err != nil {
+	return err
+}
+
+// d is a docproc dispatch.Dispatcher, in one of its inputs.
+inputs := func(yield func(docinfer.Input, error) bool) {
+	for ev, err := range d.Dispatch(ctx, in) {
+		switch {
+		case err != nil:
+			yield(docinfer.Input{}, err)
+			return
+		case ev.Output != nil:
+			if !yield(docinfer.Input{Event: ev}, nil) {
+				return
+			}
+		case ev.Warning == nil && ev.Part.Depth == 0:
+			if !yield(docinfer.Input{Event: ev, Metadata: docinfer.MetadataText(ev.Part)}, nil) {
+				return
+			}
+		}
+	}
+}
+
+for r, err := range p.Run(ctx, d.Content(), inputs, docinfer.Options{Final: true}) {
+	if err != nil {
+		return err // docinfer.Permanent(err) says whether a redelivery could change it
+	}
+	switch {
+	case r.Inference != nil: // a description or transcript, already held
+	case r.Batch != nil: // embedded chunks, ready to index
+	case r.Done != nil: // the job's counts, last
+	}
+}
+```
+
+A nil `Vision` or `Transcription` skips images or windows, counted; `Extraction` is needed only by
+a run whose `Options.Extract` asks for one.
+
+## Packages
+
+| Package | What it does |
+| --- | --- |
+| `docinfer` (the root) | The pipeline over go-ai's client: `Config`, `New`, and `Pipeline.Run`; `Bounds`; the `Cache`, its `Key` and `Held`, and `FileCache` and `MemoryCache`; the go-ai failure table and `Permanent`; and the shapes of its results. |
+| `docinfertest` | The `Cache` conformance suite every implementation runs, the module's and a provider's. |
+| `chunk` | The chunker: `Splitter`, `Chunk`, `Span`, and `Version`. |
+| `join` | A part's window transcripts joined at their seams. |
+| `integration` | The integration tier, behind the `integration` build tag. |
+
+## No defaults
+
+No bound, cap, or setting has a library default. `New` refuses a value below 1, matching
+`ErrRequest`: the chunker's bound, the dimensions, `Pending`, `EmbedBatch`, `BatchBytes`,
+`Join.WordsPerSecond`, and each `MaxTokens`, and an empty model; `NewBounds` refuses any of its
+four bounds below 1. A request's time is the host's too: its transport's `ResponseHeaderTimeout`,
+and go-ai's `Options.StreamIdleTimeout` for extraction's stream. docinfer adds no deadline.
+
+## The consumer's contract
+
+`Run` yields a part's results as they are made, which may be before the part's own event, whatever
+that event comes to. A consumer drops a quarantined or failed part's inferences and chunks by that
+part's own event.
+
+## Development
+
+Tasks run through [mise](https://mise.jdx.dev):
+
+```sh
+mise run check        # build, vet, format, fix, tidy, test, and lint every module; writes nothing
+mise run currency     # report requirements, Go, tools, and action pins behind their latest
+mise run upgrade      # upgrade every module's go directive and requirements, and the tools, to their latest
+mise run integration  # run the integration tier against the AI_*_BASE_URL endpoints
+```
+
+The unit tests are hermetic: they drive the pipeline's go-ai clients against go-ai's `aitest`
+fake endpoint.
+
+The integration tier runs against live endpoints, read from go-ai's tier's variables, so one
+environment drives both: `AI_<ROLE>_BASE_URL`, an API root including `/v1`, for the embedding,
+vision, transcription, audio, and agent roles, with `AI_<ROLE>_TOKEN`, `AI_<ROLE>_HEADER`, and
+`AI_<ROLE>_MODEL` as each endpoint needs. A scenario whose variable is unset skips, naming it.
+[`integration/doc.go`](integration/doc.go) tells each scenario. The check builds the tier but
+never runs it, and no CI job runs it, because the models are on the organization's own machines.
+
+## License
+
+[Apache License 2.0](LICENSE).
