@@ -1,0 +1,38 @@
+[
+  {
+    "identity": {
+      "capability": "vision",
+      "model": "gpt-4.1-mini",
+      "settings": "{\"request\":\"1\",\"prompt\":\"Describe the image.\",\"max_tokens\":1024,\"effort\":\"low\"}"
+    },
+    "content": "a5df3fde7b200c3fa2791144c7e05c5c2bced4c6ad863d3a4cf76c972c1712f9",
+    "key": "vision/f018e4bbcdc6163a7dc4291ff2aa2e56ee50be4b63d768f23922169178363180"
+  },
+  {
+    "identity": {
+      "capability": "transcription",
+      "model": "whisper-1",
+      "settings": "{\"request\":\"1\",\"mode\":\"route\",\"prompt\":\"\",\"language\":\"en\"}"
+    },
+    "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
+    "key": "transcription/fbe667354d3bdd261d0a9da91eaef06f3459a5c0763796a45cc0505d69ce9a2b"
+  },
+  {
+    "identity": {
+      "capability": "extraction",
+      "model": "gpt-4.1",
+      "settings": "{\"request\":\"1\",\"name\":\"invoice\",\"prompt_sha256\":\"cf07194ee232eb531e15f690000d19846dea69cf05504782658afcfacb9228a2\",\"schema_sha256\":\"df0ad6e43880f09c90ebf95f19110178aba6890df0010ebda7485029e2b543b4\",\"max_tokens\":4096,\"effort\":\"medium\"}"
+    },
+    "content": "526b017302033df79011f6698d73be884c8d7c0b07787ce1e6835187a2fa63e6",
+    "key": "extraction/4b9bf5417719ee9ed8efc1b6db8ea321b6f5020f507c3582e9a5c32d949107d0"
+  },
+  {
+    "identity": {
+      "capability": "embeddings",
+      "model": "text-embedding-3-small",
+      "settings": ""
+    },
+    "content": "405ab2d2515703ecdaa30e704aec371580b2d83f2292d80f4baf22a85fd94ac1",
+    "key": "embeddings/fd987de5fa679e4b570ed3d7ce37039f7f421bc38222757128a3ae2ab21fb399"
+  }
+]

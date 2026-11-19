@@ -1,0 +1,241 @@
+package docinfer
+
+import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
+	"fmt"
+	"math"
+
+	"github.com/standards-lab/docinfer/chunk"
+	"github.com/standards-lab/docinfer/join"
+	"github.com/standards-lab/docproc/dispatch"
+)
+
+// Version is the version of docinfer's shapes, grown by addition only: of the shapes below,
+// [Held], job's, chunk's, and join's. It includes dispatch.Version "1", whose shapes [Input],
+// [Batch], and [Source] carry, so a break there is a break here. [Key] hashes it, so a new shape
+// misses every value held under the old rather than decoding wrong.
+const Version = "1"
+
+// Capability names one of the four things docinfer asks a model for, and is the first segment of
+// each of its [Key]s.
+type Capability string
+
+// The capabilities.
+const (
+	CapabilityVision        Capability = "vision"
+	CapabilityTranscription Capability = "transcription"
+	CapabilityExtraction    Capability = "extraction"
+	CapabilityEmbeddings    Capability = "embeddings"
+)
+
+// Identity is what a capability's results are keyed by besides their content: the capability, the
+// model, and the settings the request is built with.
+type Identity struct {
+	Capability Capability `json:"capability"`
+	Model      string     `json:"model"`
+	// Settings is the JSON of the capability's settings, its first member "request", the request's
+	// version, changed when the request's construction changes; the embeddings' is "", since a
+	// vector depends on the model and the chunk's text alone.
+	Settings string `json:"settings"`
+}
+
+// Profile is a pipeline's resolved identity: the models, settings, dimensions, and chunker, known
+// before any job runs.
+type Profile struct {
+	Vision        *Identity `json:"vision,omitempty"`
+	Transcription *Identity `json:"transcription,omitempty"`
+	Extraction    *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
+	Embeddings    Identity  `json:"embeddings"`
+	Dimensions    int       `json:"dimensions"` // the embedding space's, checked per vector
+	Chunker       string    `json:"chunker"`    // the chunk.Splitter's Settings
+}
+
+// Usage is the tokens a model's request took, less their total.
+type Usage struct {
+	Input  int `json:"input"`
+	Output int `json:"output"`
+}
+
+// Outcome is what an [Inference] came to.
+type Outcome string
+
+// The outcomes: one per capability's success, then the three every capability shares.
+const (
+	OutcomeDescribed   Outcome = "described"
+	OutcomeTranscribed Outcome = "transcribed"
+	OutcomeExtracted   Outcome = "extracted"
+	OutcomeIncomplete  Outcome = "incomplete"
+	OutcomeRefused     Outcome = "refused"
+	OutcomeFailed      Outcome = "failed"
+)
+
+// Inference is one text a model made, or the cache held: an image's description, a part's joined
+// transcript, or a source text's extraction.
+type Inference struct {
+	Capability Capability `json:"capability"` // vision, transcription, or extraction
+	Part       string     `json:"part"`       // its part's ID
+	// ContentSHA256 is the image's, the windows' in order, "" for one never cut, or the source
+	// text's.
+	ContentSHA256 []string `json:"content_sha256"`
+	Outcome       Outcome  `json:"outcome"`
+	// Reason is an image's or extraction's: why it is incomplete, refused, or failed.
+	Reason string `json:"reason,omitzero"`
+	// Failed is a transcript's windows not transcribed, by index: refused, failed, incomplete, or
+	// never cut.
+	Failed []int `json:"failed,omitempty"`
+	// Held is true when the text was read from the cache or a leader's request, not asked of a
+	// model.
+	Held       bool        `json:"held,omitzero"`
+	TextSHA256 string      `json:"text_sha256,omitzero"` // the text's, in docproc's Content
+	Text       string      `json:"-"`                    // local: job puts it in Content
+	Seams      []join.Seam `json:"seams,omitempty"`      // a transcript's, as join made them
+	Usage      Usage       `json:"usage,omitzero"`
+	TookMS     int64       `json:"took_ms"`
+}
+
+// Progress is an extraction's text since its last progress.
+type Progress struct {
+	ContentSHA256 string `json:"content_sha256"` // the source text's
+	Delta         string `json:"delta"`
+}
+
+// Batch holds its chunks, and each part and source text they come from once, by index.
+type Batch struct {
+	Parts   []dispatch.Part `json:"parts"` // provenance: each, its parent and depth, where found
+	Sources []Source        `json:"sources"`
+	Chunks  []Chunk         `json:"chunks"`
+}
+
+// Digest is the lowercase hex SHA-256 over its chunks' Digests, in order, each length-prefixed as
+// [Key]'s parts are: derived, so no field holds it.
+func (b Batch) Digest() string {
+	parts := make([]string, len(b.Chunks))
+	for i, c := range b.Chunks {
+		parts[i] = c.Digest
+	}
+	return hashParts(parts...)
+}
+
+// Source is the text a chunk is cut from, and where it sits.
+type Source struct {
+	Kind string `json:"kind"` // output, metadata, vision, or transcript
+	// SHA256 is the text's; an output's is its Output.SHA256, held there alone.
+	SHA256     string             `json:"sha256,omitzero"`
+	Incomplete string             `json:"incomplete,omitzero"` // why its inference is incomplete
+	Part       int                `json:"part"`                // an index into the batch's Parts
+	Stage      *dispatch.Identity `json:"stage,omitempty"`
+	// Output is the output it is, or the image or first window its inference read.
+	Output *dispatch.Output `json:"output,omitempty"`
+}
+
+// Chunk is one chunk of a source text and its embedding. It embeds chunk.Chunk, whose fields
+// encode inline, so its JSON is {digest, text, span, index, source, vector, error}.
+type Chunk struct {
+	// Digest is the SHA-256 of Text: the per-item digest, and its embedding's key content.
+	Digest      string `json:"digest"`
+	chunk.Chunk        // inline: text, span
+	Index       int    `json:"index"`           // within its source text
+	Source      int    `json:"source"`          // an index into the batch's Sources
+	Vector      string `json:"vector,omitzero"` // standard base64 of little-endian float32s
+	Error       string `json:"error,omitzero"`  // why the endpoint refused it, or it failed
+}
+
+// DecodeVector is the one reader of [Chunk].Vector and [Held].Vector: standard base64, padded, of
+// each float32's IEEE 754 bits, little-endian, in order. An empty string, a string that isn't
+// standard base64, and bytes that aren't a whole number of float32s are errors.
+func DecodeVector(s string) ([]float32, error) {
+	if s == "" {
+		return nil, fmt.Errorf("docinfer: decode vector: empty")
+	}
+	b, err := base64.StdEncoding.Strict().DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("docinfer: decode vector: %w", err)
+	}
+	if len(b)%4 != 0 {
+		return nil, fmt.Errorf("docinfer: decode vector: %d bytes isn't a whole number of float32s", len(b))
+	}
+	v := make([]float32, len(b)/4)
+	for i := range v {
+		v[i] = math.Float32frombits(binary.LittleEndian.Uint32(b[4*i:]))
+	}
+	return v, nil
+}
+
+// Counts is one job's, counting occurrences: each image, window, source text, and chunk as often
+// as the job holds it, and the cache hits among them.
+type Counts struct {
+	Texts    int `json:"texts"`    // text and Markdown outputs chunked
+	Metadata int `json:"metadata"` // metadata texts: one per job
+	Embedded int `json:"embedded"` // chunks with a vector
+	Rejected int `json:"rejected"` // chunks refused, or failed on the last delivery
+	Held     int `json:"held"`     // of those, read from the cache
+	Requests int `json:"requests"` // embeddings requests sent
+	Images   int `json:"images"`   // image outputs, vision run or not
+	// Vision is nil when vision is skipped.
+	Vision        *VisionCounts        `json:"vision,omitempty"`
+	Windows       int                  `json:"windows"`
+	Transcription *TranscriptionCounts `json:"transcription,omitempty"` // nil when skipped
+	Extraction    *ExtractionCounts    `json:"extraction,omitempty"`    // nil when none was asked
+	Tokens        Tokens               `json:"tokens"`                  // this job's requests only
+}
+
+// VisionCounts counts each image under its outcome; Empty counts those of the Incomplete with no
+// text.
+type VisionCounts struct {
+	Described  int `json:"described"`
+	Incomplete int `json:"incomplete"`
+	Empty      int `json:"empty"`
+	Refused    int `json:"refused"`
+	Failed     int `json:"failed"`
+	Held       int `json:"held"`
+	Requests   int `json:"requests"`
+}
+
+// TranscriptionCounts counts each window under its outcome, the transcripts joined, and their
+// seams by whether they matched.
+type TranscriptionCounts struct {
+	Transcribed    int `json:"transcribed"`
+	Incomplete     int `json:"incomplete"`
+	Refused        int `json:"refused"`
+	Failed         int `json:"failed"`
+	Held           int `json:"held"`
+	Requests       int `json:"requests"`
+	Transcripts    int `json:"transcripts"`
+	SeamsMatched   int `json:"seams_matched"`
+	SeamsUnmatched int `json:"seams_unmatched"`
+}
+
+// ExtractionCounts counts each source text under its outcome.
+type ExtractionCounts struct {
+	Extracted  int `json:"extracted"`
+	Incomplete int `json:"incomplete"`
+	Refused    int `json:"refused"`
+	Failed     int `json:"failed"`
+	Held       int `json:"held"`
+	Requests   int `json:"requests"`
+}
+
+// Tokens is a job's token usage per capability, each nil when that capability is skipped or not
+// asked for.
+type Tokens struct {
+	Vision        *Usage `json:"vision,omitempty"`
+	Transcription *Usage `json:"transcription,omitempty"`
+	Extraction    *Usage `json:"extraction,omitempty"`
+	Embeddings    Usage  `json:"embeddings"`
+}
+
+// hashParts returns the lowercase hex SHA-256 of parts, each prefixed by its length in bytes as a
+// big-endian uint64, so no two lists of parts hash the same input.
+func hashParts(parts ...string) string {
+	h := sha256.New()
+	var n [8]byte
+	for _, p := range parts {
+		binary.BigEndian.PutUint64(n[:], uint64(len(p)))
+		h.Write(n[:])
+		h.Write([]byte(p))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
