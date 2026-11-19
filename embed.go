@@ -187,7 +187,7 @@ func (r *run) call(st *inputState, items []item, l *lease) {
 	}
 	for i, v := range reply.Vectors {
 		items[i].chunk.Vector = encodeVector(v)
-		if !r.hold(l, items[i].chunk.Digest, Held{Vector: items[i].chunk.Vector}) {
+		if !r.hold(l, r.key(items[i].chunk.Digest), "the embedding of chunk "+items[i].chunk.Digest, Held{Vector: items[i].chunk.Vector}) {
 			return
 		}
 	}
@@ -218,7 +218,7 @@ func (r *run) callFailed(st *inputState, items []item, requests int, err error, 
 			return
 		}
 		items[0].chunk.Error = failureText(err)
-		if !r.hold(l, items[0].chunk.Digest, Held{Refused: items[0].chunk.Error}) {
+		if !r.hold(l, r.key(items[0].chunk.Digest), "the embedding of chunk "+items[0].chunk.Digest, Held{Refused: items[0].chunk.Error}) {
 			return
 		}
 	case rowPermanent:
@@ -244,20 +244,20 @@ func (r *run) callFailed(st *inputState, items []item, requests int, err error, 
 	r.send(doneEvent{st: st, items: items, requests: requests})
 }
 
-// hold puts h as the embedding of the chunk digest names, then answers its claim in l with it, so
-// a waiter's answer is what a cache read would give. It reports false, having released l and
-// stopped the job, when it can't put h.
-func (r *run) hold(l *lease, digest string, h Held) bool {
+// hold puts h under key, then answers key's claim in l with it, so a waiter's answer is what a
+// cache read would give. It reports false, having released l and stopped the job, when it can't
+// put h, what naming the result in the error.
+func (r *run) hold(l *lease, key, what string, h Held) bool {
 	b, err := json.Marshal(h)
 	if err == nil {
-		err = r.p.cfg.Cache.Put(r.ctx, r.key(digest), b)
+		err = r.p.cfg.Cache.Put(r.ctx, key, b)
 	}
 	if err != nil {
 		l.release()
-		r.fail(fmt.Errorf("docinfer: run: hold the embedding of chunk %s: %w", digest, err))
+		r.fail(fmt.Errorf("docinfer: run: hold %s: %w", what, err))
 		return false
 	}
-	l.answer(r.key(digest), answer{held: &h})
+	l.answer(key, answer{held: &h})
 	return true
 }
 

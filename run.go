@@ -89,15 +89,26 @@ const (
 )
 
 // errNotYet is the cause of a run that asks for what this version of the pipeline doesn't build
-// yet: an image with Vision set, a window with Transcription set, or an Extract.
+// yet: a window with Transcription set, or an Extract.
 var errNotYet = errors.New("docinfer: not yet built")
+
+// errInputDefect is the cause of an input no redelivery mends, which [Permanent] reports: an image
+// output without a MediaType.
+var errInputDefect = errors.New("docinfer: the input's defect")
 
 // Run infers over one job's inputs, opening their content from content, and yields what it makes
 // as it makes it: each [Inference], each extraction's [Progress], each [Batch] once its chunks'
 // embeddings complete, and the job's [Counts] last.
 //
 // A text or Markdown output is chunked as a source of kind output, and a Metadata input as one of
-// kind metadata. Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256
+// kind metadata. With Config.Vision set, an image output is described from its content, sent as a
+// data URL of its Output.MediaType beside Vision.Prompt, and its text chunked as a source of kind
+// vision; an image output without a MediaType stops the job, [Permanent]. Its description is keyed
+// by vision's Identity and the image's SHA-256, read from the cache, or asked of the model, and
+// held before its [Inference] is yielded, which precedes the batches of its chunks. A completed
+// reply is outcome described; one with a refusal and no text, refused, held, its Reason the
+// refusal's text; an incomplete one keeps its text, held, its Reason, and its chunks' Source's
+// Incomplete, why the model stopped. Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256
 // alone, read from the cache, or asked of the model Config.EmbedBatch texts per call and held
 // before anything derived from it is yielded. A held value that doesn't decode is a miss, which
 // the model's reply replaces; a vector, held or made, whose length isn't Config.Dimensions stops
@@ -111,15 +122,17 @@ var errNotYet = errors.New("docinfer: not yet built")
 // of one.
 //
 // A go-ai failure maps by the failure table: a refused status, 400, 413, 415, or 422, re-sends
-// an embedding call a text at a time, and a text so refused is its chunk's Error, held; a
-// permanent or transient failure stops the job with the error, wrapped; a failed one stops it
-// too, except on Options.Final, where its chunks' Error is recorded, never held, and the job
-// goes on. An error stops the job: Run cancels its requests, waits for them, and yields the error
+// an embedding call a text at a time, and a text so refused is its chunk's Error, held, as an
+// image so refused is outcome refused, held, its Reason the error's text; a permanent or
+// transient failure stops the job with the error, wrapped; a failed one stops it too, except on
+// Options.Final, where its chunks' Error, or its image's outcome failed, is recorded, never held,
+// and the job goes on. An error stops the job: Run cancels its requests, waits for them, and yields the error
 // alone, last. A cancelled context yields ctx.Err() alone, last.
 //
-// The pipeline joins work in flight across its jobs by Key: a chunk's embedding another job is
-// asking for, read from neither the cache nor the model, is waited for, holding no Bounds slot,
-// and counted Held. A waited-for refusal is the chunk's Error, and a permanent failure stops this
+// The pipeline joins work in flight across its jobs by Key: a chunk's embedding or an image's
+// description another job is asking for, read from neither the cache nor the model, is waited
+// for, holding no Bounds slot, and counted Held. A waited-for refusal is the chunk's Error, or the
+// image's outcome, and a permanent failure stops this
 // job too; a job that ends without a result, cancelled, failing otherwise, or panicking, leaves
 // its waiters to ask the model themselves, and a cancelled job stops waiting at once.
 //
@@ -143,6 +156,9 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 			events:  make(chan event),
 			slots:   make(chan struct{}, p.cfg.Pending),
 			embedID: p.cfg.Embeddings.Identity(),
+		}
+		if p.cfg.Vision != nil {
+			r.counts.Vision, r.counts.Tokens.Vision = &VisionCounts{}, &Usage{}
 		}
 		defer func() {
 			cancel()
@@ -217,14 +233,24 @@ type doneEvent struct {
 	usage    Usage
 }
 
+// inferenceEvent is an image's inference, and the requests that made it and their usage. last
+// is set when the input finishes with it, no text following to chunk.
+type inferenceEvent struct {
+	inf      *Inference
+	requests int
+	usage    Usage
+	last     bool
+}
+
 // errEvent is an error that stops the job.
 type errEvent struct{ err error }
 
-func (inputEvent) isEvent() {}
-func (endEvent) isEvent()   {}
-func (splitEvent) isEvent() {}
-func (doneEvent) isEvent()  {}
-func (errEvent) isEvent()   {}
+func (inputEvent) isEvent()     {}
+func (endEvent) isEvent()       {}
+func (splitEvent) isEvent()     {}
+func (doneEvent) isEvent()      {}
+func (inferenceEvent) isEvent() {}
+func (errEvent) isEvent()       {}
 
 // inputState is one admitted input's, as its source text: what its chunks come from, and, the
 // coordinator's alone, how many of them are yet to complete.
@@ -374,6 +400,14 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			if e.st.split && e.st.remaining == 0 && len(e.items) > 0 {
 				r.finish()
 			}
+		case inferenceEvent:
+			r.countVision(e)
+			if !yield(Result{Inference: e.inf}, nil) {
+				return nil
+			}
+			if e.last {
+				r.finish()
+			}
 		case errEvent:
 			return e.err
 		}
@@ -383,11 +417,13 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 	return nil
 }
 
-// countSource counts an input's source text once it is chunked.
+// countSource counts an input's source text once it is chunked: an image's text is counted with
+// its inference.
 func (r *run) countSource(st *inputState) {
-	if st.source.Kind == sourceMetadata {
+	switch st.source.Kind {
+	case sourceMetadata:
 		r.counts.Metadata++
-	} else {
+	case sourceOutput:
 		r.counts.Texts++
 	}
 }
@@ -426,7 +462,11 @@ func (r *run) admit(in Input) error {
 	case dispatch.ImageOutput:
 		r.counts.Images++
 		if r.p.cfg.Vision != nil {
-			return fmt.Errorf("docinfer: run: vision of image %s of part %s: %w", out.SHA256, in.Event.Part.ID, errNotYet)
+			if out.MediaType == "" {
+				return fmt.Errorf("docinfer: run: image %s of part %s has no media type: %w", out.SHA256, in.Event.Part.ID, errInputDefect)
+			}
+			r.spawn(func() { r.describe(in.Event) })
+			return nil
 		}
 	case dispatch.AudioOutput:
 		r.counts.Windows++
@@ -460,19 +500,25 @@ func (r *run) start(st *inputState, text func() (string, error)) error {
 
 // text reads an output's text from Run's content, by its SHA-256.
 func (r *run) text(ev dispatch.Event) (string, error) {
+	b, err := r.read(ev)
+	return string(b), err
+}
+
+// read reads an output's content from Run's content, by its SHA-256.
+func (r *run) read(ev dispatch.Event) ([]byte, error) {
 	rc, err := r.content.Open(r.ctx, ev.Output.SHA256)
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", &MissingError{Event: ev, Err: err}
+		return nil, &MissingError{Event: ev, Err: err}
 	}
 	if err != nil {
-		return "", fmt.Errorf("docinfer: run: open content %s of part %s: %w", ev.Output.SHA256, ev.Part.ID, err)
+		return nil, fmt.Errorf("docinfer: run: open content %s of part %s: %w", ev.Output.SHA256, ev.Part.ID, err)
 	}
 	b, err := io.ReadAll(rc)
 	if closeErr := rc.Close(); err == nil {
 		err = closeErr
 	}
 	if err != nil {
-		return "", fmt.Errorf("docinfer: run: read content %s of part %s: %w", ev.Output.SHA256, ev.Part.ID, err)
+		return nil, fmt.Errorf("docinfer: run: read content %s of part %s: %w", ev.Output.SHA256, ev.Part.ID, err)
 	}
-	return string(b), nil
+	return b, nil
 }

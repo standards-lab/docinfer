@@ -248,9 +248,10 @@ func stopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Cache) 
 	}
 }
 
-// Permanent reports exactly the permanent rows and the input's defects: a request the format
-// can't send, which Embed never makes but generation does, a mismatched input, and a refused
-// request, and nothing else.
+// Permanent reports exactly the permanent rows and the input's defects: a permanent status, a
+// request the format can't send, which Embed never makes but generation does, a mismatched input,
+// an image output without a MediaType, and a refused request, and nothing else: not a refused,
+// transient, or failed status, nor a failed reply, a transport failure, or a content miss.
 func TestPermanent(t *testing.T) {
 	cases := []struct {
 		name string
@@ -260,10 +261,21 @@ func TestPermanent(t *testing.T) {
 		{"unsupported", fmt.Errorf("wrapped: %w", &format.UnsupportedError{Format: "completions", Feature: "content part"}), true},
 		{"mismatched input", fmt.Errorf("dispatch: %w", dispatch.ErrSHA256), true},
 		{"refused request", fmt.Errorf("docinfer: %w", docinfer.ErrRequest), true},
+		{"image without a media type", noMediaTypeError(t), true},
 		{"refused status", &ai.APIError{Status: 422}, false},
+		{"transient status", &ai.APIError{Status: 503}, false},
+		{"failed status", &ai.APIError{Status: 500}, false},
+		{"transport failure", &url.Error{Op: "Post", URL: "http://localhost", Err: errors.New("refused")}, false},
 		{"missing content", &docinfer.MissingError{Err: errors.New("gone")}, false},
 		{"other", errors.New("other"), false},
 		{"nil", nil, false},
+	}
+	for _, status := range []int{401, 403, 404, 405, 409, 418, 451, 501, 505} {
+		cases = append(cases, struct {
+			name string
+			err  error
+			want bool
+		}{fmt.Sprint(status), fmt.Errorf("wrapped: %w", &ai.APIError{Status: status}), true})
 	}
 	for _, tc := range cases {
 		if got := docinfer.Permanent(tc.err); got != tc.want {

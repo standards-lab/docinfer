@@ -131,17 +131,19 @@ func seq(inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	}
 }
 
-// outcome is everything one Run yielded: its batches, its counts, and its error, each in the
-// order yielded, and whether anything came after the counts or the error.
+// outcome is everything one Run yielded: its inferences, its batches, its counts, and its error,
+// each in the order yielded, and whether anything came after the counts or the error.
 type outcome struct {
-	batches []docinfer.Batch
-	counts  *docinfer.Counts
-	err     error
-	after   bool // something was yielded after the counts or the error, which must be last
-	results int
+	inferences []docinfer.Inference
+	batches    []docinfer.Batch
+	counts     *docinfer.Counts
+	err        error
+	after      bool // something was yielded after the counts or the error, which must be last
+	results    int
 }
 
-// collect ranges over a Run's results.
+// collect ranges over a Run's results. It fails the test when a batch holds a chunk of an image's
+// text whose inference wasn't yielded before it.
 func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 	t.Helper()
 	var o outcome
@@ -156,7 +158,16 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 				t.Errorf("a result beside the error %v", err)
 			}
 			o.err = err
+		case r.Inference != nil:
+			o.inferences = append(o.inferences, *r.Inference)
 		case r.Batch != nil:
+			for _, s := range r.Batch.Sources {
+				if s.Kind == "vision" && !slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
+					return slices.Equal(inf.ContentSHA256, []string{s.Output.SHA256})
+				}) {
+					t.Errorf("a batch holds chunks of image %s before its inference", s.Output.SHA256)
+				}
+			}
 			o.batches = append(o.batches, *r.Batch)
 		case r.Done != nil:
 			o.counts = r.Done
@@ -401,8 +412,8 @@ func checkCounts(t *testing.T, o outcome, want docinfer.Counts) {
 	if n := len(o.chunks()); o.counts.Embedded+o.counts.Rejected != n {
 		t.Errorf("Embedded %d + Rejected %d, want the %d chunks of the batches", o.counts.Embedded, o.counts.Rejected, n)
 	}
-	if o.counts.Vision != nil || o.counts.Transcription != nil || o.counts.Extraction != nil ||
-		o.counts.Tokens.Vision != nil || o.counts.Tokens.Transcription != nil || o.counts.Tokens.Extraction != nil {
+	if o.counts.Transcription != nil || o.counts.Extraction != nil ||
+		o.counts.Tokens.Transcription != nil || o.counts.Tokens.Extraction != nil {
 		t.Errorf("counts of a skipped or unasked capability: %s", got)
 	}
 }
@@ -739,8 +750,8 @@ func TestRunInputStreamError(t *testing.T) {
 	}
 }
 
-// What a later version of the pipeline builds is refused until then: an image with Vision set, a
-// window with Transcription set, and an Extract.
+// What a later version of the pipeline builds is refused until then: a window with Transcription
+// set, and an Extract.
 func TestRunNotYetBuilt(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	client := newClient(t, e.URL(), ai.TranscribeRoute)
@@ -751,9 +762,6 @@ func TestRunNotYetBuilt(t *testing.T) {
 		in    docinfer.Input
 		extra docinfer.Options
 	}{
-		{"vision", func(c *docinfer.Config) {
-			c.Vision = &docinfer.Vision{Client: client, Model: "v", MaxTokens: 1}
-		}, outputInput(t, content, childPart, dispatch.ImageOutput, "image"), docinfer.Options{}},
 		{"transcription", func(c *docinfer.Config) {
 			c.Transcription = &docinfer.Transcription{Client: client, Model: "t"}
 		}, outputInput(t, content, childPart, dispatch.AudioOutput, "audio"), docinfer.Options{}},

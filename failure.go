@@ -116,8 +116,8 @@ func (e *dimensionsError) Error() string {
 // a host fails the job rather than redeliver it: a go-ai failure the failure table marks
 // permanent (an *ai.APIError of 401, 403, 404, 501, 505, or any other 4xx but 408, 429, and the
 // refused statuses, which are outcomes, not errors; or a *format.UnsupportedError), a mismatched
-// input (dispatch.ErrSHA256), a vector whose length is not Config.Dimensions, or a refused request
-// (ErrRequest). A [MissingError] is not permanent: a content store may hold the content on a
+// input (dispatch.ErrSHA256), an input's defect (an image output without a MediaType), a vector
+// whose length is not Config.Dimensions, or a refused request (ErrRequest). A [MissingError] is not permanent: a content store may hold the content on a
 // redelivery. A transient error carries its *ai.APIError, whose RetryAfter is the redelivery's
 // delay.
 func Permanent(err error) bool {
@@ -133,5 +133,5 @@ func Permanent(err error) bool {
 	if _, ok := errors.AsType[*dimensionsError](err); ok {
 		return true
 	}
-	return errors.Is(err, dispatch.ErrSHA256) || errors.Is(err, ErrRequest)
+	return errors.Is(err, dispatch.ErrSHA256) || errors.Is(err, errInputDefect) || errors.Is(err, ErrRequest)
 }
