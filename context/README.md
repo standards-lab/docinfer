@@ -8,15 +8,22 @@ its PostgreSQL cache, `docinfer/postgres`, and its command, `cmd/docinfer`, are 
 
 Its goals live in the coordinator's roadmap (`standards-lab/context/roadmap.toml`,
 v1.ai.inference). It is built from spike-ai-pipeline's docinfer at 6a631f1, and its boundaries are
-settled by docproc's `context/layers.md` until its design note takes them over.
+settled by its design note, which supersedes docproc's `context/layers.md` docinfer sections as of
+docproc commit 673ed3d.
 
 ## Capability map
 
 - **Pipeline**: the root package's run over go-ai's client: vision, transcription, extraction, and
   embedding, with bounds, cancellation, and batches as made.
-- **Cache**: the result cache interface, with filesystem and memory implementations.
+- **Cache**: the result cache interface, with filesystem and memory implementations, and
+  `docinfertest`, the suite every implementation passes.
 - **Chunk and join**: chunking extracted text, and joining transcribed audio windows at their seams.
 - **Job**: one job's dispatch then inference, its checkpoints and its outputs counted by part ID.
 - **postgres**: the cache in PostgreSQL over sqlate.
 - **cmd/docinfer**: the command over a cmd/docproc run directory, with its own directory and
   report.
+
+## Notes
+
+- [`design.md`](design.md): docinfer's design, reviewed from the spike; the one home of its API,
+  and the task that releases each tag.
