@@ -113,12 +113,12 @@ of another length is the same permanent error; `measure`'s norms are `cmd/docinf
 `ResponseHeaderTimeout` for `Generate`, `Embed`, and `Transcribe` and `Options.StreamIdleTimeout`
 for extraction's stream; docinfer adds no default.
 
-**L13. issue: transcription is written against a reader, a path, and a client that never
-retries.** `transcribe/transcribe.go:87-95`, `transcribe/doc.go:8-9`, `infer/transcription.go:25-27`.
-Against go-ai v0.3.0 (`TranscriptionRequest.Open`, called per attempt) and layers "The cache"
-(`Key`). **accepted**, library, as G2 amends it: `Open` is `dispatch.Content.Open(ctx, sha256)`
-(W3), `FileName` is made from `Output.MediaType`, and the transcription mode is read from the
-client (G2), not restated by the host.
+**L13. issue: transcription is written against a reader, a path, and a client that never retries.**
+`transcribe/transcribe.go:87-95`, `transcribe/doc.go:8-9`, `infer/transcription.go:25-27`. Against
+go-ai v0.3.0 (`TranscriptionRequest.Open`, called per attempt) and layers "The cache" (`Key`).
+**accepted**, library, as G2 amends it: `Open` is `dispatch.Content.Open(ctx, sha256)` (W3),
+`FileName` is made from `Output.MediaType`, and the transcription mode is read from the client (G2),
+not restated by the host.
 
 **L14. simplification: `text` restates a helper go-ai keeps unexported.**
 `vision/vision.go:135-155`, `go-ai:transcribe.go:399`. Against `principles/resolution.md`.
@@ -519,9 +519,9 @@ docinfer (`github.com/standards-lab/docinfer`) infers over what docproc extracts
 images, transcribes audio, chunks and embeds text, extracts by a caller's prompt and JSON schema,
 holds results in a cache, and runs one job's dispatch and inference together. It is an adjacent
 library that depends on docproc and on go-ai, an infrastructure library, so whatever may not depend
-on go-ai's tier may not depend on docinfer either (`repository-topology.md`, "Adjacent libraries"):
-only the layers above go-ai's tier, such as Cerebro and go-web-service, use it. It calls go-ai
-directly, with no adapter module between them.
+on go-ai's tier may not depend on docinfer either (`principles/repository-topology.md`, "Adjacent
+libraries"): only the layers above go-ai's tier, such as Cerebro and go-web-service, use it. It
+calls go-ai directly, with no adapter module between them.
 
 ```text
 github.com/standards-lab/docinfer               the library; requires docproc and go-ai alone
@@ -1437,7 +1437,7 @@ they are tagged. The acceptance task releases nothing unless it finds a fix, whi
 patch of the module it fixes.
 
 | Tag | Module | Task | Requires |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | go-ai `v0.4.0` | go-ai's base module, in go-ai's repository | go-ai | G1–G3's additions (G4) |
 | `v0.1.0` | the base module | library | docproc v0.3.0, go-ai v0.4.0 |
 | `v0.2.0` | the base module | job | docproc v0.3.0, go-ai v0.4.0 |

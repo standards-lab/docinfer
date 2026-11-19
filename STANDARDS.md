@@ -5,8 +5,22 @@ enforces: each one line, with a pointer to the architecture page that applies. T
 docinfer's design review, `context/design.md`, and apply to the base module, `postgres`, and
 `cmd/docinfer`.
 
-- `architecture/principles/repository-topology.md`: docinfer sits above go-ai's tier, in the
-  templates' layer; its place follows its base module.
+- `architecture/principles/repository-topology.md`: docinfer is an adjacent library whose base
+  module, over go-ai, sits above go-ai's tier, so only the layers above it use docinfer; `postgres`
+  and `cmd/docinfer` pin only their own levels.
+- `architecture/principles/tool-beside-library.md`: `cmd/docinfer` is a thin consumer of the
+  library, and nothing of its terminal progress enters the root package (L4).
+- `architecture/principles/composition-root.md`: the library builds no client; each capability's
+  `*ai.Client` is built by the host, in `cmd/docinfer`'s `internal/app` a graph node (L3, C1).
+- `architecture/principles/validation-first.md`: `docinfer.New`, `NewBounds`, and `job.New` refuse
+  a bad value before any job runs, `join.Request` validated at `docinfer.New`, and `Run` refuses an
+  `Extract` before it reads an input; `cmd/docinfer`'s configuration fails its Build before the
+  docproc run is read.
+- `architecture/principles/resolution.md`: docinfer calls go-ai's client as go-ai presents it:
+  no helper restating go-ai, no `/models` request of its own, and no re-validation of what go-ai
+  validates (L14, C5, C7).
+- `architecture/principles/rolling-currency.md`: every module's requirements and the root's mise
+  pins are current; `cmd/docinfer` starts from go-cli-sdk-template's template/v0.3.0 (C2).
 - `architecture/principles/minimal-footprint.md`: the base module requires docproc and go-ai
   alone; the join of work in flight is docinfer's own, `golang.org/x/sync` rejected
   (`context/design.md`, "Join of work in flight").
@@ -37,13 +51,16 @@ docinfer's design review, `context/design.md`, and apply to the base module, `po
   its authored statements and migrations over sqlate.
 - `architecture/standards/go-elemental/principles/cli-applications.md`: `cmd/docinfer`'s
   configuration and model clients are graph nodes, and its help states its exit status.
+- `architecture/standards/go-elemental/principles/topology-and-naming.md`: the base module, the
+  `postgres` provider sub-module, and the `cmd/docinfer` command module, and their tags; the
+  inference package is the module's root, `docinfer`.
 - `architecture/standards/go-elemental/principles/domain-files.md`: `cmd/docinfer`'s command
-  packages under `internal/` only.
+  packages under `internal/`, `run` and `report`, only.
 - The exception for a command nested in its library's repository: since the module's one public
   surface is the command, `cmd/docinfer` keeps `main.go` at its module's root, so
   `go install github.com/standards-lab/docinfer/cmd/docinfer@<version>` installs `docinfer`, and
-  keeps its packages under `internal/`: `app`, `apptest`, and its command packages.
-  `cli-applications.md` has `cmd/<name>/main.go` instead, and `topology-and-naming.md` has domain
-  packages at the module's root level. The module's one package outside `internal/` is
-  `integration`, the built-binary tier's harness, at the module's root, where
-  go-cli-sdk-template's template/v0.3.0 places it.
+  keeps its packages under `internal/`: `app`, `apptest`, its command packages, `run` and
+  `report`, and `outdir`, which they share. `cli-applications.md` has `cmd/<name>/main.go`
+  instead, and `topology-and-naming.md` has domain packages at the module's root level. The
+  module's one package outside `internal/` is `integration`, the built-binary tier's harness, at
+  the module's root, where go-cli-sdk-template's template/v0.3.0 places it.
