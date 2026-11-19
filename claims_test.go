@@ -79,10 +79,10 @@ func joinPipeline(t *testing.T, e *joinEndpoint, bound int, edit func(*docinfer.
 }
 
 // awaitWaiters blocks until n more waiters have started to wait, failing the test if they don't
-// within ten seconds rather than hang.
+// within failsafe rather than hang.
 func awaitWaiters(t *testing.T, waits <-chan struct{}, n int) {
 	t.Helper()
-	timeout := time.After(10 * time.Second)
+	timeout := time.After(failsafe)
 	for i := range n {
 		select {
 		case <-waits:
@@ -103,8 +103,15 @@ type job struct {
 // startJob runs p over one text output of text, from content, until the job's outcome.
 func startJob(t *testing.T, p *docinfer.Pipeline, content *dispatch.MemoryContent, text string) *job {
 	t.Helper()
-	in := outputInput(t, content, childPart, dispatch.TextOutput, text)
+	return startRun(t, p, content, outputInput(t, content, childPart, dispatch.TextOutput, text), docinfer.Options{})
+}
+
+// startRun runs p over in, from content, with opts, on a goroutine of its own, until the job's
+// outcome or its panic.
+func startRun(t *testing.T, p *docinfer.Pipeline, content *dispatch.MemoryContent, in docinfer.Input, opts docinfer.Options) *job {
+	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
 	j := &job{cancel: cancel, done: make(chan outcome, 1), panicked: make(chan any, 1)}
 	go func() {
 		defer func() {
@@ -112,9 +119,15 @@ func startJob(t *testing.T, p *docinfer.Pipeline, content *dispatch.MemoryConten
 				j.panicked <- v
 			}
 		}()
-		j.done <- collect(t, p.Run(ctx, content, seq(in), docinfer.Options{}))
+		j.done <- collect(t, p.Run(ctx, content, seq(in), opts))
 	}()
 	return j
+}
+
+// outcome returns j's outcome, failing the test if it doesn't come within failsafe.
+func (j *job) outcome(t *testing.T) outcome {
+	t.Helper()
+	return receive(t, j.done, "outcome of a job")
 }
 
 // vectors returns o's chunks' vectors, or their errors, by their texts.
@@ -144,7 +157,7 @@ func TestJoinOneRequestPerKey(t *testing.T) {
 	e.gate.Await(t, 2)
 	e.gate.Open()
 
-	lo, wo, oo := <-leader.done, <-waiter.done, <-other.done
+	lo, wo, oo := leader.outcome(t), waiter.outcome(t), other.outcome(t)
 	for _, o := range []outcome{lo, wo, oo} {
 		if o.err != nil {
 			t.Fatalf("Run: %v", o.err)
@@ -196,12 +209,12 @@ func TestJoinLeaderCancelled(t *testing.T) {
 	waiter := startJob(t, p, content, joined)
 	awaitWaiters(t, waits, 1)
 	leader.cancel()
-	if o := <-leader.done; !errors.Is(o.err, context.Canceled) {
+	if o := leader.outcome(t); !errors.Is(o.err, context.Canceled) {
 		t.Fatalf("the cancelled leader yielded %v, want context.Canceled", o.err)
 	}
 	e.gate.Open()
 
-	wo := <-waiter.done
+	wo := waiter.outcome(t)
 	if wo.err != nil {
 		t.Fatalf("the waiter's Run: %v", wo.err)
 	}
@@ -229,7 +242,7 @@ func TestJoinLeaderTransientFailure(t *testing.T) {
 	awaitWaiters(t, waits, 1)
 	e.gate.Open()
 
-	lo, wo := <-leader.done, <-waiter.done
+	lo, wo := leader.outcome(t), waiter.outcome(t)
 	if apiErr, ok := errors.AsType[*ai.APIError](lo.err); !ok || apiErr.Status != 503 || docinfer.Permanent(lo.err) {
 		t.Errorf("the leader yielded %v, want its transient 503", lo.err)
 	}
@@ -253,7 +266,7 @@ func TestJoinWaiterCancelled(t *testing.T) {
 	waiter := startJob(t, p, content, joined)
 	awaitWaiters(t, waits, 1)
 	waiter.cancel()
-	wo := <-waiter.done
+	wo := waiter.outcome(t)
 	if !errors.Is(wo.err, context.Canceled) || wo.results != 1 {
 		t.Errorf("the cancelled waiter yielded %d results, %v, want context.Canceled alone", wo.results, wo.err)
 	}
@@ -262,7 +275,7 @@ func TestJoinWaiterCancelled(t *testing.T) {
 	}
 	e.gate.Open()
 
-	lo := <-leader.done
+	lo := leader.outcome(t)
 	if lo.err != nil {
 		t.Fatalf("the leader's Run: %v", lo.err)
 	}
@@ -300,10 +313,10 @@ func TestJoinLeaderPanics(t *testing.T) {
 	awaitWaiters(t, waits, 1)
 	e.gate.Open()
 
-	if v := <-leader.panicked; v != errPutDefect {
+	if v := receive(t, leader.panicked, "panic of the leader"); v != errPutDefect {
 		t.Errorf("the leader's Run panicked with %v, want the cache's %v", v, errPutDefect)
 	}
-	wo := <-waiter.done
+	wo := waiter.outcome(t)
 	if wo.err != nil {
 		t.Fatalf("the waiter's Run: %v", wo.err)
 	}
@@ -332,7 +345,7 @@ func TestJoinBatchPartlyInFlight(t *testing.T) {
 	}
 	e.gate.Open()
 
-	lo, bo := <-leader.done, <-batch.done
+	lo, bo := leader.outcome(t), batch.outcome(t)
 	if lo.err != nil || bo.err != nil {
 		t.Fatalf("Run: %v, %v", lo.err, bo.err)
 	}
@@ -382,7 +395,7 @@ func TestJoinSharesRefusalAndPermanentFailure(t *testing.T) {
 			awaitWaiters(t, waits, 1)
 			e.gate.Open()
 
-			tc.check(t, <-leader.done, <-waiter.done)
+			tc.check(t, leader.outcome(t), waiter.outcome(t))
 			if asked := e.asked(); len(asked) != 1 {
 				t.Errorf("%d requests %q, want the leader's alone", len(asked), asked)
 			}

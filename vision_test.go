@@ -250,7 +250,7 @@ func TestRunJoinsImage(t *testing.T) {
 	awaitWaiters(t, waits, 1)
 	gate.Open()
 
-	lo, wo := <-leader.done, <-waiter.done
+	lo, wo := leader.outcome(t), waiter.outcome(t)
 	for _, o := range []outcome{lo, wo} {
 		if o.err != nil {
 			t.Fatal(o.err)
@@ -278,19 +278,6 @@ func TestRunJoinsImage(t *testing.T) {
 	if lo.counts.Vision == nil || *lo.counts.Vision != (docinfer.VisionCounts{Described: 1, Requests: 1}) {
 		t.Errorf("the leader's vision counts %+v, want described by its one request", lo.counts.Vision)
 	}
-}
-
-// startRun runs p over in, from content, with opts, on a goroutine of its own, until the job's
-// outcome.
-func startRun(t *testing.T, p *docinfer.Pipeline, content *dispatch.MemoryContent, in docinfer.Input, opts docinfer.Options) *job {
-	t.Helper()
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-	j := &job{cancel: cancel, done: make(chan outcome, 1), panicked: make(chan any, 1)}
-	go func() {
-		j.done <- collect(t, p.Run(ctx, content, seq(in), opts))
-	}()
-	return j
 }
 
 // A reply that completes with a refusal and no text is outcome refused, held with the refusal's

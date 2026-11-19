@@ -342,7 +342,7 @@ func TestRunExtractsInferredTexts(t *testing.T) {
 }
 
 // Progress is yielded as the stream makes it: the first delta reaches the caller while the rest
-// of the stream is still held.
+// of the stream is still held, and nothing lets it go until that delta has come.
 func TestRunExtractionProgressStreams(t *testing.T) {
 	gate := &aitest.Gate{}
 	e := aitest.Serve(t, aitest.Routes{
@@ -352,29 +352,34 @@ func TestRunExtractionProgressStreams(t *testing.T) {
 	p := extractPipeline(t, extractConfig(t, e, nil))
 	content := dispatch.NewMemoryContent()
 	results := p.Run(t.Context(), content, seq(outputInput(t, content, childPart, dispatch.TextOutput, plainText)), extracting(false))
-	var (
-		progress []string
-		inf      *docinfer.Inference
-	)
-	for r, err := range results {
-		switch {
-		case err != nil:
-			t.Fatal(err)
-		case r.Progress != nil:
-			if len(progress) == 0 && gate.Parked() != 1 {
-				t.Error("the first progress came once the stream was let go, want it while held")
+	first := make(chan struct{})
+	done := make(chan outcome, 1)
+	go func() {
+		var once sync.Once
+		done <- collect(t, func(yield func(docinfer.Result, error) bool) {
+			for r, err := range results {
+				if r.Progress != nil {
+					once.Do(func() { close(first) })
+				}
+				if !yield(r, err) {
+					return
+				}
 			}
-			progress = append(progress, r.Progress.Delta)
-			gate.Open()
-		case r.Inference != nil:
-			inf = r.Inference
-		}
+		})
+	}()
+	gate.Await(t, 1)
+	receive(t, first, "progress while the stream is held")
+	gate.Open()
+
+	o := receive(t, done, "outcome of the run")
+	if o.err != nil {
+		t.Fatal(o.err)
 	}
 	// The clock stands still, so every later delta is left to the inference.
-	if !slices.Equal(progress, extractPieces[:1]) {
-		t.Errorf("progress %q, want %q", progress, extractPieces[:1])
+	if got := deltas(t, o, plainText); !slices.Equal(got, extractPieces[:1]) {
+		t.Errorf("progress %q, want %q", got, extractPieces[:1])
 	}
-	if inf == nil || inf.Outcome != docinfer.OutcomeExtracted || inf.Text != extractJSON {
+	if inf := oneExtraction(t, o, childPart, plainText); inf.Outcome != docinfer.OutcomeExtracted || inf.Text != extractJSON {
 		t.Errorf("extraction %+v, want the whole JSON extracted", inf)
 	}
 }
@@ -665,16 +670,12 @@ func TestRunJoinsExtraction(t *testing.T) {
 		leader <- collect(t, results)
 	}()
 	gate.Await(t, 1)
-	select {
-	case <-batched:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the leader yielded no batch")
-	}
+	receive(t, batched, "batch from the leader")
 	waiter := startRun(t, p, content, in, extracting(false))
 	awaitWaiters(t, waits, 1)
 	gate.Open()
 
-	lo, wo := <-leader, <-waiter.done
+	lo, wo := receive(t, leader, "outcome of the leader"), waiter.outcome(t)
 	for _, o := range []outcome{lo, wo} {
 		if o.err != nil {
 			t.Fatal(o.err)

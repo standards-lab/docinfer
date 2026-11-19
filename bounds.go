@@ -13,6 +13,10 @@ type Bounds struct {
 	// slots holds one semaphore per capability: a request in flight holds a slot, a buffered
 	// channel's place, from before its call until after it returns.
 	slots map[Capability]chan struct{}
+	// onWait, when set, is called as a request finds its capability's slots all held and starts to
+	// wait: a test's hook, set before any request, so a test sees requests held at a bound without
+	// a sleep.
+	onWait func(Capability)
 }
 
 // NewBounds returns a Bounds of at most vision, transcription, extraction, and embeddings requests
@@ -52,8 +56,15 @@ func (b *Bounds) do(ctx context.Context, c Capability, call func(ctx context.Con
 	}
 	select {
 	case slots <- struct{}{}:
-	case <-ctx.Done():
-		return ctx.Err()
+	default:
+		if b.onWait != nil {
+			b.onWait(c)
+		}
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	defer func() { <-slots }()
 	return call(ctx)

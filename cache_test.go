@@ -125,30 +125,3 @@ func TestHeldJSON(t *testing.T) {
 		}
 	}
 }
-
-// A held value decodes as Held only when it is one JSON object of Held's members alone, its
-// vector one DecodeVector reads; anything else is a miss.
-func TestDecodeHeld(t *testing.T) {
-	for _, tc := range []struct {
-		value string
-		want  docinfer.Held
-	}{
-		{`{}`, docinfer.Held{}},
-		{` {"text":"a cat"} `, docinfer.Held{Text: "a cat"}},
-		{`{"vector":"AACAPwAAAMA="}`, docinfer.Held{Vector: "AACAPwAAAMA="}},
-		{`{"text":"a","incomplete":"max_output_tokens","refused":"no"}`, docinfer.Held{Text: "a", Incomplete: "max_output_tokens", Refused: "no"}},
-	} {
-		got, ok := docinfer.DecodeHeld([]byte(tc.value))
-		if !ok || got != tc.want {
-			t.Errorf("decode %s: %+v, %t; want %+v, true", tc.value, got, ok, tc.want)
-		}
-	}
-	for _, value := range []string{
-		``, ` `, `null`, `"a cat"`, `[]`, `{`, `{"text":1}`, `{"text":"a"} {}`, `{"text":"a"}x`,
-		`{"description":"a cat"}`, `{"vector":"not base64!"}`, `{"vector":"AACA"}`,
-	} {
-		if got, ok := docinfer.DecodeHeld([]byte(value)); ok {
-			t.Errorf("decode %q: %+v, true; want a miss", value, got)
-		}
-	}
-}

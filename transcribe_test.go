@@ -293,7 +293,7 @@ func transcriptCounts(o outcome, windows int, tc docinfer.TranscriptionCounts, m
 }
 
 // endsBefore returns inputs as a stream that, once they are all pulled, waits for release before
-// it ends, at most ten seconds, setting late if it waited them out: a group that ends before the
+// it ends, at most failsafe, setting late if it waited it out: a group that ends before the
 // inputs do releases it.
 func endsBefore(release <-chan struct{}, late *atomic.Bool, inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	return func(yield func(docinfer.Input, error) bool) {
@@ -304,7 +304,7 @@ func endsBefore(release <-chan struct{}, late *atomic.Bool, inputs ...docinfer.I
 		}
 		select {
 		case <-release:
-		case <-time.After(10 * time.Second):
+		case <-time.After(failsafe):
 			late.Store(true)
 		}
 	}
@@ -581,7 +581,7 @@ func TestRunJoinsWindow(t *testing.T) {
 	awaitWaiters(t, waits, 1)
 	s.gate.Open()
 
-	lo, wo := <-leader.done, <-waiter.done
+	lo, wo := leader.outcome(t), waiter.outcome(t)
 	transcriptions := 0
 	for _, r := range e.Requests() {
 		if strings.HasSuffix(r.Path, "/audio/transcriptions") {

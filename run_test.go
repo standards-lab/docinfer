@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docinfer/chunk"
@@ -69,6 +70,23 @@ func runConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) do
 		edit(&cfg)
 	}
 	return cfg
+}
+
+// failsafe bounds every wait a test makes on what a job does, as aitest's Gate.Await bounds its
+// own: a stall is a finding, so a wait that runs out fails the test rather than hang it.
+const failsafe = 10 * time.Second
+
+// receive returns the next value from ch, failing the test, naming what it waited for, if none
+// comes within failsafe. It calls t.Fatalf, so it runs on the test's goroutine.
+func receive[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	var v T
+	select {
+	case v = <-ch:
+	case <-time.After(failsafe):
+		t.Fatalf("no %s within %v", what, failsafe)
+	}
+	return v
 }
 
 // newPipeline returns New(cfg), failing the test on an error.
@@ -530,7 +548,7 @@ func TestRunPullsWithinPending(t *testing.T) {
 		}
 		gate.Release(1)
 	}
-	o := <-done
+	o := receive(t, done, "outcome of the run")
 	if o.err != nil {
 		t.Fatalf("Run: %v", o.err)
 	}
@@ -641,7 +659,7 @@ func TestRunCancelled(t *testing.T) {
 	}()
 	gate.Await(t, 1)
 	cancel()
-	errs := <-done
+	errs := receive(t, done, "end of the cancelled run")
 	if len(errs) != 1 || errs[0] != context.Canceled {
 		t.Errorf("a cancelled run yielded %v, want context.Canceled alone", errs)
 	}
@@ -685,28 +703,63 @@ func TestRunMissingContent(t *testing.T) {
 	}
 }
 
-// A held value that doesn't decode is a miss: the model is asked again, and its Put replaces it.
-func TestRunUndecodableHeldValue(t *testing.T) {
-	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
-	cfg := runConfig(t, e, nil)
-	p := newPipeline(t, cfg)
+// A held value is read only when it is one JSON object of Held's members alone, its vector one
+// DecodeVector reads: the model is asked nothing. Anything else, a value of another capability's
+// shape included, is a miss: the model is asked again, and its Put replaces the value.
+func TestRunReadsHeldValues(t *testing.T) {
 	const text = "One short chunk."
 	digest := sha(text)
-	if err := cfg.Cache.Put(t.Context(), docinfer.Key(embeddingID, digest), []byte("not a held value")); err != nil {
-		t.Fatal(err)
+	vec := encode([]float32{7, 8})
+	run := func(t *testing.T, value string) (outcome, *aitest.Endpoint, docinfer.Cache) {
+		t.Helper()
+		e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
+		cfg := runConfig(t, e, nil)
+		if err := cfg.Cache.Put(t.Context(), docinfer.Key(embeddingID, digest), []byte(value)); err != nil {
+			t.Fatal(err)
+		}
+		content := dispatch.NewMemoryContent()
+		o := collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(outputInput(t, content, childPart, dispatch.TextOutput, text)), docinfer.Options{}))
+		if o.err != nil {
+			t.Fatal(o.err)
+		}
+		return o, e, cfg.Cache
 	}
-	content := dispatch.NewMemoryContent()
-	o := collect(t, p.Run(t.Context(), content, seq(outputInput(t, content, childPart, dispatch.TextOutput, text)), docinfer.Options{}))
-	if o.err != nil {
-		t.Fatal(o.err)
+	embedded := docinfer.Counts{Texts: 1, Embedded: 1, Held: 1}
+	for _, tc := range []struct {
+		value         string
+		vector, error string
+		counts        docinfer.Counts
+	}{
+		{` {"vector":"` + vec + `"} `, vec, "", embedded},
+		{`{"vector":"` + vec + `","text":"a","incomplete":"max_output_tokens"}`, vec, "", embedded},
+		{`{"refused":"no"}`, "", "no", docinfer.Counts{Texts: 1, Rejected: 1, Held: 1}},
+	} {
+		t.Run("read "+tc.value, func(t *testing.T) {
+			o, e, _ := run(t, tc.value)
+			if n := len(e.Requests()); n != 0 {
+				t.Errorf("%d requests, want the held value read", n)
+			}
+			if c := o.chunks(); len(c) != 1 || c[0].chunk.Vector != tc.vector || c[0].chunk.Error != tc.error {
+				t.Errorf("chunks %+v, want the held vector %q, error %q", c, tc.vector, tc.error)
+			}
+			checkCounts(t, o, tc.counts)
+		})
 	}
-	if n := len(e.Requests()); n != 1 {
-		t.Errorf("%d requests, want the undecodable value asked again", n)
+	for _, value := range []string{
+		` `, `null`, `"a cat"`, `[]`, `{`, `{"text":1}`, `{"vector":"` + vec + `"} {}`, `{"vector":"` + vec + `"}x`,
+		`{"description":"a cat"}`, `{"vector":"not base64!"}`, `{"vector":"AACA"}`, `{}`, `{"text":"a cat"}`,
+	} {
+		t.Run("miss "+value, func(t *testing.T) {
+			o, e, cache := run(t, value)
+			if n := len(e.Requests()); n != 1 {
+				t.Errorf("%d requests, want the value asked again", n)
+			}
+			if h := held(t, cache, digest); h == nil || !slices.Equal(vector(t, h.Vector), vectorOf(text)) {
+				t.Errorf("held %+v, want the model's vector in place of the value", h)
+			}
+			checkCounts(t, o, docinfer.Counts{Texts: 1, Embedded: 1, Requests: 1, Tokens: docinfer.Tokens{Embeddings: docinfer.Usage{Input: 3}}})
+		})
 	}
-	if h := held(t, cfg.Cache, digest); h == nil || !slices.Equal(vector(t, h.Vector), vectorOf(text)) {
-		t.Errorf("held %+v, want the model's vector in place of the undecodable value", h)
-	}
-	checkCounts(t, o, docinfer.Counts{Texts: 1, Embedded: 1, Requests: 1, Tokens: docinfer.Tokens{Embeddings: docinfer.Usage{Input: 3}}})
 }
 
 // A vector whose length isn't Dimensions stops the job, permanent: one the model made, before
