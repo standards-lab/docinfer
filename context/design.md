@@ -266,9 +266,9 @@ without waiting out the leader's request.
 
 **Decision.** docinfer's own claim table, in the library task: a mutex, a map of calls, and a done
 channel per call. `claim(keys)` returns which keys are the caller's and which are waited for; the
-wait selects on the caller's context; a call that ends without a result wakes its waiters to
-claim again. It is one mechanism for single keys and batches. Release is deferred, so a panicking
-leader doesn't strand waiters, and the key is deleted before they wake. Its unit tests run under
+wait selects on the caller's context; a call that ends without a result wakes its waiters to claim
+again. It is one mechanism for single keys and batches. Release is deferred, so a panicking leader
+doesn't strand waiters, and the key is deleted before they wake. Its tests, through `Run`, run under
 `-race`: leader cancelled, leader's transient failure, waiter cancelled, leader panics, a batch
 partly in flight. The base module requires docproc and go-ai alone.
 
@@ -517,10 +517,12 @@ use.
 docinfer's API: layers' docinfer sections at 673ed3d, restated in go-ai's and docproc's released
 names, with the findings above applied. A finding's id marks where it changes layers. Three go-ai
 names are go-ai v0.4.0's, which the go-ai task adds (G1–G3): `(*protocol.Response).OutputText`,
-`(*ai.Client).TranscriptionMode()`, and the package `aitest`, built from `internal/aitest`'s server
-and `infer`'s endpoint, with a `Gate` and stream holds, while `internal/aitest` stays go-ai's
-format-test kit. Every other go-ai name is v0.3.0's, and every docproc name docproc
-v0.3.0's. layers' docinfer sections are superseded by this one.
+`(*ai.Client).TranscriptionMode()`, and the package `aitest`, a fake endpoint that answers each
+route by a test's function over the decoded request and its arrival number. Its typed replies are
+in Chat Completions' shapes only, a raw reply answers any route, an error reply carries
+Retry-After, a route with no function answers 404, and a `Gate` and stream holds park requests and
+streams. `internal/aitest` stays go-ai's format-test kit. Every other go-ai name is v0.3.0's, and
+every docproc name docproc v0.3.0's. layers' docinfer sections are superseded by this one.
 
 ### Modules and packages
 
@@ -587,11 +589,12 @@ type Cache interface {
     // Get returns keys' values in one call, values[i] keys[i]'s, nil for a miss; a held value
     // is never empty.
     Get(ctx context.Context, keys ...string) ([][]byte, error)
-    Put(ctx context.Context, key string, value []byte) error // replaces a held value
+    Put(ctx context.Context, key string, value []byte) error // replaces; "" refused, ErrRequest
 }
 // Key is "<capability>/" and the lowercase hex SHA-256 of Version, id's capability, model, and
-// settings, and content, each length-prefixed (L18). content is the content's SHA-256: the
-// image's, the window's, the source text's, or the chunk's text's.
+// settings, and content, each prefixed by its length in bytes as a big-endian uint64 (L18).
+// content is the content's SHA-256: the image's, the window's, the source text's, or the chunk's
+// text's.
 func Key(id Identity, content string) string
 func NewFileCache(dir string) (*FileCache, error) // <dir>/<capability>/<xx>/<hash>.json; "" refused
 func NewMemoryCache() *MemoryCache
@@ -606,7 +609,10 @@ type Held struct {
 
 package docinfertest
 // Cache runs the cache contract against a new, empty cache newCache makes for each case: a miss
-// is nil, a Get of many keys answers each in order, a Put replaces, and values come back whole.
+// is nil; a Get of many keys answers each in order; a Put replaces; values come back whole and
+// share no memory with the caller; an empty value is refused, matching docinfer.ErrRequest; the
+// same content under each capability is four keys; an ended context fails Get and Put; and
+// concurrent Puts and Gets leave each key one whole value.
 func Cache(t *testing.T, newCache func(t *testing.T) docinfer.Cache)
 ```
 
@@ -616,9 +622,9 @@ again, and its `Put` replaces the value. A held vector whose length isn't `Confi
 miss but the same permanent error as a new one of that length (L11). `Cache` keeps `Get` and `Put`
 alone: docinfer removes nothing, so a held refusal stays until its key changes, by `Version`, a
 request version, or the model, or the host removes it from its own store. `FileCache` and
-`MemoryCache` are safe for concurrent use and run `docinfertest.Cache`, as `postgres`'s cache does.
-A golden key per capability pins `Key`'s form, failing with "change the version" (L27). The spike's
-held results are not carried over, so the cache starts empty.
+`MemoryCache` are safe for concurrent use and pass `docinfertest.Cache`, every case of it, as
+`postgres`'s cache must. A golden key per capability pins `Key`'s form, failing with "change the
+version" (L27). The spike's held results are not carried over, so the cache starts empty.
 
 ### The pipeline
 
@@ -705,7 +711,9 @@ asks the model itself; a cancelled waiter stops at once; a waiter holds no `Boun
 result counts as `Held`. Each go-ai call takes the job's context, and the client is safe for
 concurrent use. One unexported runner over `Bounds` serves every capability; `Cache.Put` runs
 outside any lock; `yield` is called from `Run`'s goroutine alone, and `Run` waits for its requests
-in flight before it returns (L5).
+in flight before it returns (L5). A panic on one of the job's goroutines, in a `Cache` or the input
+stream, stops the job, and `Run` panics with its value on the goroutine ranging over it once the
+job's other goroutines have ended.
 
 `Run` reads each input by `dispatch`'s constants, never literals (L21):
 
@@ -733,8 +741,8 @@ in flight before it returns (L5).
 Content is opened only on a miss, or to chunk an output's text: an output's `SHA256` is already its
 key's content (L2). A content `content` misses is `*MissingError`.
 
-Extraction runs the run's `Extract` over each source text but metadata, once each, whole: a
-`protocol.Request` of `Instructions` the prompt, one user `protocol.Message` of the text as
+Extraction runs the run's `Extract` once over each whole source text, except metadata and an empty
+text: a `protocol.Request` of `Instructions` the prompt, one user `protocol.Message` of the text as
 `protocol.InputText`, `Text: protocol.TextParam{Format: protocol.JSONSchemaFormat{Name, Schema,
 Strict: true}}`, its `MaxOutputTokens` and `Reasoning.Effort` `Extraction`'s, sent with
 `GenerateStream` and folded by a `protocol.Accumulator` (L15). Through a Chat Completions client,
@@ -838,7 +846,7 @@ type Identity struct {
 type Profile struct {
     Vision        *Identity `json:"vision,omitempty"`
     Transcription *Identity `json:"transcription,omitempty"`
-    Extraction    *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
+    Extraction    *Identity `json:"extraction,omitempty"` // its settings less name, prompt, schema
     Embeddings    Identity  `json:"embeddings"`
     Dimensions    int       `json:"dimensions"` // Config.Dimensions, checked per vector
     Chunker       string    `json:"chunker"`    // the Splitter's Settings
@@ -947,11 +955,12 @@ window, source text, and chunk as often as the job holds it, and the cache hits 
 count needs a set of the job's digests (L2); the outputs and the parts by outcome are dispatch's
 facts, in `job.Done`. Each `Usage` is less `Total`.
 
-A transcript's outcome is transcribed when every window was; otherwise failed when a window
-failed, refused when one was refused and none failed, and incomplete when the rest were incomplete
-or never cut. A chunk is identified by its job, its part's `ID`, its source's kind and text
-SHA-256, and its index: the same content in two places is two chunks, and a redelivery's repeat is
-the same one. Per-item digests, provenance, and the profile are docinfer's, and warnings docproc's.
+A transcript's outcome is transcribed when every window was; otherwise failed when a window failed,
+refused when one was refused and none failed, and incomplete when the rest were incomplete or never
+cut. A transcript's chunks carry that outcome in `Source.Incomplete` when it isn't transcribed. A
+chunk is identified by its job, its part's `ID`, its source's kind and text SHA-256, and its index:
+the same content in two places is two chunks, and a redelivery's repeat is the same one. Per-item
+digests, provenance, and the profile are docinfer's, and warnings docproc's.
 
 ### One job, and its cancellation
 
@@ -1059,9 +1068,13 @@ type Embeddings struct {
 func (e Embeddings) Identity() Identity // {embeddings, Model, ""} (L16)
 // Permanent reports whether an error Pipeline.Run or job.Runner.Run yields is one no
 // redelivery changes: a row the table marks permanent, a mismatched input (dispatch.ErrSHA256),
-// an input's defect (an image without a MediaType, a window of another media type), a vector
-// whose length is not Config.Dimensions, a refused Extract (ErrRequest), or a run asking for
-// extraction with no Config.Extraction.
+// an input's defect, a vector whose length is not Config.Dimensions, a refused Extract
+// (ErrRequest), or a run asking for extraction with no Config.Extraction. An input's defect is:
+//   - an image without a MediaType
+//   - a window of another media type
+//   - a window whose MetaWindow is missing, unparseable, or negative
+//   - a window whose MetaSeamBefore or MetaSeamAfter doesn't parse
+//   - an audio plan record that doesn't decode or has no windows member
 func Permanent(err error) bool
 ```
 
