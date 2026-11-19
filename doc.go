@@ -9,8 +9,18 @@
 // [FileCache] and [MemoryCache] are the module's caches, and package docinfertest holds the
 // contract every cache passes.
 //
+// A [Pipeline] is built by [New] from a [Config]: a go-ai client and settings per capability
+// ([Vision], [Transcription], [Extraction], and [Embeddings]), the chunker, the cache, and a
+// [Bounds] from [NewBounds], which caps each capability's requests in flight across every
+// pipeline built on it. Nothing has a default. Each capability's [Identity] holds its settings as
+// one JSON encoding led by its request's version, and [Pipeline.Profile] reports them.
+//
 // The package exports:
 //
+//   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity
+//   - [Bounds] and [NewBounds], the requests in flight per capability
+//   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client and
+//     settings, and each one's Identity; [Extract], a caller's prompt and schema
 //   - [Cache], its Get and Put, and its two implementations, [FileCache] from [NewFileCache] and
 //     [MemoryCache] from [NewMemoryCache]
 //   - [Key], a result's cache key, and [Held], a held value's JSON

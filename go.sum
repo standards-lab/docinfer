@@ -1,4 +1,6 @@
 github.com/standards-lab/docproc v0.3.0 h1:+ZbrQG3wgSHY4R+Gu5XdWzHZOACIofY26+EJzHd+cdk=
 github.com/standards-lab/docproc v0.3.0/go.mod h1:ZA8JYQPooA6YA84b00Lpu5AiSL2VSj/u7QnenltqVBA=
+github.com/standards-lab/go-ai v0.4.0 h1:x9NsP57hjVyW1VQ+spXiwNTWRncqJiM4OxGZsjZ+rPM=
+github.com/standards-lab/go-ai v0.4.0/go.mod h1:UHiE2lCeAnZ6SmnbfyYSyT5UsKPvDRdil6GozyHPu9A=
 golang.org/x/text v0.44.0 h1:YItdp/mQNGnsmrgpcdA5yQ3bnRxCfo/Tj/iByGW9GGo=
 golang.org/x/text v0.44.0/go.mod h1:S4FR1waQ9LbjQTls97SyRjDaUUVkaM+cXwwuG/G+MwY=

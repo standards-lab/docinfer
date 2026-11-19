@@ -1,0 +1,130 @@
+package docinfer
+
+import (
+	"fmt"
+
+	"github.com/standards-lab/docinfer/chunk"
+	"github.com/standards-lab/docinfer/join"
+)
+
+// Config is a [Pipeline]'s configuration. Nothing in it has a default: [New] refuses a count or
+// bound below 1 and an empty model, and panics on a missing client, cache, or Bounds.
+type Config struct {
+	Vision        *Vision        // nil skips images, counted
+	Transcription *Transcription // nil skips windows, counted
+	Extraction    *Extraction    // nil: a run that asks for extraction fails, permanent
+	Embeddings    Embeddings     // required
+	Chunker       chunk.Splitter // its Bound at least 1
+	// Dimensions is the embedding space's, at least 1: a vector of another length, made or held,
+	// fails the job, permanent.
+	Dimensions int
+	Cache      Cache   // required
+	Bounds     *Bounds // required: the requests in flight per capability, shared
+	Pending    int     // at least 1: a job's inputs admitted and not yet finished
+	EmbedBatch int     // at least 1: texts per Embed call
+	BatchBytes int     // at least 1: a batch's marshalled JSON's cap
+	Join       join.Request
+}
+
+// Pipeline infers over jobs' inputs with one configuration. It is built once by [New] and runs
+// many jobs, and is safe for concurrent use.
+type Pipeline struct {
+	cfg     Config
+	profile Profile
+}
+
+// New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or
+// Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
+// wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
+// Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens) and an
+// empty Model. It copies the capabilities cfg points to, so a later change to them changes
+// nothing.
+func New(cfg Config) (*Pipeline, error) {
+	if cfg.Cache == nil {
+		panic("docinfer: New: nil Cache")
+	}
+	if cfg.Bounds == nil {
+		panic("docinfer: New: nil Bounds")
+	}
+	if cfg.Embeddings.Client == nil {
+		panic("docinfer: New: nil Embeddings.Client")
+	}
+	if cfg.Vision != nil && cfg.Vision.Client == nil {
+		panic("docinfer: New: nil Vision.Client")
+	}
+	if cfg.Transcription != nil && cfg.Transcription.Client == nil {
+		panic("docinfer: New: nil Transcription.Client")
+	}
+	if cfg.Extraction != nil && cfg.Extraction.Client == nil {
+		panic("docinfer: New: nil Extraction.Client")
+	}
+
+	type count struct {
+		field string
+		n     int
+	}
+	counts := []count{
+		{"Chunker.Bound", cfg.Chunker.Bound},
+		{"Dimensions", cfg.Dimensions},
+		{"Pending", cfg.Pending},
+		{"EmbedBatch", cfg.EmbedBatch},
+		{"BatchBytes", cfg.BatchBytes},
+		{"Join.WordsPerSecond", cfg.Join.WordsPerSecond},
+	}
+	models := []struct{ field, model string }{{"Embeddings.Model", cfg.Embeddings.Model}}
+	if v := cfg.Vision; v != nil {
+		counts = append(counts, count{"Vision.MaxTokens", v.MaxTokens})
+		models = append(models, struct{ field, model string }{"Vision.Model", v.Model})
+		cfg.Vision = new(*v)
+	}
+	if t := cfg.Transcription; t != nil {
+		models = append(models, struct{ field, model string }{"Transcription.Model", t.Model})
+		cfg.Transcription = new(*t)
+	}
+	if x := cfg.Extraction; x != nil {
+		counts = append(counts, count{"Extraction.MaxTokens", x.MaxTokens})
+		models = append(models, struct{ field, model string }{"Extraction.Model", x.Model})
+		cfg.Extraction = new(*x)
+	}
+	for _, c := range counts {
+		if c.n < 1 {
+			return nil, fmt.Errorf("docinfer: New: %w: %s %d is below 1", ErrRequest, c.field, c.n)
+		}
+	}
+	for _, m := range models {
+		if m.model == "" {
+			return nil, fmt.Errorf("docinfer: New: %w: %s is empty", ErrRequest, m.field)
+		}
+	}
+
+	p := &Pipeline{cfg: cfg}
+	p.profile = Profile{
+		Embeddings: cfg.Embeddings.Identity(),
+		Dimensions: cfg.Dimensions,
+		Chunker:    cfg.Chunker.Settings(),
+	}
+	if cfg.Vision != nil {
+		p.profile.Vision = new(cfg.Vision.Identity())
+	}
+	if cfg.Transcription != nil {
+		p.profile.Transcription = new(cfg.Transcription.Identity())
+	}
+	if cfg.Extraction != nil {
+		p.profile.Extraction = new(cfg.Extraction.profile())
+	}
+	return p, nil
+}
+
+// Profile returns the pipeline's resolved identity: each capability's [Identity], the
+// embeddings' Dimensions, and the Chunker's Settings, known before any job runs. An unset
+// capability's identity is nil, and the extraction's settings are {"request","max_tokens",
+// "effort"}, less the name, prompt, and schema each run's [Extract] gives.
+func (p *Pipeline) Profile() Profile {
+	pr := p.profile
+	for _, id := range []**Identity{&pr.Vision, &pr.Transcription, &pr.Extraction} {
+		if *id != nil {
+			*id = new(**id)
+		}
+	}
+	return pr
+}
