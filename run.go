@@ -88,10 +88,6 @@ const (
 	sourceMetadata = "metadata"
 )
 
-// errNotYet is the cause of a run that asks for what this version of the pipeline doesn't build
-// yet: an Extract.
-var errNotYet = errors.New("docinfer: not yet built")
-
 // errInputDefect is the cause of an input no redelivery mends, which [Permanent] reports: an image
 // output without a MediaType, a window of a media type other than audio/wav or audio/mpeg, or
 // whose Meta doesn't place it, and an audio plan record that doesn't decode.
@@ -130,6 +126,22 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // input's slot only until its own transcript is in, so a group of more windows than
 // Config.Pending never waits on inputs it can't pull.
 //
+// With Options.Extract set, Run refuses, matching [ErrRequest], an Extract whose prompt is empty
+// or isn't UTF-8, or whose name or schema go-ai's json_schema format refuses, and stops,
+// [Permanent], when the pipeline has no Config.Extraction, each before it reads an input. Each source text but
+// metadata, an output's text, an image's description, and a transcript, is then extracted once,
+// unless it is empty: keyed by extraction's Identity for the Extract and the text's SHA-256, read
+// from the cache, or streamed from the model by GenerateStream with the prompt as instructions and
+// the text as the user message, the Extract's name and schema a strict json_schema format, and
+// folded by a protocol.Accumulator. Each text delta is yielded as [Progress] as it streams, at
+// most one a second per source text, each carrying the text since the last; the text a stream ends
+// with unsent is its inference's. A held extraction yields no progress. The folded reply is held
+// before its [Inference] is yielded: a completed one is outcome extracted, its text the reply's
+// JSON, which nothing decodes; an incomplete one keeps its partial text, its Reason why the model
+// stopped; one with a refusal and no text is refused. A stream that breaks part way holds nothing
+// and stops the job, transient, the progress it yielded standing. An input finishes once its
+// chunks are complete and its extraction is in.
+//
 // Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
 // from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything
 // derived from it is yielded. A held value that doesn't decode is a miss, which
@@ -145,18 +157,20 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 //
 // A go-ai failure maps by the failure table: a refused status, 400, 413, 415, or 422, re-sends
 // an embedding call a text at a time, and a text so refused is its chunk's Error, held, as an
-// image so refused is outcome refused, held, its Reason the error's text; a permanent or
-// transient failure stops the job with the error, wrapped; a failed one stops it too, except on
-// Options.Final, where its chunks' Error, or its image's or window's outcome failed, is recorded,
-// never held, and the job goes on. An error stops the job: Run cancels its requests, waits for
-// them, and yields the error alone, last. A cancelled context yields ctx.Err() alone, last.
+// image or extraction so refused is outcome refused, held, its Reason the error's text; a
+// permanent or transient failure stops the job with the error, wrapped; a failed one stops it
+// too, except on Options.Final, where its chunks' Error, or its image's, window's, or
+// extraction's outcome failed, is recorded, never held, and the job goes on. An error stops the
+// job: Run cancels its requests, waits for them, and yields the error alone, last. A cancelled
+// context yields ctx.Err() alone, last.
 //
 // The pipeline joins work in flight across its jobs by Key: a chunk's embedding or an image's
 // description another job is asking for, read from neither the cache nor the model, is waited
-// for, holding no Bounds slot, and counted Held. A window's transcript is joined the same way. A
-// waited-for refusal is the chunk's Error, or the image's or window's outcome, and a permanent
-// failure stops this job too; a job that ends without a result, cancelled, failing otherwise, or panicking, leaves
-// its waiters to ask the model themselves, and a cancelled job stops waiting at once.
+// for, holding no Bounds slot, and counted Held. A window's transcript, and a source text's
+// extraction, are joined the same way. A waited-for refusal is the chunk's Error, or the image's,
+// window's, or extraction's outcome, and a permanent failure stops this job too; a job that ends
+// without a result, cancelled, failing otherwise, or panicking, leaves its waiters to ask the
+// model themselves, and a cancelled job stops waiting at once.
 //
 // yield is called from the goroutine ranging over Run alone, and Run waits for its requests in
 // flight, and for its current pull of inputs, before it returns, stopped early or not. A panic on
@@ -164,9 +178,12 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // its value on the goroutine ranging over it once the job's other goroutines have ended.
 func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs iter.Seq2[Input, error], opts Options) iter.Seq2[Result, error] {
 	return func(yield func(Result, error) bool) {
+		// An Extract is checked before an input is read, so a refused one reads nothing.
 		if opts.Extract != nil {
-			yield(Result{}, fmt.Errorf("docinfer: run: extraction: %w", errNotYet))
-			return
+			if err := p.checkExtract(*opts.Extract); err != nil {
+				yield(Result{}, err)
+				return
+			}
 		}
 		jobCtx, cancel := context.WithCancel(ctx)
 		r := &run{
@@ -184,6 +201,10 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		}
 		if p.cfg.Transcription != nil {
 			r.counts.Transcription, r.counts.Tokens.Transcription = &TranscriptionCounts{}, &Usage{}
+		}
+		if opts.Extract != nil {
+			r.extractID = p.cfg.Extraction.Identity(*opts.Extract)
+			r.counts.Extraction, r.counts.Tokens.Extraction = &ExtractionCounts{}, &Usage{}
 		}
 		defer func() {
 			cancel()
@@ -214,6 +235,9 @@ type run struct {
 	content dispatch.Content
 	opts    Options
 	embedID Identity
+	// extractID is extraction's identity for the run's Extract, which keys its extractions; set
+	// only when the run asks for extraction.
+	extractID Identity
 	// events carries every goroutine's news to the coordinator, Run's own goroutine, which alone
 	// yields.
 	events chan event
@@ -251,10 +275,12 @@ type inputEvent struct{ in Input }
 // endEvent is the end of the inputs, err the input stream's error, if any.
 type endEvent struct{ err error }
 
-// splitEvent is an input's text cut into n chunks.
+// splitEvent is an input's text cut into n chunks, extract set when the text is extracted too,
+// after its chunks are under way.
 type splitEvent struct {
-	st *inputState
-	n  int
+	st      *inputState
+	n       int
+	extract bool
 }
 
 // doneEvent is an input's chunks complete, embedded or rejected, and the requests that made them.
@@ -293,6 +319,9 @@ type inputState struct {
 
 	split     bool // the coordinator has its count of chunks
 	remaining int
+	// extracting is set while the text's extraction is under way: the input finishes once it is
+	// in and its chunks are complete.
+	extracting bool
 	// slotless is a transcript's joined at the end of the inputs, which holds no input's slot.
 	slotless bool
 }
@@ -409,9 +438,9 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 				return err
 			}
 		case splitEvent:
-			e.st.split, e.st.remaining = true, e.st.remaining+e.n
+			e.st.split, e.st.remaining, e.st.extracting = true, e.st.remaining+e.n, e.extract
 			r.countSource(e.st)
-			if e.st.remaining == 0 {
+			if e.st.remaining == 0 && !e.st.extracting {
 				r.finishState(e.st)
 			}
 		case doneEvent:
@@ -434,7 +463,7 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			if err != nil || !ok {
 				return err
 			}
-			if e.st.split && e.st.remaining == 0 && len(e.items) > 0 {
+			if e.st.split && e.st.remaining == 0 && len(e.items) > 0 && !e.st.extracting {
 				r.finishState(e.st)
 			}
 		case inferenceEvent:
@@ -444,6 +473,14 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			}
 			if e.last {
 				r.finish()
+			}
+		case progressEvent:
+			if !yield(Result{Progress: e.p}, nil) {
+				return nil
+			}
+		case extractEvent:
+			if ok := r.extractDone(e, yield); !ok {
+				return nil
 			}
 		case windowEvent:
 			if ok, err := r.windowDone(e, yield); err != nil || !ok {

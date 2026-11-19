@@ -118,10 +118,11 @@ func (e *dimensionsError) Error() string {
 // refused statuses, which are outcomes, not errors; or a *format.UnsupportedError), a mismatched
 // input (dispatch.ErrSHA256), an input's defect (an image output without a MediaType, a window of
 // a media type other than audio/wav or audio/mpeg, or without its MetaWindow, or an audio plan
-// record that doesn't decode), a vector
-// whose length is not Config.Dimensions, or a refused request (ErrRequest). A [MissingError] is not permanent: a content store may hold the content on a
-// redelivery. A transient error carries its *ai.APIError, whose RetryAfter is the redelivery's
-// delay.
+// record that doesn't decode), a vector whose length is not Config.Dimensions, a refused request
+// (ErrRequest), an invalid [Extract] among them, or a run asking for extraction of a pipeline
+// without Config.Extraction. A [MissingError] is not permanent: a content store may hold the
+// content on a redelivery. A transient error carries its *ai.APIError, whose RetryAfter is the
+// redelivery's delay.
 func Permanent(err error) bool {
 	if err == nil {
 		return false
@@ -135,5 +136,6 @@ func Permanent(err error) bool {
 	if _, ok := errors.AsType[*dimensionsError](err); ok {
 		return true
 	}
-	return errors.Is(err, dispatch.ErrSHA256) || errors.Is(err, errInputDefect) || errors.Is(err, ErrRequest)
+	return errors.Is(err, dispatch.ErrSHA256) || errors.Is(err, errInputDefect) || errors.Is(err, ErrRequest) ||
+		errors.Is(err, errNoExtraction)
 }

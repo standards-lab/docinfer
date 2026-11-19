@@ -1,5 +1,7 @@
 package docinfer
 
+import "time"
+
 // DecodeHeld exports decodeHeld to the black-box tests.
 var DecodeHeld = decodeHeld
 
@@ -11,3 +13,7 @@ var BoundsDo = (*Bounds).do
 // OnWait sets f to be called as a waiter of p's claim table starts to wait, so a test holds a
 // leader's request until its waiters are waiting, without a sleep. It is set before p runs a job.
 func OnWait(p *Pipeline, f func()) { p.claims.onWait = f }
+
+// SetClock sets the clock p coalesces an extraction's progress by, so a test steps it per text
+// delta rather than sleep. It is set before p runs a job.
+func SetClock(p *Pipeline, now func() time.Time) { p.now = now }

@@ -11,9 +11,11 @@ import (
 	"github.com/standards-lab/go-ai"
 )
 
-// embed chunks an input's source text and completes each chunk, as complete does. It runs on the
-// input's own goroutine, and hands the coordinator the count of chunks, then each completed group
-// of them.
+// embed chunks an input's source text and completes each chunk, as complete does, then extracts
+// the text, as extract does, when the run asks for extraction and the text is one extracted: any
+// but metadata, and not empty. It runs on the input's own goroutine, and hands the coordinator the
+// count of chunks, then each completed group of them, and the extraction's progress and
+// inference.
 func (r *run) embed(st *inputState, text string) {
 	pieces, err := r.p.cfg.Chunker.Split(text)
 	if err != nil {
@@ -24,10 +26,19 @@ func (r *run) embed(st *inputState, text string) {
 	for i, c := range pieces {
 		items[i] = item{st: st, chunk: Chunk{Digest: sha256Hex([]byte(c.Text)), Chunk: c, Index: i}}
 	}
-	if !r.send(splitEvent{st: st, n: len(items)}) || len(items) == 0 {
+	// An empty text has nothing to extract from, so it asks no model.
+	extract := r.opts.Extract != nil && st.source.Kind != sourceMetadata && text != ""
+	// The split reaches the coordinator before anything of the extraction does, so the input is
+	// held open for it.
+	if !r.send(splitEvent{st: st, n: len(items), extract: extract}) {
 		return
 	}
-	r.complete(st, items)
+	if len(items) > 0 {
+		r.complete(st, items)
+	}
+	if extract {
+		r.extract(st, text)
+	}
 }
 
 // key is the cache key, and the claim table's, of the embedding of the chunk digest names.

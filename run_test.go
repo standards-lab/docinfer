@@ -131,10 +131,12 @@ func seq(inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	}
 }
 
-// outcome is everything one Run yielded: its inferences, its batches, its counts, and its error,
-// each in the order yielded, and whether anything came after the counts or the error.
+// outcome is everything one Run yielded: its inferences, its progress, its batches, its counts,
+// and its error, each in the order yielded, and whether anything came after the counts or the
+// error.
 type outcome struct {
 	inferences []docinfer.Inference
+	progress   []docinfer.Progress
 	batches    []docinfer.Batch
 	counts     *docinfer.Counts
 	err        error
@@ -143,7 +145,8 @@ type outcome struct {
 }
 
 // collect ranges over a Run's results. It fails the test when a batch holds a chunk of an image's
-// text whose inference wasn't yielded before it.
+// text whose inference wasn't yielded before it, or when an extraction's progress follows its
+// inference.
 func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 	t.Helper()
 	var o outcome
@@ -160,6 +163,13 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 			o.err = err
 		case r.Inference != nil:
 			o.inferences = append(o.inferences, *r.Inference)
+		case r.Progress != nil:
+			if slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
+				return inf.Capability == docinfer.CapabilityExtraction && slices.Equal(inf.ContentSHA256, []string{r.Progress.ContentSHA256})
+			}) {
+				t.Errorf("progress of text %s after its extraction's inference", r.Progress.ContentSHA256)
+			}
+			o.progress = append(o.progress, *r.Progress)
 		case r.Batch != nil:
 			for _, s := range r.Batch.Sources {
 				if s.Kind == "vision" && !slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
@@ -746,15 +756,5 @@ func TestRunInputStreamError(t *testing.T) {
 	o := collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), stream, docinfer.Options{}))
 	if !errors.Is(o.err, broken) || o.counts != nil {
 		t.Errorf("Run over a broken stream: %v, counts %v; want the stream's error alone", o.err, o.counts)
-	}
-}
-
-// What a later version of the pipeline builds is refused until then: an Extract.
-func TestRunNotYetBuilt(t *testing.T) {
-	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
-	opts := docinfer.Options{Extract: &docinfer.Extract{Name: "x", Prompt: "p", Schema: []byte(`{}`)}}
-	o := collect(t, newPipeline(t, runConfig(t, e, nil)).Run(t.Context(), dispatch.NewMemoryContent(), seq(metadataInput()), opts))
-	if o.err == nil || !strings.Contains(o.err.Error(), "not yet built") {
-		t.Errorf("Run: %v, want it not yet built", o.err)
 	}
 }
