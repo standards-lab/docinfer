@@ -14,7 +14,7 @@ import (
 
 // The bound tests drive Bounds through docinfer.BoundsDo, the runner every model request goes
 // through, with go-ai embedding calls against aitest, so each of the four capabilities' bounds is
-// proven, not only the embeddings' that Pipeline.Run reaches today.
+// proven by the same call, though Pipeline.Run reaches all four.
 
 // gatedEmbeddings is an aitest embeddings route that parks each request at gate, counting the
 // requests inside it at once and the most it has seen.

@@ -1,0 +1,49 @@
+# Release runs on a pushed tag; nothing here tags. A tag is the base module's, vX.Y.Z, or a nested
+# module's, <module>/vX.Y.Z: postgres/vX.Y.Z and cmd/docinfer/vX.Y.Z once those modules land. The
+# job publishes the GitHub release from the tag's section of that module's own changelog,
+# CHANGELOG.md at the root or <module>/CHANGELOG.md, with no assets: the module proxy serves the
+# module from the tag itself, and docinfer builds no system tool.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - '**/v*'
+
+concurrency:
+  group: release-${{ github.ref }}
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Determine module from tag
+        id: module
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" == */v* ]]; then
+            PREFIX="${TAG%/v*}"
+            echo "prefix=$PREFIX/" >> "$GITHUB_OUTPUT"
+            echo "changelog=$PREFIX/CHANGELOG.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "prefix=" >> "$GITHUB_OUTPUT"
+            echo "changelog=CHANGELOG.md" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The prefix is the tag's part before its vX.Y.Z, empty for the base module, so the action
+      # finds the version's section, headed "## [vX.Y.Z] - <date>", in the module's own changelog.
+      - name: Create GitHub Release
+        uses: taiki-e/create-gh-release-action@v1.12.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          changelog: ${{ steps.module.outputs.changelog }}
+          prefix: ${{ steps.module.outputs.prefix }}

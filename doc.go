@@ -23,24 +23,39 @@
 // for the host; and a failed call stops it too, but on the job's last delivery
 // ([Options].Final) its items are recorded failed, never held, and the job goes on.
 //
+// The consumer's contract: Run yields a part's results as they are made, which may be before the
+// part's own event, whatever that event comes to, since holding a part's outputs until its event
+// would cost the order as made. A consumer drops a quarantined or failed part's inferences and
+// chunks by that part's own event.
+//
+// A request's time is the host's: it bounds each request with its client's transport's
+// ResponseHeaderTimeout, and extraction's stream with go-ai's Options.StreamIdleTimeout, which
+// ends a stalled stream without cutting off a long one. docinfer adds no deadline and no default
+// of its own; Run's context is the job's, and its cancellation ends the job.
+//
 // The package exports:
 //
 //   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity
 //   - [Pipeline.Run], one job's run, over [Input]s, with [Options], yielding [Result]s;
 //     [MetadataText], the one builder of an input's metadata text; [MissingError], a content
-//     miss; and [Permanent], which tells an error no redelivery changes
+//     miss, with its [MissingError.Error] and [MissingError.Unwrap]; and [Permanent], which tells
+//     an error no redelivery changes
 //   - [Bounds] and [NewBounds], the requests in flight per capability
 //   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client and
-//     settings, and each one's Identity; [Extract], a caller's prompt and schema
+//     settings, and each one's Identity, [Vision.Identity], [Transcription.Identity],
+//     [Extraction.Identity], and [Embeddings.Identity]; [Extract], a caller's prompt and schema
 //   - [Cache], its Get and Put, and its two implementations, [FileCache] from [NewFileCache] and
-//     [MemoryCache] from [NewMemoryCache]
+//     [MemoryCache] from [NewMemoryCache], each with its [FileCache.Get] and [FileCache.Put], and
+//     [MemoryCache.Get] and [MemoryCache.Put]
 //   - [Key], a result's cache key, and [Held], a held value's JSON
 //   - [Version], the version of the shapes, which Key hashes
 //   - [Capability] and its four constants, [CapabilityVision], [CapabilityTranscription],
 //     [CapabilityExtraction], and [CapabilityEmbeddings]
 //   - [Identity], a result's capability, model, and settings, and [Profile], a pipeline's
-//   - [Inference], one text a model made, its [Outcome] among the six Outcome constants, and its
-//     [Usage]; [Progress], an extraction's text as it streams
+//   - [Inference], one text a model made, its [Outcome], and its [Usage]; the six Outcome
+//     constants, [OutcomeDescribed], [OutcomeTranscribed], [OutcomeExtracted],
+//     [OutcomeIncomplete], [OutcomeRefused], and [OutcomeFailed]; [Progress], an extraction's text
+//     as it streams
 //   - [Batch], its parts, [Source]s, and [Chunk]s, and its derived [Batch.Digest]; [DecodeVector],
 //     the one reader of a chunk's or a held value's vector
 //   - [Counts], one job's, with [VisionCounts], [TranscriptionCounts], [ExtractionCounts], and

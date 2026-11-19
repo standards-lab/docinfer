@@ -48,8 +48,10 @@ docinfer's design review, `context/design.md`, and apply to the base module, `po
   the code, through `schema.TimeOf`, and each test package's `TestMain` sets a non-UTC zone.
 - `architecture/standards/go-elemental/principles/tests-and-docs.md`: unit tests run against
   go-ai's `aitest` fake endpoint with no sleeps, a stall being a finding; real endpoints run behind
-  `-tags integration` in `cmd/docinfer/integration` over `processtest`; every `Cache` passes
-  `docinfertest`'s one suite; golden keys and a chunk corpus pin the cache's formats.
+  `-tags integration`, the base module's in `integration/`, which `mise run integration` runs
+  against the endpoints go-ai's `AI_<ROLE>_*` variables name and no CI job runs, and the command's
+  in `cmd/docinfer/integration` over `processtest`; every `Cache` passes `docinfertest`'s one
+  suite; golden keys and a chunk corpus pin the cache's formats.
 - `architecture/standards/go-elemental/principles/release-and-ci.md`: the check, currency, the
   root `go.work`, a changelog per module, and per-module tags, with CI as the gate.
 - `architecture/standards/go-elemental/principles/dsl-driven-services.md`: `postgres`'s cache,
