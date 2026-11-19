@@ -412,9 +412,8 @@ func checkCounts(t *testing.T, o outcome, want docinfer.Counts) {
 	if n := len(o.chunks()); o.counts.Embedded+o.counts.Rejected != n {
 		t.Errorf("Embedded %d + Rejected %d, want the %d chunks of the batches", o.counts.Embedded, o.counts.Rejected, n)
 	}
-	if o.counts.Transcription != nil || o.counts.Extraction != nil ||
-		o.counts.Tokens.Transcription != nil || o.counts.Tokens.Extraction != nil {
-		t.Errorf("counts of a skipped or unasked capability: %s", got)
+	if o.counts.Extraction != nil || o.counts.Tokens.Extraction != nil {
+		t.Errorf("counts of an unasked capability: %s", got)
 	}
 }
 
@@ -750,29 +749,12 @@ func TestRunInputStreamError(t *testing.T) {
 	}
 }
 
-// What a later version of the pipeline builds is refused until then: a window with Transcription
-// set, and an Extract.
+// What a later version of the pipeline builds is refused until then: an Extract.
 func TestRunNotYetBuilt(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
-	client := newClient(t, e.URL(), ai.TranscribeRoute)
-	content := dispatch.NewMemoryContent()
-	cases := []struct {
-		name  string
-		edit  func(*docinfer.Config)
-		in    docinfer.Input
-		extra docinfer.Options
-	}{
-		{"transcription", func(c *docinfer.Config) {
-			c.Transcription = &docinfer.Transcription{Client: client, Model: "t"}
-		}, outputInput(t, content, childPart, dispatch.AudioOutput, "audio"), docinfer.Options{}},
-		{"extraction", nil, metadataInput(), docinfer.Options{Extract: &docinfer.Extract{Name: "x", Prompt: "p", Schema: []byte(`{}`)}}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			o := collect(t, newPipeline(t, runConfig(t, e, tc.edit)).Run(t.Context(), content, seq(tc.in), tc.extra))
-			if o.err == nil || !strings.Contains(o.err.Error(), "not yet built") {
-				t.Errorf("Run: %v, want it not yet built", o.err)
-			}
-		})
+	opts := docinfer.Options{Extract: &docinfer.Extract{Name: "x", Prompt: "p", Schema: []byte(`{}`)}}
+	o := collect(t, newPipeline(t, runConfig(t, e, nil)).Run(t.Context(), dispatch.NewMemoryContent(), seq(metadataInput()), opts))
+	if o.err == nil || !strings.Contains(o.err.Error(), "not yet built") {
+		t.Errorf("Run: %v, want it not yet built", o.err)
 	}
 }

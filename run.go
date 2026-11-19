@@ -89,11 +89,12 @@ const (
 )
 
 // errNotYet is the cause of a run that asks for what this version of the pipeline doesn't build
-// yet: a window with Transcription set, or an Extract.
+// yet: an Extract.
 var errNotYet = errors.New("docinfer: not yet built")
 
 // errInputDefect is the cause of an input no redelivery mends, which [Permanent] reports: an image
-// output without a MediaType.
+// output without a MediaType, a window of a media type other than audio/wav or audio/mpeg, or
+// whose Meta doesn't place it, and an audio plan record that doesn't decode.
 var errInputDefect = errors.New("docinfer: the input's defect")
 
 // Run infers over one job's inputs, opening their content from content, and yields what it makes
@@ -108,9 +109,30 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // held before its [Inference] is yielded, which precedes the batches of its chunks. A completed
 // reply is outcome described; one with a refusal and no text, refused, held, its Reason the
 // refusal's text; an incomplete one keeps its text, held, its Reason, and its chunks' Source's
-// Incomplete, why the model stopped. Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256
-// alone, read from the cache, or asked of the model Config.EmbedBatch texts per call and held
-// before anything derived from it is yielded. A held value that doesn't decode is a miss, which
+// Incomplete, why the model stopped.
+//
+// With Config.Transcription set, an audio output is a window, transcribed from its content, sent
+// as window.wav for audio/wav or window.mp3 for audio/mpeg, its content opened by each attempt;
+// a window of another media type, or one without a MetaWindow index, stops the job, [Permanent].
+// A window's transcript is keyed by transcription's Identity and the window's SHA-256, read from
+// the cache, or asked of the model, and held: a refusal, and an incomplete transcript
+// (*ai.IncompleteTranscriptError), are held as the window's outcome. Windows are grouped by their
+// part's ID and their stage, and placed by MetaWindow, the first event of an index winning. A
+// group ends at the first of: the window count of its audio plan record, a record output of
+// dispatch.MediaAudioPlan, whose content is read for it; its last window, the one without
+// MetaSeamAfter, once every index before it is in; and the end of the inputs. A video plan
+// record ends none. Once every window placed in it is in, the group is joined by Config.Join,
+// each seam's seconds the earlier window's MetaSeamAfter or else the later one's MetaSeamBefore,
+// and its transcript is yielded as one [Inference], then chunked as a source of kind transcript.
+// A window refused, failed, incomplete, or never cut joins as "" and is listed in the
+// inference's Failed; the transcript is outcome transcribed when every window was, else failed
+// when one failed, refused when one was refused, and incomplete otherwise. A window holds its
+// input's slot only until its own transcript is in, so a group of more windows than
+// Config.Pending never waits on inputs it can't pull.
+//
+// Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
+// from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything
+// derived from it is yielded. A held value that doesn't decode is a miss, which
 // the model's reply replaces; a vector, held or made, whose length isn't Config.Dimensions stops
 // the job, [Permanent]. Content is opened only on a miss, or to chunk an output's text; a content
 // store's miss stops the job with a [MissingError].
@@ -125,15 +147,15 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // an embedding call a text at a time, and a text so refused is its chunk's Error, held, as an
 // image so refused is outcome refused, held, its Reason the error's text; a permanent or
 // transient failure stops the job with the error, wrapped; a failed one stops it too, except on
-// Options.Final, where its chunks' Error, or its image's outcome failed, is recorded, never held,
-// and the job goes on. An error stops the job: Run cancels its requests, waits for them, and yields the error
-// alone, last. A cancelled context yields ctx.Err() alone, last.
+// Options.Final, where its chunks' Error, or its image's or window's outcome failed, is recorded,
+// never held, and the job goes on. An error stops the job: Run cancels its requests, waits for
+// them, and yields the error alone, last. A cancelled context yields ctx.Err() alone, last.
 //
 // The pipeline joins work in flight across its jobs by Key: a chunk's embedding or an image's
 // description another job is asking for, read from neither the cache nor the model, is waited
-// for, holding no Bounds slot, and counted Held. A waited-for refusal is the chunk's Error, or the
-// image's outcome, and a permanent failure stops this
-// job too; a job that ends without a result, cancelled, failing otherwise, or panicking, leaves
+// for, holding no Bounds slot, and counted Held. A window's transcript is joined the same way. A
+// waited-for refusal is the chunk's Error, or the image's or window's outcome, and a permanent
+// failure stops this job too; a job that ends without a result, cancelled, failing otherwise, or panicking, leaves
 // its waiters to ask the model themselves, and a cancelled job stops waiting at once.
 //
 // yield is called from the goroutine ranging over Run alone, and Run waits for its requests in
@@ -159,6 +181,9 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		}
 		if p.cfg.Vision != nil {
 			r.counts.Vision, r.counts.Tokens.Vision = &VisionCounts{}, &Usage{}
+		}
+		if p.cfg.Transcription != nil {
+			r.counts.Transcription, r.counts.Tokens.Transcription = &TranscriptionCounts{}, &Usage{}
 		}
 		defer func() {
 			cancel()
@@ -207,7 +232,14 @@ type run struct {
 	// The coordinator's alone.
 	counts  Counts
 	waiting []item // embedded chunks not yet in a yielded batch, in the order they completed
-	active  int    // inputs admitted and not yet finished
+	// active counts the inputs admitted and not yet finished, and the transcripts joined at the
+	// end of the inputs, which hold no slot, not yet chunked and embedded.
+	active int
+	// groups are the job's window groups, by part and stage, and groupOrder the same in the order
+	// their first events were admitted.
+	groups      map[groupKey]*group
+	groupOrder  []*group
+	inputsEnded bool // the input stream has ended: a group still open ends once its count is in
 }
 
 // event is one goroutine's news to the coordinator: one of its types below.
@@ -261,6 +293,8 @@ type inputState struct {
 
 	split     bool // the coordinator has its count of chunks
 	remaining int
+	// slotless is a transcript's joined at the end of the inputs, which holds no input's slot.
+	slotless bool
 }
 
 // item is one chunk on its way to a batch: its source text's input, the chunk, its Source index
@@ -371,11 +405,14 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 				return e.err
 			}
 			ended = true
+			if ok, err := r.endGroups(yield); err != nil || !ok {
+				return err
+			}
 		case splitEvent:
 			e.st.split, e.st.remaining = true, e.st.remaining+e.n
 			r.countSource(e.st)
 			if e.st.remaining == 0 {
-				r.finish()
+				r.finishState(e.st)
 			}
 		case doneEvent:
 			r.counts.Requests += e.requests
@@ -398,7 +435,7 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 				return err
 			}
 			if e.st.split && e.st.remaining == 0 && len(e.items) > 0 {
-				r.finish()
+				r.finishState(e.st)
 			}
 		case inferenceEvent:
 			r.countVision(e)
@@ -407,6 +444,14 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			}
 			if e.last {
 				r.finish()
+			}
+		case windowEvent:
+			if ok, err := r.windowDone(e, yield); err != nil || !ok {
+				return err
+			}
+		case planEvent:
+			if ok, err := r.planDone(e, yield); err != nil || !ok {
+				return err
 			}
 		case errEvent:
 			return e.err
@@ -432,6 +477,16 @@ func (r *run) countSource(st *inputState) {
 func (r *run) finish() {
 	r.active--
 	<-r.slots
+}
+
+// finishState finishes the input whose source text st is, or, for a transcript joined at the end
+// of the inputs, the transcript, which holds no slot.
+func (r *run) finishState(st *inputState) {
+	if st.slotless {
+		r.active--
+		return
+	}
+	r.finish()
 }
 
 // admit starts an input's work by its kind, as dispatch's constants name it, or finishes an input
@@ -471,10 +526,17 @@ func (r *run) admit(in Input) error {
 	case dispatch.AudioOutput:
 		r.counts.Windows++
 		if r.p.cfg.Transcription != nil {
-			return fmt.Errorf("docinfer: run: transcription of window %s of part %s: %w", out.SHA256, in.Event.Part.ID, errNotYet)
+			return r.admitWindow(in.Event)
+		}
+	case dispatch.RecordOutput:
+		// An audio plan record counts its group's windows; a video plan's holds none, and ends no
+		// group.
+		if r.p.cfg.Transcription != nil && out.MediaType == dispatch.MediaAudioPlan {
+			r.admitPlan(in.Event)
+			return nil
 		}
 	}
-	// A skipped image or window, a record, or an output of another kind: nothing to do.
+	// A skipped image or window, another record, or an output of another kind: nothing to do.
 	r.finish()
 	return nil
 }
