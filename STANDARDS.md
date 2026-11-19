@@ -36,8 +36,8 @@ docinfer's design review, `context/design.md`, and apply to the base module, `po
 - `architecture/standards/go-elemental/principles/construction-and-execution.md`: `docinfer.New`
   and `job.New` each take a `Config` struct, as docproc's `dispatch.New` does, since each needs
   more than four required inputs; each panics by name on a nil required field and refuses a bad
-  value matching its package's one `ErrRequest`. `NewBounds` takes its four bounds positionally.
-  No functional options.
+  value matching `docinfer.ErrRequest`, `job` declaring none of its own. `NewBounds` takes its
+  four bounds positionally. No functional options.
 - `architecture/standards/go-elemental/principles/baseline-standards.md`: the library ships no
   policy, no default for bounds, batch bytes, words per second, timeouts, or retry; `cmd/docinfer`
   ships the operator's starting values.

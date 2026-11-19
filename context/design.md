@@ -238,9 +238,11 @@ and docinfer's `Identity` reads it from the client. Rejected: a host-restated
 `docinfer.Transcription` field, which can disagree with the client and silently mis-key the cache.
 
 **G3. issue: every consumer of go-ai would write its own fake endpoint.**
-`apptest/apptest.go:197-345`. Against `tests-and-docs.md`. **accepted**, go-ai: go-ai exports
-`aitest`, a fake OpenAI-compatible endpoint (generate, stream, embed, transcribe, models;
-scriptable per request; holding requests until released, for bound tests without sleeps).
+`apptest/apptest.go:197-345`. Against `tests-and-docs.md`. **accepted**, go-ai: go-ai v0.3.0
+already has `internal/aitest`, its own fake endpoint, so the go-ai task exports that package as
+`aitest` rather than writing a new fake: a fake OpenAI-compatible endpoint (generate, stream,
+embed, transcribe, models; scriptable per request; holding requests until released, for bound
+tests without sleeps), gaining what of that list it lacks.
 Rejected: docinfer's own internal `endpointtest`; the library, `cmd/docinfer`, `tools/infer`, and
 Cerebro all need the same fake.
 
@@ -311,7 +313,7 @@ Against docproc's `STANDARDS.md` (the nested command's exception), `domain-files
 `integration`; `infer` becomes `run`, `models` and `source` fold into it (C4, C5), and `config`
 becomes the node constructors (C1). Writers live in `output.go`; `report` splits as docproc's does,
 into `commands.go`, `model.go`, `render.go`, and `output.go`. A committed `go.work` spans the base
-module and `cmd/docinfer`.
+module, `postgres`, and `cmd/docinfer`.
 
 #### Configuration and go-ai
 
@@ -510,8 +512,9 @@ use.
 docinfer's API: layers' docinfer sections at 673ed3d, restated in go-ai's and docproc's released
 names, with the findings above applied. A finding's id marks where it changes layers. Three go-ai
 names are go-ai v0.4.0's, which the go-ai task adds (G1–G3): `(*protocol.Response).OutputText`,
-`(*ai.Client).TranscriptionMode()`, and the package `aitest`. Every other go-ai name is v0.3.0's,
-and every docproc name docproc v0.3.0's. layers' docinfer sections are superseded by this one.
+`(*ai.Client).TranscriptionMode()`, and the package `aitest`, v0.3.0's `internal/aitest` exported
+rather than a new fake. Every other go-ai name is v0.3.0's, and every docproc name docproc
+v0.3.0's. layers' docinfer sections are superseded by this one.
 
 ### Modules and packages
 
@@ -1099,14 +1102,16 @@ reasoning round trip (`protocol.Reasoning` items, their `EncryptedContent`),
 `RefusalDone`, which the `Accumulator` folds into the `Refusal` part docinfer reads), and
 `ai.TranscriptionInstruction`. `format/messages` and `format/responses` serve `cmd/docinfer`'s
 endpoints that name them; Cerebro uses `format/completions` alone. `ai.Options.Query` and
-`(*ai.Client).Models` (C5) are `cmd/docinfer`'s. go-ai's `tools/infer` is outside both.
+`(*ai.Client).Models` (C5) are `cmd/docinfer`'s. go-ai's `tools/infer` and its harness-session
+surface are outside both, and so outside docinfer.
 
 ### cmd/docinfer
 
 `cmd/docinfer` runs the pipeline over a `cmd/docproc` run directory and writes its own. Its
 composition root is a graph (C1): a node for the configuration, read from the directory `--config`
-or `DOCINFER_CONFIG` names in the node's constructor; a node per capability's `*ai.Client`, which
-reports `ai.New`'s error named for its endpoint (C7); and a node for `run.Config`, holding
+or `DOCINFER_CONFIG` names in the node's constructor; a node per capability's `*ai.Client`, built
+as `ai.New(baseURL, httpClient, wireFormat, ai.Options{…})` and reporting its error named for its
+endpoint (C7); and a node for `run.Config`, holding
 `docinfer.Vision`, `Transcription`, and `Embeddings`; `run.Commands(n.RunConfig)` takes it. A
 configuration error fails the Build, labelled with its node, before the docproc run is read.
 
@@ -1122,7 +1127,9 @@ endpoints.<name>     base_url; format: completions, messages, or responses; prof
 vision               endpoint, model, prompt, max_tokens 2048, reasoning none (a
                        protocol.ReasoningEffort, refused by its UnmarshalText, C7), concurrency 4
 transcription        endpoint, model, prompt, language, mode route or chat, set on this
-                       capability's own client, chat refused without the completions format (C6),
+                       capability's own client as ai.TranscribeRoute or ai.TranscribeChat, chat
+                       for an endpoint with no transcription route and refused without the
+                       completions format (C6),
                        words_per_second 8, concurrency 4
 embeddings           endpoint, model, dimensions, batch 16, chunk_size 2000, concurrency 4
 run                  pending, batch_bytes 524288
@@ -1132,7 +1139,8 @@ Each override is `DOCINFER_` and its setting's path, composed where it is read (
 keeps what is docinfer's: a capability's endpoint exists, and the counts are at least 1 (C7). Each
 endpoint has one `http.Client` over a cloned default transport with its `ResponseHeaderTimeout`,
 and each capability's client its endpoint's `Options` with `StreamIdleTimeout`, `Retry`, `Header`,
-`Query`, `Token`, and, for transcription, `TranscriptionMode`. A setting that changes a result is
+`Query`, `Token`, and, for transcription, `TranscriptionMode`, `ai.TranscribeRoute` for `route`
+and `ai.TranscribeChat` for `chat`. A setting that changes a result is
 in the manifest.
 
 The commands, each with a footer stating that recorded refusals exit 0, what exits 1, and what the
@@ -1350,6 +1358,7 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 | `Describer`, `Transcriber`, `Embedder` | dropped | never declared, as layers has it |
 | `infer.Pipeline` | dropped | a spelling layers rejects |
 | `chunk.Chunk`, `chunk.Chunk.Text`, `chunk.Chunk.Span` | carried | |
+| `chunk.Chunk`'s `Start`, `End` | renamed | `chunk.Chunk.Span` (L23) |
 | `chunk.Span`, `chunk.Span.Start`, `chunk.Span.End` | carried | moved from `outdir.Span` (L23) |
 | `chunk.Version` | carried | names the golden corpus (L27) |
 | `chunk.Splitter`, `chunk.Splitter.Bound`, `chunk.Splitter.Settings` | carried | `Settings` feeds `Profile.Chunker` alone (L16) |
@@ -1366,7 +1375,7 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 | `job.Checkpoint`, `job.Checkpoint.After` | carried | |
 | `job.Done`, `job.Done.Parts`, `job.Done.Outputs`, `job.Done.Counts` | carried | |
 | `Counts.Chunks`, `Counts.Lines`, `Counts.Outputs`, `VisionCounts.Images`, `VisionCounts.Texts`, `TranscriptionCounts.Distinct`, `Usage.Total` | dropped | as layers drops them (L2) |
-| the manifest's `Attempt` | carried | Cerebro's, not docinfer's |
+| the manifest's `Attempt` | dropped | Cerebro's manifest, outside docinfer's API |
 | `client.Client`, package `client` | renamed | `ai.Client`, package `ai` |
 | `Config.Query` (go-ai's) | renamed | `ai.Options.Query` |
 | `protocol.ReasoningEffort` | carried | seven efforts; C7 |
@@ -1379,6 +1388,7 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 | `FunctionCall`, `FunctionCallOutput`, `InputAudio`, `ReasoningParam.Summary`, the `Native` tiers | carried | unused, as layers has it |
 | `format/messages`, `format/responses`, `format/completions` | carried | `messages.New(messages.Options{})` and the rest |
 | `tools/infer` | carried | outside docinfer |
+| go-ai's harness-session surface | carried | outside docinfer |
 | `dispatch.Content`, `Content.Open` | carried | the content's one reader (W3) |
 | `dispatch.Event`, `Event.After`, `dispatch.Part`, `dispatch.Output`, `Output.SHA256`, `dispatch.Identity`, `dispatch.Outcome`, `dispatch.Version` | carried | docproc v0.3.0 |
 | `dispatch.Dispatcher`, `Dispatcher.Content`, `Dispatcher.Index`, `Index.Drop`, `dispatch.Key`, `Key.SHA256`, `Part.SHA256`, `dispatch.Input`, `Input.After`, `dispatch.ErrSHA256` | carried | docproc v0.3.0 |
@@ -1442,7 +1452,7 @@ patch of the module it fixes.
 | `v0.1.0` | the base module | library | docproc v0.3.0, go-ai v0.4.0 |
 | `v0.2.0` | the base module | job | docproc v0.3.0, go-ai v0.4.0 |
 | `postgres/v0.1.0` | `postgres` | postgres | the base module, sqlate, sqlate/postgres |
-| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, go-cli-sdk v0.4.0, go-core v0.12.0 |
+| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.3.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
 
 - A module is tagged only after every module it requires: go-ai v0.4.0 before the base module's
   v0.1.0, and the base module's tag before `postgres`'s or `cmd/docinfer`'s that requires it.
