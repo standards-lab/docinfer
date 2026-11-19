@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"net"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 	"github.com/standards-lab/docproc/dispatch"
 	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/aitest"
+	"github.com/standards-lab/go-ai/format/completions"
 	"github.com/standards-lab/go-ai/format/messages"
 )
 
@@ -888,4 +890,55 @@ func TestRunWindowIncomplete(t *testing.T) {
 	o = collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), seq(windowInput(t, nil, only)), docinfer.Options{}))
 	checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, tr, []int{0}, true)
 	checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Held: 1, Transcripts: 1}, 0, true))
+}
+
+// openCounter is Run's content that counts each Open of the content sha256 names.
+type openCounter struct {
+	dispatch.Content
+	sha256 string
+	opens  atomic.Int64
+}
+
+func (c *openCounter) Open(ctx context.Context, sha256 string) (io.ReadCloser, error) {
+	if sha256 == c.sha256 {
+		c.opens.Add(1)
+	}
+	return c.Content.Open(ctx, sha256)
+}
+
+// A window is opened by each attempt: with go-ai's retry policy, a 503 and then the transcript
+// are two requests, each with the window's content opened afresh, and the window is transcribed.
+func TestRunWindowOpenedPerAttempt(t *testing.T) {
+	var attempts atomic.Int64
+	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll, Transcriptions: func(_ context.Context, req aitest.TranscriptionRequest) aitest.Reply {
+		if string(req.File) != win0.clip {
+			t.Errorf("a request for clip %q, want %q", req.File, win0.clip)
+		}
+		if attempts.Add(1) == 1 {
+			return aitest.ErrorReply{Status: 503, Message: "loading", RetryAfter: "0"}
+		}
+		return aitest.TranscriptionReply{Text: win0.said, InputTokens: 5, OutputTokens: 2}
+	}})
+	cfg := transcriptionConfig(t, e, ai.TranscribeRoute, func(c *docinfer.Config) {
+		client, err := ai.New(e.URL(), http.DefaultClient, completions.New(completions.Options{}),
+			ai.Options{Retry: ai.RetryPolicy{MaxAttempts: 3}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Transcription.Client = client
+	})
+	only := win0
+	only.after = ""
+	memory := dispatch.NewMemoryContent()
+	in := windowInput(t, memory, only)
+	content := &openCounter{Content: memory, sha256: sha(win0.clip)}
+
+	o := collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(in), docinfer.Options{}))
+	checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeTranscribed, joinedAt(t, []string{win0.said}), nil, false)
+	if n := attempts.Load(); n != 2 {
+		t.Errorf("%d transcription requests, want 2: the 503 and its retry", n)
+	}
+	if n := content.opens.Load(); n != 2 {
+		t.Errorf("the window's content opened %d times, want once per attempt, 2", n)
+	}
 }

@@ -11,6 +11,8 @@ import (
 	"io/fs"
 	"iter"
 	"math"
+	"net/http"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -23,6 +25,7 @@ import (
 	"github.com/standards-lab/docproc/dispatch"
 	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/aitest"
+	"github.com/standards-lab/go-ai/format/completions"
 )
 
 // The run tests drive New and Pipeline.Run through go-ai's client against aitest, over dispatch's
@@ -662,6 +665,112 @@ func TestRunCancelled(t *testing.T) {
 	errs := receive(t, done, "end of the cancelled run")
 	if len(errs) != 1 || errs[0] != context.Canceled {
 		t.Errorf("a cancelled run yielded %v, want context.Canceled alone", errs)
+	}
+}
+
+// routeBoundTransport is a host's transport whose round trip, once its request's context has
+// ended, returns only when the endpoint's route function has returned, routeDone closed, or after
+// failsafe, late set: a request ended in flight is the job's until its route is done with it.
+type routeBoundTransport struct {
+	routeDone <-chan struct{}
+	late      *atomic.Bool
+}
+
+func (rt routeBoundTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := http.DefaultTransport.RoundTrip(req)
+	if req.Context().Err() == nil {
+		return resp, err
+	}
+	select {
+	case <-rt.routeDone:
+	case <-time.After(failsafe):
+		rt.late.Store(true)
+	}
+	return resp, err
+}
+
+// Run waits for its requests in flight before it returns, stopped early or cancelled: with one
+// input's batch yielded and the other's request parked at the Gate, the job ends, the context's
+// end releases the request, and its route function has returned before Run yields the error, or
+// before Run's iterator returns.
+func TestRunWaitsForRequestsInFlight(t *testing.T) {
+	const quick, parked = "A text embedded at once.", "A text whose request parks."
+	for _, cancelled := range []bool{false, true} {
+		name := "stopped ranging"
+		if cancelled {
+			name = "cancelled"
+		}
+		t.Run(name, func(t *testing.T) {
+			gate := &aitest.Gate{}
+			routeDone := make(chan struct{})
+			e := aitest.Serve(t, aitest.Routes{Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
+				if !slices.Contains(req.Input, parked) {
+					return embedAll(ctx, req)
+				}
+				defer close(routeDone)
+				if err := gate.Wait(ctx); err != nil {
+					// The route lingers past the job's end, yielding rather than sleeping, so a
+					// Run that didn't wait for its request would return first.
+					for range 1000 {
+						runtime.Gosched()
+					}
+					return aitest.ErrorReply{Status: 503, Message: err.Error()}
+				}
+				return embedAll(ctx, req)
+			}})
+			var late atomic.Bool
+			client, err := ai.New(e.URL(), &http.Client{Transport: routeBoundTransport{routeDone, &late}},
+				completions.New(completions.Options{}), ai.Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p := newPipeline(t, runConfig(t, e, func(c *docinfer.Config) { c.Embeddings.Client = client }))
+			content := dispatch.NewMemoryContent()
+			inputs := seq(outputInput(t, content, childPart, dispatch.TextOutput, quick),
+				outputInput(t, content, childPart, dispatch.TextOutput, parked))
+			routeReturned := func() bool {
+				select {
+				case <-routeDone:
+					return true
+				default:
+					return false
+				}
+			}
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			var results []error
+			for r, err := range p.Run(ctx, content, inputs, docinfer.Options{}) {
+				results = append(results, err)
+				if err != nil {
+					if !routeReturned() {
+						t.Error("Run yielded its error with its request in flight, its route function not yet returned")
+					}
+					continue
+				}
+				if r.Batch == nil || len(r.Batch.Chunks) != 1 || r.Batch.Chunks[0].Text != quick {
+					t.Fatalf("Run yielded %+v, want the quick text's batch", r)
+				}
+				gate.Await(t, 1)
+				if !cancelled {
+					break
+				}
+				cancel()
+			}
+			if !routeReturned() {
+				t.Error("Run returned with its request in flight, its route function not yet returned")
+			}
+			if late.Load() {
+				t.Errorf("the parked request's route didn't return within %v of the job's end", failsafe)
+			}
+			want := []error{nil}
+			if cancelled {
+				want = append(want, context.Canceled)
+			}
+			if !slices.EqualFunc(results, want, errors.Is) {
+				t.Errorf("Run yielded %v, want %v: the batch, then context.Canceled when cancelled", results, want)
+			}
+		})
 	}
 }
 
