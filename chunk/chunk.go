@@ -1,20 +1,56 @@
 package chunk
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
-// Version is the chunker's version. Any change to the chunks a text and bound give must change
-// it, since docinfer keys its held embeddings by it.
+// Version is the version of the splitting. Any change to the chunks a text and bound give must
+// change it, since docinfer keys its held embeddings by it; the golden corpus,
+// testdata/chunks-v<Version>.json, is named for it and fails on such a change.
 const Version = "1"
 
-// Chunk is one chunk of a text: its Text, the text's [Start, End) bytes.
+// ErrRequest is the cause of a refused request: a Splitter's Bound below 1.
+var ErrRequest = errors.New("chunk: invalid request")
+
+// Chunk is one chunk of a text: its Text, the text's bytes at its Span. Its JSON is
+// docinfer.Chunk's, which embeds it, versioned by docinfer.Version.
 type Chunk struct {
-	Text  string
-	Start int
-	End   int
+	Text string `json:"text"`
+	Span Span   `json:"span"`
+}
+
+// Span is a chunk's place in its text: the text's [Start, End) bytes.
+type Span struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
+// Splitter cuts texts into chunks of at most Bound runes. Bound has no default: it must be at
+// least 1.
+type Splitter struct {
+	Bound int
+}
+
+// settings is the JSON of a Splitter's Settings, its members in this order.
+type settings struct {
+	Version string `json:"version"`
+	Bound   int    `json:"bound"`
+}
+
+// Settings returns the splitting's version and the Splitter's Bound as one JSON object,
+// {"version":…,"bound":…}, in that member order, for docinfer's Profile to report. It keys
+// nothing.
+func (s Splitter) Settings() string {
+	b, err := json.Marshal(settings{Version: Version, Bound: s.Bound})
+	if err != nil {
+		panic(err) // a string and an int always marshal
+	}
+	return string(b)
 }
 
 // The levels a text is cut at, coarsest first.
@@ -25,14 +61,16 @@ const (
 	hard
 )
 
-// Split cuts text into chunks of at most bound runes, along its structure, as the package says,
-// in the text's order. A bound below 1 is taken as 1. An empty or white-space-only text yields
-// none.
-func Split(text string, bound int) []Chunk {
-	bound = max(bound, 1)
+// Split cuts text into chunks of at most s.Bound runes, along its structure, as the package says,
+// in the text's order. An empty or white-space-only text yields none. A Bound below 1 is an error
+// wrapping ErrRequest.
+func (s Splitter) Split(text string) ([]Chunk, error) {
+	if s.Bound < 1 {
+		return nil, fmt.Errorf("%w: bound %d is below 1", ErrRequest, s.Bound)
+	}
 	var out []Chunk
-	split(text, 0, len(text), bound, headings, &out)
-	return out
+	split(text, 0, len(text), s.Bound, headings, &out)
+	return out, nil
 }
 
 // split appends the chunks of text's [s, e) bytes, cut at level and finer, to out.
@@ -42,7 +80,7 @@ func split(text string, s, e, bound, level int, out *[]Chunk) {
 		return
 	}
 	if utf8.RuneCountInString(text[s:e]) <= bound {
-		*out = append(*out, Chunk{Text: text[s:e], Start: s, End: e})
+		*out = append(*out, Chunk{Text: text[s:e], Span: Span{Start: s, End: e}})
 		return
 	}
 	if level == hard {
@@ -197,7 +235,7 @@ func cut(text string, s, e, bound int, out *[]Chunk) {
 			n++
 		}
 		if cs, ce := trim(text, s, end); cs < ce {
-			*out = append(*out, Chunk{Text: text[cs:ce], Start: cs, End: ce})
+			*out = append(*out, Chunk{Text: text[cs:ce], Span: Span{Start: cs, End: ce}})
 		}
 		s = end
 	}
