@@ -20,3 +20,8 @@ settled by docproc's `context/layers.md` until its design note takes them over.
 - **postgres**: the cache in PostgreSQL over sqlate.
 - **cmd/docinfer**: the command over a cmd/docproc run directory, with its own directory and
   report.
+
+## Notes
+
+- [`design.md`](design.md): docinfer's design, reviewed from the spike; the one home of its API,
+  and the task that releases each tag.
