@@ -15,9 +15,20 @@
 // pipeline built on it. Nothing has a default. Each capability's [Identity] holds its settings as
 // one JSON encoding led by its request's version, and [Pipeline.Profile] reports them.
 //
+// [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
+// Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
+// as their embeddings complete and its [Counts] last. Every result is held before anything
+// derived from it is yielded. A go-ai failure maps by one table: a refused status is the item's
+// outcome, held; a permanent or transient failure stops the job, [Permanent] telling them apart
+// for the host; and a failed call stops it too, but on the job's last delivery
+// ([Options].Final) its items are recorded failed, never held, and the job goes on.
+//
 // The package exports:
 //
 //   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity
+//   - [Pipeline.Run], one job's run, over [Input]s, with [Options], yielding [Result]s;
+//     [MetadataText], the one builder of an input's metadata text; [MissingError], a content
+//     miss; and [Permanent], which tells an error no redelivery changes
 //   - [Bounds] and [NewBounds], the requests in flight per capability
 //   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client and
 //     settings, and each one's Identity; [Extract], a caller's prompt and schema
