@@ -1,43 +1,37 @@
-//go:build linux
-
 package join
 
 import (
-	"cmp"
 	"fmt"
+	"math"
 	"strings"
 	"unicode"
 )
 
-// DefaultSeamWords is the seam word bound a JoinRequest's zero SeamWords asks for: 16, twice the
-// words a DefaultOverlap of 2 s holds at a fast 4 words a second. A plan made with a longer
-// Overlap wants about 8 words for each second of it.
-const DefaultSeamWords = 16
-
-// JoinRequest is how Join merges window transcripts.
-type JoinRequest struct {
-	// SeamWords bounds each seam's search: Join aligns at most the last SeamWords words of the
-	// earlier window with at most the first SeamWords words of the later one, so the words a
-	// seam's overlap can hold are searched and a phrase the speaker repeats further from the seam
-	// is not. Zero means DefaultSeamWords; it is otherwise at least 2, the fewest words a seam
-	// matches on.
-	SeamWords int
+// Request is how Join merges window transcripts.
+type Request struct {
+	// WordsPerSecond is the words a second of speech is taken to hold at most, which bounds each
+	// seam's search: a seam's bound is its span's seconds times WordsPerSecond, rounded up, and at
+	// least 2, the fewest words a seam matches on. Join aligns at most the last bound words of the
+	// earlier window with at most the first bound words of the later one, so the words a seam's
+	// overlap can hold are searched and a phrase the speaker repeats further from the seam is not.
+	// It is at least 1, and has no default.
+	WordsPerSecond int
 }
 
 // Seam is how Join merged one pair of neighbouring windows: Seams[i] is the seam between window i
-// and window i+1.
+// and window i+1. Its JSON is versioned by docinfer.Version.
 type Seam struct {
 	// Matched is whether the seam's alignment matched at least 2 words, so the windows were
 	// spliced; an unmatched seam's windows are concatenated whole.
-	Matched bool
+	Matched bool `json:"matched"`
 	// Matches is how many words the chosen alignment matched; 0 when the seam is unmatched.
-	Matches int
+	Matches int `json:"matches"`
 	// Overlap is how many words of each window the chosen alignment overlaps, the matched ones
 	// among them; 0 when the seam is unmatched.
-	Overlap int
+	Overlap int `json:"overlap"`
 	// Position is the index in the transcript's Words of the first word the later window gave, the
 	// splice; the words before it are the earlier windows'.
-	Position int
+	Position int `json:"position"`
 }
 
 // Transcript is window transcripts joined: their words, in order, and how each seam was merged.
@@ -52,8 +46,10 @@ type Transcript struct {
 func (t Transcript) Text() string { return strings.Join(t.Words, " ") }
 
 // Join merges window transcripts, one for each window of a plan in plan order, into one
-// transcript, as req says. A transcript's words are its runs of non-whitespace; the joined
-// transcript keeps each word as given, and its Text collapses the whitespace between them.
+// transcript, as req says. seams[i] is the seconds window i shares with window i+1, so there is
+// one fewer than the transcripts, or none when there are none. A transcript's words are its runs
+// of non-whitespace; the joined transcript keeps each word as given, and its Text collapses the
+// whitespace between them.
 //
 // Each seam is merged with the best-offset merge Hugging Face transformers uses to stitch its
 // chunked speech recognition, _find_longest_common_sequence (transformers 5.20.2,
@@ -72,34 +68,44 @@ func (t Transcript) Text() string { return strings.Join(t.Words, " ") }
 //
 // Words match on their folded forms: lowercased, with every rune but a letter, digit, or mark
 // dropped, so "Future," matches "future". A word that folds to nothing, a dash alone, matches no
-// word. The search is bounded by req's SeamWords, so a phrase repeated beyond the overlap's reach
-// is never the splice.
+// word. Each seam's search is bounded by its seconds at req's WordsPerSecond, so a phrase repeated
+// beyond the overlap's reach is never the splice.
 //
-// A window whose transcription failed is given as the empty string, as is a silent one: it has
-// no words, so its seams on both sides match nothing and are reported unmatched, and the words of
-// the windows either side are concatenated around it. Join reads nothing but its arguments, so
-// the same arguments give the same transcript. No transcripts give an empty transcript.
+// A window whose transcription was refused or is missing is given as the empty string, as is a
+// silent one: it has no words, so its seams on both sides match nothing and are reported
+// unmatched, and the words of the windows either side are concatenated around it. Join reads
+// nothing but its arguments, so the same arguments give the same transcript. No transcripts give
+// an empty transcript.
 //
 // Join's settled prefix: each seam is merged from the windows up to the later of its two alone, so
 // re-running Join over the transcripts received so far, a stream's windows in plan order, leaves
 // every word before the latest seam unchanged. For transcripts t1 to tn, Join of t1 to tk, k at
-// least 2, has the same Seams as the first k-1 of Join of t1 to tn, and the same Words before its
-// last seam's Position; only the words from there on, the last window's, may change as more
-// arrive. A caller joining as the windows arrive may thus treat the words before the latest seam
-// as final.
+// least 2, with the first k-1 seams, has the same Seams as the first k-1 of Join of t1 to tn, and
+// the same Words before its last seam's Position; only the words from there on, the last
+// window's, may change as more arrive. A caller joining as the windows arrive may thus treat the
+// words before the latest seam as final.
 //
-// A SeamWords below zero, or 1, is an error wrapping ErrRequest.
-func Join(transcripts []string, req JoinRequest) (Transcript, error) {
-	bound := cmp.Or(req.SeamWords, DefaultSeamWords)
-	if bound < 2 {
-		return Transcript{}, fmt.Errorf("audio: seam words %d isn't 0 or at least 2: %w", req.SeamWords, ErrRequest)
+// A WordsPerSecond below 1, a count of seams other than one fewer than the transcripts, or a
+// seam's seconds negative or not finite, is an error wrapping ErrRequest.
+func Join(transcripts []string, seams []float64, req Request) (Transcript, error) {
+	if req.WordsPerSecond < 1 {
+		return Transcript{}, fmt.Errorf("%w: words per second %d is below 1", ErrRequest, req.WordsPerSecond)
+	}
+	if want := max(0, len(transcripts)-1); len(seams) != want {
+		return Transcript{}, fmt.Errorf("%w: %d seams for %d transcripts, want %d", ErrRequest, len(seams), len(transcripts), want)
+	}
+	for i, s := range seams {
+		if s < 0 || math.IsNaN(s) || math.IsInf(s, 0) {
+			return Transcript{}, fmt.Errorf("%w: seam %d's seconds %v aren't finite and at least 0", ErrRequest, i, s)
+		}
 	}
 	var t Transcript
 	if len(transcripts) == 0 {
 		return t, nil
 	}
 	left := strings.Fields(transcripts[0])
-	for _, s := range transcripts[1:] {
+	for i, s := range transcripts[1:] {
+		bound := seamBound(seams[i], req.WordsPerSecond)
 		right := strings.Fields(s)
 		tail := left[len(left)-min(len(left), bound):]
 		head := right[:min(len(right), bound)]
@@ -114,6 +120,17 @@ func Join(transcripts []string, req JoinRequest) (Transcript, error) {
 	}
 	t.Words = append(t.Words, left...)
 	return t, nil
+}
+
+// seamBound is the words a seam of seconds is searched over at wordsPerSecond: their product,
+// rounded up, and at least 2. A product too large for an int is clamped to math.MaxInt, which no
+// transcript reaches.
+func seamBound(seconds float64, wordsPerSecond int) int {
+	words := math.Ceil(seconds * float64(wordsPerSecond))
+	if words >= math.MaxInt {
+		return math.MaxInt
+	}
+	return max(2, int(words))
 }
 
 // alignment is the chosen offset of a seam: the aligned words, left[leftStart:leftStop] with
