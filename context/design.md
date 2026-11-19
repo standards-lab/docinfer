@@ -179,9 +179,10 @@ build tag; `join.Request` validated at `docinfer.New`, `join` with its own `ErrR
 #### Chunking and shapes
 
 **L23. simplification: `Splitter` beside `Split`, and `Span` beside `Start`/`End`.**
-`chunk/chunk.go:14-18`, `chunk/chunk.go:31-36`, `infer/execute.go:362`. Against
-`baseline-standards.md` (a type is introduced only when it is needed). **accepted**, library: one
-spelling of the split; `Span` moves to `chunk` and removes the copy.
+`chunk/chunk.go:14-18` (`Chunk{Text, Start, End}`), `chunk/chunk.go:31-36` (`Split(text, bound)`,
+the spike's only split), `infer/execute.go:362`. Against `baseline-standards.md` (a type is
+introduced only when it is needed). **accepted**, library: one spelling of the split; `Span` moves
+to `chunk` and removes the copy.
 
 **L24. issue: invalid bounds are coerced, and the design adds library defaults.**
 `vision/vision.go:66`, `transcribe/transcribe.go:52`, `embed/embed.go:48-50`, `chunk/chunk.go:32`,
@@ -238,11 +239,15 @@ and docinfer's `Identity` reads it from the client. Rejected: a host-restated
 `docinfer.Transcription` field, which can disagree with the client and silently mis-key the cache.
 
 **G3. issue: every consumer of go-ai would write its own fake endpoint.**
-`apptest/apptest.go:197-345`. Against `tests-and-docs.md`. **accepted**, go-ai: go-ai v0.3.0
-already has `internal/aitest`, its own fake endpoint, so the go-ai task exports that package as
-`aitest` rather than writing a new fake: a fake OpenAI-compatible endpoint (generate, stream,
-embed, transcribe, models; scriptable per request; holding requests until released, for bound
-tests without sleeps), gaining what of that list it lacks.
+`apptest/apptest.go:197-345`. Against `tests-and-docs.md`. **accepted**, go-ai: go-ai v0.4.0
+adds a public `aitest`, a fake OpenAI-compatible endpoint built from `internal/aitest`'s server and
+`infer`'s endpoint, with a `Gate` and stream holds; `internal/aitest` stays go-ai's format-test
+kit. `aitest` answers with a route function per route (Chat Completions, embeddings,
+transcriptions, models), given the decoded request and its arrival number. Its typed replies are
+in Chat Completions' shapes only; a raw reply answers any route, Messages and Open Responses
+included, and an error reply carries Retry-After. A route with no function answers 404. A route
+function parks on a `Gate` with `Wait`, the test calling `Await`, `Parked`, `Release`, and `Open`,
+and a streamed reply holds on a `Gate` with `Hold` and `HoldAfter`, for bound tests without sleeps.
 Rejected: docinfer's own internal `endpointtest`; the library, `cmd/docinfer`, `tools/infer`, and
 Cerebro all need the same fake.
 
@@ -512,8 +517,9 @@ use.
 docinfer's API: layers' docinfer sections at 673ed3d, restated in go-ai's and docproc's released
 names, with the findings above applied. A finding's id marks where it changes layers. Three go-ai
 names are go-ai v0.4.0's, which the go-ai task adds (G1–G3): `(*protocol.Response).OutputText`,
-`(*ai.Client).TranscriptionMode()`, and the package `aitest`, v0.3.0's `internal/aitest` exported
-rather than a new fake. Every other go-ai name is v0.3.0's, and every docproc name docproc
+`(*ai.Client).TranscriptionMode()`, and the package `aitest`, built from `internal/aitest`'s server
+and `infer`'s endpoint, with a `Gate` and stream holds, while `internal/aitest` stays go-ai's
+format-test kit. Every other go-ai name is v0.3.0's, and every docproc name docproc
 v0.3.0's. layers' docinfer sections are superseded by this one.
 
 ### Modules and packages
