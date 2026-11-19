@@ -1432,4 +1432,21 @@ Names this API adds: `ErrRequest`, `CapabilityVision`, `CapabilityTranscription`
 
 ## Releases
 
-Written by a later slice.
+Each tag, the module it versions, and the task of v1.ai.inference that releases it, in the order
+they are tagged. The acceptance task releases nothing unless it finds a fix, which takes the next
+patch of the module it fixes.
+
+| Tag | Module | Task | Requires |
+|---|---|---|---|
+| go-ai `v0.4.0` | go-ai's base module, in go-ai's repository | go-ai | G1–G3's additions (G4) |
+| `v0.1.0` | the base module | library | docproc v0.3.0, go-ai v0.4.0 |
+| `v0.2.0` | the base module | job | docproc v0.3.0, go-ai v0.4.0 |
+| `postgres/v0.1.0` | `postgres` | postgres | the base module, sqlate, sqlate/postgres |
+| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, go-cli-sdk v0.4.0, go-core v0.12.0 |
+
+- A module is tagged only after every module it requires: go-ai v0.4.0 before the base module's
+  v0.1.0, and the base module's tag before `postgres`'s or `cmd/docinfer`'s that requires it.
+- No tagged module carries a replace directive; the committed `go.work` serves development.
+- Each module's first CHANGELOG entry links the spike commit it is promoted from: spike-ai-pipeline
+  6a631f1 for the base module and `cmd/docinfer`, spike-ai-pipeline-processing v0.9.0 for `join`.
+  `postgres` and `docinfertest` have no spike source, and their entries say "new".
