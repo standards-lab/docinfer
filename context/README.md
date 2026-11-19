@@ -8,7 +8,8 @@ its PostgreSQL cache, `docinfer/postgres`, and its command, `cmd/docinfer`, are 
 
 Its goals live in the coordinator's roadmap (`standards-lab/context/roadmap.toml`,
 v1.ai.inference). It is built from spike-ai-pipeline's docinfer at 6a631f1, and its boundaries are
-settled by docproc's `context/layers.md` until its design note takes them over.
+settled by its design note, which supersedes docproc's `context/layers.md` docinfer sections as of
+docproc commit 673ed3d.
 
 ## Capability map
 
