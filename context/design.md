@@ -156,9 +156,9 @@ doesn't decode is a miss the next `Put` replaces; `Cache` keeps `Get` and `Put`.
 nothing tells a streaming pipeline the windows are all in.** `infer/sources.go:123`,
 `infer/sources.go:176-187`, `infer/transcription.go:193-206`. Against docproc v0.3.0
 (`docproc:dispatch/shapes.go:80-82`) and layers "The pipeline" (`Input`). **accepted**, library:
-the end of a nested audio part's windows comes from docproc's plan record output
-(`MediaAudioPlan`, `MediaVideoPlan`), admitted as a `Run` input for its count; the first event of
-an index wins, since events repeat.
+a nested audio part's windows end at the count of docproc's audio plan record
+(`MediaAudioPlan`), admitted as a `Run` input, or at its last window, as "The pipeline" states; the
+first event of an index wins, since events repeat.
 
 **L20. issue: the seam bound is fixed at 16 words on the claim that the windows say nothing.**
 `infer/transcription.go:254-256`, `audio/join.go:12-15`. Against layers "The pipeline"
@@ -669,7 +669,7 @@ type Extract struct {
 }
 type Input struct {
     // Event is an output's event: text or markdown chunked; image described; audio transcribed,
-    // then joined per part; an audio or video plan record admitted for its window count (L19).
+    // then joined per part; an audio plan record admitted for its window count (L19).
     // Its content is opened by its Output.SHA256 from Run's content, only on a cache miss or to
     // chunk its text (L2).
     Event    dispatch.Event

@@ -15,7 +15,8 @@ docproc commit 673ed3d.
 
 - **Pipeline**: the root package's run over go-ai's client: vision, transcription, extraction, and
   embedding, with bounds, cancellation, and batches as made.
-- **Cache**: the result cache interface, with filesystem and memory implementations.
+- **Cache**: the result cache interface, with filesystem and memory implementations, and
+  `docinfertest`, the suite every implementation passes.
 - **Chunk and join**: chunking extracted text, and joining transcribed audio windows at their seams.
 - **Job**: one job's dispatch then inference, its checkpoints and its outputs counted by part ID.
 - **postgres**: the cache in PostgreSQL over sqlate.
