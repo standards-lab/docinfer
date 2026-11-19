@@ -10,8 +10,8 @@ import (
 )
 
 // Version is the version of the splitting. Any change to the chunks a text and bound give must
-// change it, since docinfer keys its held embeddings by it; the golden corpus,
-// testdata/chunks-v<Version>.json, is named for it and fails on such a change.
+// change it, since docinfer reports it in its Profile through [Splitter.Settings]; the golden
+// corpus, testdata/chunks-v<Version>.json, is named for it and fails on such a change.
 const Version = "1"
 
 // ErrRequest is the cause of a refused request: a Splitter's Bound below 1.

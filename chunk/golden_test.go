@@ -17,8 +17,8 @@ import (
 //	go test ./chunk -run TestGoldenCorpus -update
 //
 // Do it only with a new chunk.Version, which names the corpus's file, never to make a changed cut
-// pass under the old one: docinfer keys held embeddings by the version, so chunks cut differently
-// under the same version would be taken for the old.
+// pass under the old one: docinfer's Profile reports the version, so chunks cut differently under
+// the same version would be taken for the old.
 var update = flag.Bool("update", false, "rewrite the golden corpus of chunks for chunk.Version")
 
 // goldenCase is one input of the golden corpus and the chunks it gives.
@@ -67,7 +67,7 @@ var goldenInputs = []goldenCase{
 }
 
 // The committed corpus pins how texts are cut under chunk.Version: a change to any chunk must come
-// with a new version, since docinfer keys its held embeddings by it.
+// with a new version, since docinfer's Profile reports it.
 func TestGoldenCorpus(t *testing.T) {
 	var got []goldenCase
 	for _, in := range goldenInputs {
