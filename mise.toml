@@ -6,7 +6,7 @@ jq = "1.8.2"
 # Space-separated list of module directories. "." is the base module, postgres the PostgreSQL
 # cache's, and cmd/docinfer the command's; each is added as the task that builds it lands.
 [env]
-GO_MODULES = ""
+GO_MODULES = "."
 
 [tasks.check]
 description = "Build, vet, format, fix, tidy, test, and lint every module; writes nothing"
@@ -30,3 +30,24 @@ done
 [tasks.currency]
 description = "Report every requirement, Go version, tool, and action pin behind its latest; writes nothing"
 run = "scripts/currency.sh"
+
+[tasks.upgrade]
+description = "Upgrade every module's go directive and direct requirements and the local mise tools to their latest, rewriting go.mod and mise.toml"
+run = '''
+set -eu
+export GOWORK=off
+# The go directive follows the current Go minor, with no toolchain line.
+go_minor=$(mise latest go | cut -d. -f1,2)
+for mod in $GO_MODULES; do
+  echo "upgrade: $mod"
+  cd "$MISE_PROJECT_ROOT/$mod"
+  go mod edit -go="$go_minor" -toolchain=none
+  # A module with no direct requirement gets nothing.
+  direct=$(go mod edit -json | jq -r '.Require[]? | select(.Indirect | not) | .Path')
+  [ -z "$direct" ] || go get $(printf '%s@latest ' $direct)
+  go mod tidy
+done
+cd "$MISE_PROJECT_ROOT"
+# --no-global writes this mise.toml alone, never the global config.
+mise upgrade --bump --no-global
+'''
