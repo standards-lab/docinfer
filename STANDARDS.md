@@ -24,6 +24,9 @@ docinfer's design review, `context/design.md`, and apply to the base module, `po
 - `architecture/principles/minimal-footprint.md`: the base module requires docproc and go-ai
   alone; the join of work in flight is docinfer's own, `golang.org/x/sync` rejected
   (`context/design.md`, "Join of work in flight").
+- `architecture/principles/service-tiers.md`: `Cache` is the interface, `FileCache` and
+  `MemoryCache` its implementations in the base module, and `postgres` its provider module, over
+  sqlate, each an adapter behind the one interface.
 - `architecture/principles/downward-dependencies.md`: nothing at or below go-ai's tier imports
   docinfer; `postgres` and `cmd/docinfer` depend down on the base module.
 - `architecture/standards/go-elemental/principles/dependencies.md`: the bottom-up line across the
@@ -31,14 +34,16 @@ docinfer's design review, `context/design.md`, and apply to the base module, `po
 - `architecture/principles/independent-releases.md`: each module tags on its own, the base module
   before any that requires it, and no tagged module carries a replace directive.
 - `architecture/standards/go-elemental/principles/construction-and-execution.md`: `docinfer.New`
-  and `NewBounds` validate, refuse with `ErrRequest`, and panic by name on a nil required field;
-  structs with methods, no functional options.
+  and `job.New` each take a `Config` struct, as docproc's `dispatch.New` does, since each needs
+  more than four required inputs; each panics by name on a nil required field and refuses a bad
+  value matching its package's one `ErrRequest`. `NewBounds` takes its four bounds positionally.
+  No functional options.
 - `architecture/standards/go-elemental/principles/baseline-standards.md`: the library ships no
   policy, no default for bounds, batch bytes, words per second, timeouts, or retry; `cmd/docinfer`
   ships the operator's starting values.
-- `architecture/standards/go-elemental/principles/timeouts.md`: the host owns each request's
-  bound, the transport's `ResponseHeaderTimeout` and `ai.Options.StreamIdleTimeout`; docinfer adds
-  none.
+- `architecture/standards/go-elemental/principles/timeouts.md`: each bound has one owner, and a
+  model request's is the host's transport: `ResponseHeaderTimeout`, and
+  `ai.Options.StreamIdleTimeout` for a stream. docinfer sets none.
 - `architecture/standards/go-elemental/principles/utc-times.md`: a time converts where it leaves
   the code, through `schema.TimeOf`, and each test package's `TestMain` sets a non-UTC zone.
 - `architecture/standards/go-elemental/principles/tests-and-docs.md`: unit tests run against
