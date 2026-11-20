@@ -134,7 +134,9 @@ func TestDatabaseErrorsSurface(t *testing.T) {
 }
 
 // Every guard refuses before any query: a key not of Key's form in a Get or a Put, and an empty
-// value, matching ErrRequest; an ended context with its own error.
+// value, matching ErrRequest; an ended context with its own error, unwrapped, which tells the
+// guard's refusal from database/sql's, since database/sql also refuses an ended context without
+// reaching the driver.
 func TestGuardsRefuseBeforeAnyQuery(t *testing.T) {
 	ended, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -160,13 +162,13 @@ func TestGuardsRefuseBeforeAnyQuery(t *testing.T) {
 			t.Errorf("Put of %v: %v, want an empty value refused", v, err)
 		}
 	}
-	if _, err := c.Get(ended, good); !errors.Is(err, context.Canceled) {
+	if _, err := c.Get(ended, good); err != context.Canceled {
 		t.Errorf("Get under an ended context: %v", err)
 	}
-	if _, err := c.Get(ended); !errors.Is(err, context.Canceled) {
+	if _, err := c.Get(ended); err != context.Canceled {
 		t.Errorf("Get of no keys under an ended context: %v", err)
 	}
-	if err := c.Put(ended, good, []byte("v")); !errors.Is(err, context.Canceled) {
+	if err := c.Put(ended, good, []byte("v")); err != context.Canceled {
 		t.Errorf("Put under an ended context: %v", err)
 	}
 	if calls := rec.Calls(); len(calls) != 0 {
