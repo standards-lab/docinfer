@@ -19,10 +19,10 @@ it (go-ai, library, job, postgres, docinfer, or acceptance), **rejected** with i
 **deferred** to the backlog. Where a finding changes a name, the API section states the name.
 
 Citations are relative to `internal/docinfer/` at 6a631f1 unless they start with `audio/`
-(spike-ai-pipeline-processing at v0.9.0), `go-ai:`, or `docproc:` (each at v0.3.0). The measures
-are cited in short. A bare page name, such as `timeouts.md`, is a Go Elemental principle under
-the architecture repository's `standards/go-elemental/principles/`; `principles/<page>` is an
-architecture principle; a quoted name is the page's section. "layers" is docproc's
+(spike-ai-pipeline-processing at v0.9.0), `go-ai:` (at v0.3.0), or `docproc:` (at v0.4.0). The
+measures are cited in short. A bare page name, such as `timeouts.md`, is a Go Elemental principle
+under the architecture repository's `standards/go-elemental/principles/`; `principles/<page>` is
+an architecture principle; a quoted name is the page's section. "layers" is docproc's
 `context/layers.md` at 673ed3d. "data-intelligence" is standards-lab's
 `context/data-intelligence.md`, which states what Cerebro asks of v1.ai.inference.
 
@@ -543,7 +543,7 @@ github.com/standards-lab/docinfer/cmd/docinfer  the docinfer command; requires t
                                                 v0.12.0 (C2)
 ```
 
-The base module requires docproc v0.3.0 and go-ai v0.4.0 and no third module: the join of work in
+The base module requires docproc v0.4.0 and go-ai v0.4.0 and no third module: the join of work in
 flight is its own ("Join of work in flight"), and its tests drive go-ai's client against go-ai's
 `aitest` (W2, G3).
 
@@ -1469,7 +1469,7 @@ patch of the module it fixes.
 | --- | --- | --- | --- |
 | go-ai `v0.4.0` | go-ai's base module, in go-ai's repository | go-ai | G1–G3's additions (G4) |
 | `v0.1.0` | the base module | library | docproc v0.3.0, go-ai v0.4.0 |
-| `v0.2.0` | the base module | job | docproc v0.3.0, go-ai v0.4.0 |
+| `v0.2.0` | the base module | job | docproc v0.4.0, go-ai v0.4.0 |
 | `postgres/v0.1.0` | `postgres` | postgres | the base module, sqlate, sqlate/postgres |
 | `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.3.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
 
