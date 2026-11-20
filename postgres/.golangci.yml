@@ -26,7 +26,8 @@ linters:
       # sqlate/postgres's pgtest, which imports testing and so stays out of the module's own
       # packages. Allow entries match by prefix unless they end in `$`, so each is anchored. The
       # longest match wins, so the deny entries keep the cmd/docinfer module out despite
-      # docinfer's prefix, and pgtest out of the production files despite sqlate's.
+      # docinfer's prefix, and the test-support packages, docinfertest, sqltest, and pgtest, out of
+      # the production files despite their modules' prefixes.
       rules:
         production:
           list-mode: strict
@@ -44,6 +45,10 @@ linters:
           deny:
             - pkg: github.com/standards-lab/docinfer/cmd/docinfer
               desc: the postgres module requires the base module alone
+            - pkg: github.com/standards-lab/docinfer/docinfertest
+              desc: docinfertest imports testing; only the module's tests use it
+            - pkg: github.com/standards-lab/sqlate/sqltest
+              desc: sqltest imports testing; only the module's tests use it
             - pkg: github.com/standards-lab/sqlate/postgres/pgtest
               desc: pgtest imports testing; only the module's tests use it
         tests:
