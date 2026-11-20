@@ -157,10 +157,10 @@ part's own event.
 Tasks run through [mise](https://mise.jdx.dev):
 
 ```sh
-mise run check        # build, vet, format, fix, tidy, test, and lint every module; writes nothing
-mise run currency     # report requirements, Go, tools, and action pins behind their latest
-mise run upgrade      # upgrade every module's go directive and requirements, and the tools, to their latest
-mise run integration  # run the integration tier against the AI_*_BASE_URL endpoints
+mise run check             # build, vet, format, fix, tidy, test, and lint every module; writes nothing
+mise run currency          # report requirements, Go, tools, and action pins behind their latest
+mise run upgrade           # upgrade every module's go directive and requirements, and the tools, to their latest
+mise run test:integration  # run the integration tier against the AI_*_BASE_URL endpoints
 ```
 
 The unit tests are hermetic: they drive the pipeline's go-ai clients against go-ai's `aitest`

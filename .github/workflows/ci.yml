@@ -1,3 +1,6 @@
+# CI runs the check on every pull request into main, every push to main, and on demand. The
+# integration job runs the provider modules' live tiers against the compose harness, on a push to
+# main and on demand, never on a pull request.
 name: CI
 
 on:
@@ -5,6 +8,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   check:
@@ -16,3 +20,18 @@ jobs:
 
       - name: mise run check
         run: mise run check
+
+  # The provider modules' live tiers, each against its compose service, the same task a developer
+  # runs; never the base module's AI tier, test:integration, whose models are on the
+  # organization's own machines. Skipped on a pull request, below the per-PR rate by design. The
+  # task starts its service, prints its log on a failure, and stops it; docker is the runner's.
+  integration:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: jdx/mise-action@v5.2.10
+
+      - name: mise run integration
+        run: mise run integration
