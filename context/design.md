@@ -537,7 +537,8 @@ calls go-ai directly, with no adapter module between them.
 ```text
 github.com/standards-lab/docinfer               the library; requires docproc and go-ai alone
 github.com/standards-lab/docinfer/postgres      Cache over PostgreSQL through sqlate; requires the
-                                                library, sqlate, and sqlate/postgres
+                                                library, sqlate, sqlate/postgres, and pgx's
+                                                database/sql driver
 github.com/standards-lab/docinfer/cmd/docinfer  the docinfer command; requires the library,
                                                 docproc, go-ai, go-cli-sdk v0.4.0, and go-core
                                                 v0.12.0 (C2)
@@ -555,8 +556,9 @@ docinfertest     the Cache conformance suite every implementation runs, as docpr
 chunk            the chunker: Splitter, Chunk, Span, and Version
 join             a part's window transcripts joined at their seams
 job              one job: dispatch, then inference, under the job's context; its updates
-postgres         (module) Cache in PostgreSQL, one row per key, a batch's Get one query, and its
-                   migrations, as docproc/postgres ships its own
+postgres         (module) Cache in PostgreSQL, one row per key in docinfer_cache, a batch's Get
+                   one query, its migrations, Verify, and Statements, as docproc/postgres ships
+                   its own
 cmd/docinfer     (module) main.go at the module's root, so go install installs the command
   internal/app       the composition root, started from go-cli-sdk-template template/v0.3.0 (C1, C2)
   internal/apptest   its fixtures: Recorder, Builds, Halt, and a fixture per node (C22)
@@ -573,7 +575,9 @@ way: the root imports docproc's `dispatch` alone, and go-ai's `ai`, `protocol`, 
 docinfer has no `internal/endpointtest` (W2). A committed `go.work` spans the base module,
 `postgres`, and `cmd/docinfer`, kept in step with `mise.toml`'s `GO_MODULES` as docproc's is, so a
 change to the base is seen by both before it is tagged; the check runs every module with
-`GOWORK=off` (C3).
+`GOWORK=off` (C3). The base module's `integration/`, the AI live tier, runs under
+`mise run test:integration`, which no CI job runs; `mise run integration` runs
+`integration:postgres`, `postgres`'s tier against the compose PostgreSQL, which CI runs.
 
 ### The cache
 
@@ -625,6 +629,33 @@ request version, or the model, or the host removes it from its own store. `FileC
 `MemoryCache` are safe for concurrent use and pass `docinfertest.Cache`, every case of it, as
 `postgres`'s cache must. A golden key per capability pins `Key`'s form, failing with "change the
 version" (L27). The spike's held results are not carried over, so the cache starts empty.
+
+```go
+package postgres
+// Cache is a docinfer.Cache in PostgreSQL: one row per key in docinfer_cache.
+type Cache struct{ /* unexported */ }
+// New panics on a nil db and refuses a pool not on pgx's database/sql driver, matching
+// docinfer.ErrRequest.
+func New(ctx context.Context, db *sqlate.DB) (*Cache, error)
+const (
+    Source = "docinfer"                // the migration set's name and its objects' prefix
+    Table  = "docinfer_schema_version" // the set's history table, apart from a host's own
+)
+// Migrations is the set a host applies; New never migrates.
+func Migrations() (migrate.Set, error)
+// Verify prepares every statement against sess's schema; a host calls it after its migrations.
+func Verify(ctx context.Context, sess sqlate.Session) error
+func Statements() []query.Statement // the compiled statements, in name order
+```
+
+`docinfer_cache` has three columns: `key text` primary key, `Key`'s string; `value bytea NOT NULL
+CHECK (octet_length(value) > 0)`; and `written_at timestamptz NOT NULL`, from the database's clock.
+It has no other index and no version column, since `Version` is in `Key`'s hash. `Get` is one
+statement over `key = ANY` of a `text[]` (native tier), and no query for no keys; `Put` is `INSERT
+... ON CONFLICT (key) DO UPDATE` (native tier), setting `written_at`. `Get` and `Put` refuse a key
+not in `Key`'s form, and `Put` an empty value, matching `ErrRequest`, before any query. docinfer
+removes no row: a host prunes by `written_at` with its own SQL. The host applies `Migrations` and
+calls `Verify` after its migrations.
 
 ### The pipeline
 
@@ -1460,7 +1491,7 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 | `FileContent` | carried | `dispatch.FileContent`, now `texts/` too (C10) |
 | `Content` (docproc's store, as layers' section names it) | carried | `dispatch.Content` |
 | `tool.Run`, `email.Threader`, `Pool` | carried | docproc's, unchanged |
-| `sqlate.Session` | carried | `postgres`'s, as docproc/postgres's |
+| `sqlate.Session` | carried | `postgres.Verify`'s, as docproc/postgres's; `postgres.New` takes a `*sqlate.DB` |
 | `fs.ErrNotExist`, `context.Context`, `iter.Seq2`, `jsontext.Value` | carried | the standard library's |
 | `outdir.Key` | renamed | `docinfer.Key` |
 | `outdir.Dir.Held`, `Hold` | renamed | `Cache.Get`, `Cache.Put` |
@@ -1504,7 +1535,9 @@ Names this API adds: `ErrRequest`, `CapabilityVision`, `CapabilityTranscription`
 `DecodeVector`, `docinfertest.Cache`, `chunk.ErrRequest`, `join.ErrRequest`,
 `join.Request.WordsPerSecond`, and `join.Transcript.Text`; the command's `outdir.json`,
 `inferences.jsonl`, `report/`, `Manifest`'s `Docinfer`, `Inputs`, and `Outputs`, `Build`, `Input`,
-and `integration`.
+and `integration`. `postgres`, new with no spike source, adds `postgres.Cache`, `postgres.New`,
+`postgres.Migrations`, `postgres.Source`, `postgres.Table`, `postgres.Verify`, and
+`postgres.Statements`.
 
 ## Releases
 
@@ -1517,7 +1550,7 @@ patch of the module it fixes.
 | go-ai `v0.4.0` | go-ai's base module, in go-ai's repository | go-ai | G1–G3's additions (G4) |
 | `v0.1.0` | the base module | library | docproc v0.3.0, go-ai v0.4.0 |
 | `v0.2.0` | the base module | job | docproc v0.4.0, go-ai v0.4.0 |
-| `postgres/v0.1.0` | `postgres` | postgres | the base module, sqlate, sqlate/postgres |
+| `postgres/v0.1.0` | `postgres` | postgres | docinfer v0.2.0, sqlate v0.7.0, sqlate/postgres v0.8.0, pgx v5.13.0 |
 | `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.4.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
 
 - A module is tagged only after every module it requires: go-ai v0.4.0 before the base module's

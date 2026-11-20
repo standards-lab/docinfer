@@ -1,6 +1,6 @@
 # golangci-lint v2 configuration, run per module by `mise run check`. golangci-lint reads the
-# nearest configuration above the directory it runs in, so this one file serves every module until
-# one carries its own.
+# nearest configuration above the directory it runs in, so this one file serves every module but
+# one that carries its own, as the postgres module does.
 version: "2"
 
 run:
@@ -28,7 +28,10 @@ linters:
         # rule covers every Go file, tests included: they drive the API with the same imports plus
         # the module itself. Allow entries match by prefix unless they end in `$`, so each
         # module's entries are anchored: the module as itself or a package under it, not a
-        # sibling such as docinfer-extra.
+        # sibling such as docinfer-extra. The longest match wins, so the deny entry keeps the
+        # postgres module, which requires the base, out of it despite its prefix; that module
+        # carries its own .golangci.yml, which golangci-lint takes as the nearest to the directory
+        # it runs in.
         base:
           list-mode: strict
           files:
@@ -41,3 +44,6 @@ linters:
             - github.com/standards-lab/docproc/
             - github.com/standards-lab/go-ai$
             - github.com/standards-lab/go-ai/
+          deny:
+            - pkg: github.com/standards-lab/docinfer/postgres
+              desc: the base imports no provider; the postgres module depends on the base

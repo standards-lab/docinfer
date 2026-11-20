@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # currency reports every dependency, toolchain, and pin that trails its latest
-# release, one line each, and exits non-zero when it reports any. It reads the
-# network and writes nothing. Run it through `mise run currency`.
+# release, one line each, and exits non-zero when it reports any: each module's
+# direct requirements and go directive, the mise tools, the workflows' action
+# pins, and the compose harness's image pins, each compose/<service>/Dockerfile's
+# FROM line. It reads the network and writes nothing. Run it through
+# `mise run currency`.
 #
 # Each scan captures its command's output in a variable before reading it, so
 # under set -e a scan command that fails (a go list missing a go.sum entry)
@@ -68,6 +71,30 @@ for uses in $actions; do
 	repo=$(echo "$action" | cut -d/ -f1,2)
 	latest=$(gh api "repos/$repo/releases/latest" --jq .tag_name)
 	[ "$pin" = "$latest" ] || report ".github/workflows: $action $pin -> $latest"
+done
+
+# latest_tag prints the highest semver tag of an image that carries the given
+# pin's variant suffix (19.0-alpine -> -alpine). A tag needs at least one dot to
+# count, so a bare build number never sorts above every release.
+latest_tag() {
+	local image=$1 pin=$2 suffix pattern tags latest
+	suffix=${pin#"${pin%%[!0-9.]*}"}
+	pattern="^[0-9]+(\.[0-9]+)+${suffix//./\\.}\$"
+	tags=$(crane ls "$image")
+	latest=$(grep -E "$pattern" <<<"$tags" | sed "s/${suffix}\$//" | sort -V | tail -n1)
+	echo "$latest$suffix"
+}
+
+# Compose services' Dockerfiles pinned on their FROM line below the image's
+# latest tag. A service that builds from compose/<service>/Dockerfile has its one
+# pin there. With no Dockerfiles, the glob stays unexpanded and is skipped.
+for dockerfile in compose/*/Dockerfile; do
+	[ -e "$dockerfile" ] || continue
+	ref=$(sed -n 's/^FROM  *\([^ ]*\).*/\1/p' "$dockerfile" | head -n1)
+	image=${ref%:*}
+	pin=${ref##*:}
+	latest=$(latest_tag "$image" "$pin")
+	[ "$pin" = "$latest" ] || report "$dockerfile: $image $pin -> $latest"
 done
 
 exit "$stale"

@@ -1,8 +1,8 @@
 // Package integration is docinfer's integration tier: tests behind the integration build tag that
 // drive the exported API black-box, through docinfer.New and docinfer.Pipeline.Run, against
-// live endpoints. `mise run integration` runs them verbose; the hermetic check builds, vets, fixes,
-// and lints them under the tag but never runs them, and no CI job runs them, as the models are on
-// the organization's own machines. The package exports nothing: it is its tests.
+// live endpoints. `mise run test:integration` runs them verbose; the hermetic check builds, vets,
+// fixes, and lints them under the tag but never runs them, and no CI job runs them, as the models
+// are on the organization's own machines. The package exports nothing: it is its tests.
 //
 // The endpoints are go-ai's tier's roles, read from the same variables, so one environment drives
 // both tiers. Each role is an endpoint named by an environment variable, its API root including

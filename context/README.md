@@ -23,7 +23,8 @@ docproc commit 673ed3d.
   updates in one order. It yields a checkpoint at the low watermark of settled messages, and a
   `Done` that counts parts by part ID. A content miss drops its part's index entry, so a
   redelivery prepares the part again.
-- **postgres**: the cache in PostgreSQL over sqlate.
+- **postgres**: the cache in PostgreSQL over sqlate, one row per key, a batch's Get one query, in
+  a migration set the host applies. It passes docinfertest's suite in CI's integration job.
 - **cmd/docinfer**: the command over a cmd/docproc run directory, with its own directory and
   report.
 
