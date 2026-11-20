@@ -25,13 +25,14 @@ alone. `job` is new: the spike has no job to copy.
   watermark, every `CheckpointEvery` settled messages, and a dispatch resumed with its `After`
   yields only the messages after it. `Done` ends the attempt, its parts counted once per part ID
   by each part's last own event. A content miss drops its part's index entry, so a redelivery
-  prepares the part again; any error, a cancellation, or a loop stopped early stops the job alone.
+  prepares the part again. Any error or a cancellation stops the job, its error yielded alone and
+  last, a loop stopped early stops it too, and other jobs on the `Runner` go on.
   `Checkpoint`'s and `Done`'s JSON is under `Version` "1".
 - `Result.Input`, each input echoed as `Pipeline.Run` admits it, in pull order, before anything
   derived from it. An input that needs no work, such as a warning or a part's own event, is
   passed through: echoed, then settled, with nothing counted.
 - `Result.Settled`, an input's position in pull order, yielded once everything derived from that
-  input is out, its window group's included.
+  input is out. A window and its audio plan record settle once their group's transcript and everything derived from it are out.
 
 ### Changed
 

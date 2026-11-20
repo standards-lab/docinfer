@@ -14,11 +14,15 @@ docproc commit 673ed3d.
 ## Capability map
 
 - **Pipeline**: the root package's run over go-ai's client: vision, transcription, extraction, and
-  embedding, with bounds, cancellation, and batches as made.
+  embedding, with bounds, cancellation, and batches as made. It echoes each input as it admits it,
+  and reports each input settled once everything derived from it is out.
 - **Cache**: the result cache interface, with filesystem and memory implementations, and
   `docinfertest`, the suite every implementation passes.
 - **Chunk and join**: chunking extracted text, and joining transcribed audio windows at their seams.
-- **Job**: one job's dispatch then inference, its checkpoints and its outputs counted by part ID.
+- **Job**: the `job` package runs one job: docproc's dispatch, then the pipeline's inference, its
+  updates in one order. It yields a checkpoint at the low watermark of settled messages, and a
+  `Done` that counts parts by part ID. A content miss drops its part's index entry, so a
+  redelivery prepares the part again.
 - **postgres**: the cache in PostgreSQL over sqlate.
 - **cmd/docinfer**: the command over a cmd/docproc run directory, with its own directory and
   report.

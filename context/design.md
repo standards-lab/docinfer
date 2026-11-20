@@ -1071,9 +1071,10 @@ checkpoint.
 
 A job is cancelled through `Run`'s context, which is the job's own. Its end stops the dispatch, its
 tool runs, its index waits and claims, its join waits, and its go-ai calls, since each takes the
-context. It yields `ctx.Err()` alone, last, and leaves none of the job's files in the dispatcher's
-working directory. Other jobs on the same `Runner` go on and complete. Stopping the loop early does
-the same, yielding nothing.
+context. It yields `ctx.Err()` alone, last, in place of whatever error the stop surfaced as, a
+content miss's included, whose entry it doesn't drop, and leaves none of the job's files in the
+dispatcher's working directory. Other jobs on the same `Runner` go on and complete. Stopping the
+loop early does the same, yielding nothing.
 
 ### go-ai use
 

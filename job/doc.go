@@ -27,9 +27,10 @@
 // entry of the output's part, under the part's SHA-256 and the event's stage, so a redelivery
 // prepares the part again and puts its content back rather than replay the entry and miss again.
 // Every other error stops the job too, yielded alone and last, keeping what docinfer.Permanent
-// reads of it. A cancelled context yields its error alone, last, and a loop stopped early stops
-// the job the same way, each once the dispatch has removed the job's files; other jobs on the
-// Runner go on.
+// reads of it. A cancelled context yields its error alone, last, in place of any other, a content
+// miss's included, which then drops nothing; a loop stopped early stops the job the same way,
+// yielding nothing. Either ends once the dispatch has removed the job's files, and other jobs on
+// the Runner go on.
 //
 // [Checkpoint]'s and [Done]'s JSON is under docinfer.Version "1", added to and never changed;
 // [Update] has no JSON of its own, since each of its fields' types is its own shape.

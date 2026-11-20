@@ -59,9 +59,10 @@ func New(cfg Config) (*Runner, error) {
 // reads of it, a put's never permanent. A content miss, a *docinfer.MissingError, first drops
 // the index entry of the output's part, under the part's SHA-256 and the event's stage, so a
 // redelivery prepares the part again; a failed drop is joined to the miss. A cancelled ctx yields
-// ctx.Err() alone, last, once the dispatch has removed the job's files from its working
-// directory; a loop stopped early stops the job the same way, and nothing more is yielded. Other
-// jobs on the Runner go on.
+// ctx.Err() alone, last, in place of any other error, a miss's included, which then drops
+// nothing, once the dispatch has removed the job's files from its working directory; a loop
+// stopped early stops the job the same way, and nothing more is yielded. Other jobs on the Runner
+// go on.
 //
 // A store's input yields [Checkpoint]s at its low watermark. A message is the stretch of inputs,
 // in pull order, that ends at an output event with a non-zero After; the watermark is the last

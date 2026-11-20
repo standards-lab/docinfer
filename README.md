@@ -115,7 +115,7 @@ for u, err := range runner.Run(ctx, in, docinfer.Options{Final: final}) {
 	}
 	switch {
 	case u.Event != nil: // a part's own, an output's, or a warning's event
-	case u.Inference != nil: // a description or transcript, its text already in the content store
+	case u.Inference != nil: // a description, transcript, or extraction, its text already in the content store
 	case u.Batch != nil: // embedded chunks, ready to index
 	case u.Checkpoint != nil:
 		cursor = u.Checkpoint.After // keep it: a redelivery resumes after it
