@@ -9,6 +9,35 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.2.0] - 2026-11-20
+
+Adds `job`, which runs one job end to end over docproc's dispatcher and the pipeline, and the two
+results of `Pipeline.Run` it is built on. The module requires docproc v0.4.0 and go-ai v0.4.0
+alone. `job` is new: the spike has no job to copy.
+
+### Added
+
+- `job`: `Config` (`Dispatcher`, `Pipeline`, and `CheckpointEvery`, with no default), `New`, and
+  `Runner.Run`, which dispatches a job's input and infers over what it prepares, yielding each
+  `Update` in one order: an output's event before its inference and batches, and a part's own
+  event after its outputs', warnings', and children's. Each inference's text is put into the
+  dispatcher's content store before its update. A store's input yields a `Checkpoint` at its low
+  watermark, every `CheckpointEvery` settled messages, and a dispatch resumed with its `After`
+  yields only the messages after it. `Done` ends the attempt, its parts counted once per part ID
+  by each part's last own event. A content miss drops its part's index entry, so a redelivery
+  prepares the part again; any error, a cancellation, or a loop stopped early stops the job alone.
+  `Checkpoint`'s and `Done`'s JSON is under `Version` "1".
+- `Result.Input`, each input echoed as `Pipeline.Run` admits it, in pull order, before anything
+  derived from it. An input that needs no work, such as a warning or a part's own event, is
+  passed through: echoed, then settled, with nothing counted.
+- `Result.Settled`, an input's position in pull order, yielded once everything derived from that
+  input is out, its window group's included.
+
+### Changed
+
+- `Permanent` reports `dispatch.ErrRequest`, a request docproc refuses, as permanent.
+- The module requires docproc v0.4.0.
+
 ## [v0.1.0] - 2026-11-19
 
 The first release: the inference library above go-ai's tier. It describes images, transcribes
@@ -63,5 +92,6 @@ extraction, and the integration tier are new.
   release workflow, which makes a GitHub release from `CHANGELOG.md` for a `v*` tag and from
   `<module>/CHANGELOG.md` for a `<module>/v*` tag.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.2.0...HEAD
+[v0.2.0]: https://github.com/standards-lab/docinfer/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/standards-lab/docinfer/releases/tag/v0.1.0

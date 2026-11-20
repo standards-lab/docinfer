@@ -17,11 +17,14 @@
 //
 // [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
 // Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
-// as their embeddings complete and its [Counts] last. Every result is held before anything
-// derived from it is yielded. A go-ai failure maps by one table: a refused status is the item's
-// outcome, held; a permanent or transient failure stops the job, [Permanent] telling them apart
-// for the host; and a failed call stops it too, but on the job's last delivery
-// ([Options].Final) its items are recorded failed, never held, and the job goes on.
+// as their embeddings complete and its [Counts] last. It echoes each input as [Result.Input] as
+// it admits it, in pull order, before anything derived from it, passing through an input that
+// needs no work, and yields [Result.Settled], the input's position in pull order, once
+// everything derived from it is out. Every result is held before anything derived from it is
+// yielded. A go-ai failure maps by one table: a refused status is the item's outcome, held; a
+// permanent or transient failure stops the job, [Permanent] telling them apart for the host; and
+// a failed call stops it too, but on the job's last delivery ([Options].Final) its items are
+// recorded failed, never held, and the job goes on.
 //
 // The consumer's contract: Run yields a part's results as they are made, which may be before the
 // part's own event, whatever that event comes to, since holding a part's outputs until its event
@@ -36,7 +39,8 @@
 // The package exports:
 //
 //   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity
-//   - [Pipeline.Run], one job's run, over [Input]s, with [Options], yielding [Result]s;
+//   - [Pipeline.Run], one job's run, over [Input]s, with [Options], yielding [Result]s, among
+//     them [Result.Input], each input's echo, and [Result.Settled], each input's settlement;
 //     [MetadataText], the one builder of an input's metadata text; [MissingError], a content
 //     miss, with its [MissingError.Error] and [MissingError.Unwrap]; and [Permanent], which tells
 //     an error no redelivery changes
