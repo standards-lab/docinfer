@@ -24,8 +24,8 @@ type Options struct {
 	Final bool
 }
 
-// Input is one of a job's inputs to [Pipeline.Run]: an output's event, or the input's metadata
-// text.
+// Input is one of a job's inputs to [Pipeline.Run]: an output's event, the input's metadata
+// text, or any other event, which Run passes through.
 type Input struct {
 	// Event is an output's event: a text or Markdown output is chunked; image, audio, and record
 	// outputs are described, transcribed, or read as their capabilities say. Its content is
@@ -38,6 +38,8 @@ type Input struct {
 
 // Result is one thing [Pipeline.Run] made. One field is set.
 type Result struct {
+	// Input is an input, echoed as Run admits it, in pull order, before anything derived from it.
+	Input     *Input
 	Inference *Inference
 	Progress  *Progress
 	Batch     *Batch
@@ -94,8 +96,13 @@ const (
 var errInputDefect = errors.New("docinfer: the input's defect")
 
 // Run infers over one job's inputs, opening their content from content, and yields what it makes
-// as it makes it: each [Inference], each extraction's [Progress], each [Batch] once its chunks'
-// embeddings complete, and the job's [Counts] last.
+// as it makes it: each [Input] as it admits it, each [Inference], each extraction's [Progress],
+// each [Batch] once its chunks' embeddings complete, and the job's [Counts] last.
+//
+// Each input is echoed as Result.Input exactly once, in pull order, before anything derived from
+// it: its inference, its progress, and the batches holding its chunks. An input that is neither an
+// output nor a metadata text, such as a warning or a part's own event, is passed through: echoed,
+// with no work and nothing counted.
 //
 // A text or Markdown output is chunked as a source of kind output, and a Metadata input as one of
 // kind metadata. With Config.Vision set, an image output is described from its content, sent as a
@@ -426,6 +433,11 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 		}
 		switch e := e.(type) {
 		case inputEvent:
+			// The echo is yielded here, before admit starts the input's work, so nothing derived
+			// from it can reach the coordinator ahead of it.
+			if !yield(Result{Input: &e.in}, nil) {
+				return nil
+			}
 			if err := r.admit(e.in); err != nil {
 				return err
 			}
@@ -533,6 +545,8 @@ func (r *run) admit(in Input) error {
 	out := in.Event.Output
 	if out == nil {
 		if in.Metadata == "" {
+			// Neither an output nor a metadata text, a warning or a part's own event: passed
+			// through, its echo all it yields, nothing counted.
 			r.finish()
 			return nil
 		}

@@ -152,10 +152,11 @@ func seq(inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	}
 }
 
-// outcome is everything one Run yielded: its inferences, its progress, its batches, its counts,
-// and its error, each in the order yielded, and whether anything came after the counts or the
-// error.
+// outcome is everything one Run yielded: its echoed inputs, its inferences, its progress, its
+// batches, its counts, and its error, each in the order yielded, and whether anything came after
+// the counts or the error.
 type outcome struct {
+	inputs     []docinfer.Input
 	inferences []docinfer.Inference
 	progress   []docinfer.Progress
 	batches    []docinfer.Batch
@@ -166,11 +167,19 @@ type outcome struct {
 }
 
 // collect ranges over a Run's results. It fails the test when a batch holds a chunk of an image's
-// text whose inference wasn't yielded before it, or when an extraction's progress follows its
-// inference.
+// text whose inference wasn't yielded before it, when an extraction's progress follows its
+// inference, or when a result derived from an input comes before that input's echo.
 func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 	t.Helper()
 	var o outcome
+	// echoed holds what the echoes so far name: each output's SHA-256, each metadata text's, and
+	// each inference's text's, which an extraction's source may be.
+	echoed := map[string]bool{}
+	unechoed := func(what, sha string) {
+		if !echoed[sha] {
+			t.Errorf("%s %s before the echo of the input it derives from", what, sha)
+		}
+	}
 	for r, err := range results {
 		o.results++
 		if o.counts != nil || o.err != nil {
@@ -182,9 +191,29 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 				t.Errorf("a result beside the error %v", err)
 			}
 			o.err = err
+		case r.Input != nil:
+			o.inputs = append(o.inputs, *r.Input)
+			if out := r.Input.Event.Output; out != nil {
+				echoed[out.SHA256] = true
+			} else if r.Input.Metadata != "" {
+				echoed[sha(r.Input.Metadata)] = true
+			}
 		case r.Inference != nil:
+			if r.Inference.Capability == docinfer.CapabilityExtraction {
+				unechoed("extraction of", r.Inference.ContentSHA256[0])
+			} else {
+				for _, c := range r.Inference.ContentSHA256 {
+					if c != "" { // a window never cut has no input
+						unechoed("inference of", c)
+					}
+				}
+			}
+			if r.Inference.TextSHA256 != "" {
+				echoed[r.Inference.TextSHA256] = true
+			}
 			o.inferences = append(o.inferences, *r.Inference)
 		case r.Progress != nil:
+			unechoed("progress of", r.Progress.ContentSHA256)
 			if slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
 				return inf.Capability == docinfer.CapabilityExtraction && slices.Equal(inf.ContentSHA256, []string{r.Progress.ContentSHA256})
 			}) {
@@ -193,6 +222,12 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 			o.progress = append(o.progress, *r.Progress)
 		case r.Batch != nil:
 			for _, s := range r.Batch.Sources {
+				switch {
+				case s.Kind == "metadata":
+					unechoed("a batch of metadata", s.SHA256)
+				case s.Output != nil:
+					unechoed("a batch of "+s.Kind, s.Output.SHA256)
+				}
 				if s.Kind == "vision" && !slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
 					return slices.Equal(inf.ContentSHA256, []string{s.Output.SHA256})
 				}) {
@@ -637,7 +672,8 @@ func TestRunBatchBytes(t *testing.T) {
 	}
 }
 
-// A cancelled context yields ctx.Err() alone, last, once the requests in flight have ended.
+// A cancelled context yields ctx.Err() alone, last, once the requests in flight have ended: only
+// the input's echo comes before it.
 func TestRunCancelled(t *testing.T) {
 	gate := &aitest.Gate{}
 	e := aitest.Serve(t, aitest.Routes{Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
@@ -652,7 +688,13 @@ func TestRunCancelled(t *testing.T) {
 	done := make(chan []error, 1)
 	go func() {
 		var errs []error
+		first := true
 		for r, err := range p.Run(ctx, content, seq(outputInput(t, content, childPart, dispatch.TextOutput, plainText)), docinfer.Options{}) {
+			// The first result is the input's echo, yielded at admission, before its request.
+			if first && r.Input != nil && err == nil {
+				first = false
+				continue
+			}
 			if r != (docinfer.Result{}) {
 				errs = append(errs, fmt.Errorf("a result %+v", r))
 			}
@@ -741,6 +783,9 @@ func TestRunWaitsForRequestsInFlight(t *testing.T) {
 			defer cancel()
 			var results []error
 			for r, err := range p.Run(ctx, content, inputs, docinfer.Options{}) {
+				if r.Input != nil {
+					continue // the inputs' echoes, at their admission
+				}
 				results = append(results, err)
 				if err != nil {
 					if !routeReturned() {
