@@ -19,6 +19,13 @@ The module's releases are tagged `vX.Y.Z`, and [`CHANGELOG.md`](CHANGELOG.md) st
 changes. Each package's documentation, `go doc github.com/standards-lab/docinfer/...`, is the
 reference for its exported names, and its doc comment lists them.
 
+The PostgreSQL cache is a nested module, released on its own `postgres/vX.Y.Z` tags with its own
+[`CHANGELOG.md`](postgres/CHANGELOG.md):
+
+```sh
+go get github.com/standards-lab/docinfer/postgres
+```
+
 ## Usage
 
 A host builds a go-ai client per endpoint, one `Bounds` shared by every pipeline, a cache, and a
@@ -138,6 +145,18 @@ the part again rather than miss again.
 | `join` | A part's window transcripts joined at their seams. |
 | `integration` | The integration tier, behind the `integration` build tag. |
 
+## Providers
+
+One nested module implements the `Cache` over a stack library, released on its own tags and with
+its own README, which states its use, the host's responsibilities, and its tiers:
+
+| Module | What it is | Tags |
+| --- | --- | --- |
+| [`github.com/standards-lab/docinfer/postgres`](postgres/README.md) | `postgres.New(ctx, db)`: a `docinfer.Cache` in PostgreSQL over sqlate, one row per key, a batch's `Get` one query, its `Migrations` the host applies, and `Verify`. | `postgres/vX.Y.Z` |
+
+It requires the base module, and the base module doesn't require it. It passes `docinfertest`'s
+suite.
+
 ## No defaults
 
 No bound, cap, or setting has a library default. `New` refuses a value below 1, matching
@@ -154,24 +173,39 @@ part's own event.
 
 ## Development
 
-Tasks run through [mise](https://mise.jdx.dev):
+Tasks run through [mise](https://mise.jdx.dev), from the repository root:
 
 ```sh
-mise run check             # build, vet, format, fix, tidy, test, and lint every module; writes nothing
-mise run currency          # report requirements, Go, tools, and action pins behind their latest
-mise run upgrade           # upgrade every module's go directive and requirements, and the tools, to their latest
-mise run test:integration  # run the integration tier against the AI_*_BASE_URL endpoints
+mise run check                 # build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL; writes nothing
+mise run currency              # report requirements, Go, tools, and action pins behind their latest
+mise run upgrade               # upgrade every module's go directive and requirements, and the tools, to their latest
+mise run test:integration      # run the base module's integration tier against the AI_*_BASE_URL endpoints
+mise run integration           # run the providers' live tiers: integration:postgres
+mise run integration:postgres  # run the postgres module's live tier against the compose PostgreSQL
 ```
 
 The unit tests are hermetic: they drive the pipeline's go-ai clients against go-ai's `aitest`
-fake endpoint.
+fake endpoint, and the postgres module's cache against sqlate's scripted driver.
 
-The integration tier runs against live endpoints, read from go-ai's tier's variables, so one
-environment drives both: `AI_<ROLE>_BASE_URL`, an API root including `/v1`, for the embedding,
-vision, transcription, audio, and agent roles, with `AI_<ROLE>_TOKEN`, `AI_<ROLE>_HEADER`, and
-`AI_<ROLE>_MODEL` as each endpoint needs. A scenario whose variable is unset skips, naming it.
-[`integration/doc.go`](integration/doc.go) tells each scenario. The check builds the tier but
-never runs it, and no CI job runs it, because the models are on the organization's own machines.
+`test:integration` runs the base module's integration tier against live endpoints, read from
+go-ai's tier's variables, so one environment drives both: `AI_<ROLE>_BASE_URL`, an API root
+including `/v1`, for the embedding, vision, transcription, audio, and agent roles, with
+`AI_<ROLE>_TOKEN`, `AI_<ROLE>_HEADER`, and `AI_<ROLE>_MODEL` as each endpoint needs. A scenario
+whose variable is unset skips, naming it. [`integration/doc.go`](integration/doc.go) tells each
+scenario. The check builds the tier but never runs it, and no CI job runs it, because the models
+are on the organization's own machines.
+
+`integration` runs the providers' live tiers, every one even after one fails: today
+`integration:postgres`, which starts the compose harness's PostgreSQL alone, runs the postgres
+module's suite, docinfertest's `Cache` suite among it, and stops the service whether the suite
+passes or fails, printing its log on a failure. CI's integration job runs `integration` on a push
+to main and on demand, never on a pull request.
+
+The compose harness, [`compose.yml`](compose.yml), is test-only: PostgreSQL on port 5437, built
+from `compose/postgres/Dockerfile`, which pins its image, and keeping its data in tmpfs, so every
+start is empty. `DOCINFER_POSTGRES_PORT` moves the port, and `DOCINFER_DSN`, the admin DSN
+`mise.toml` sets for the live tier, on which each postgres test creates and drops its own
+database, follows.
 
 ## License
 
