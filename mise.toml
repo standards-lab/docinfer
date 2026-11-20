@@ -87,7 +87,7 @@ docker compose up -d --wait --build postgres
 # The provider modules' live tiers, each against its compose service, one module at a time, every
 # module even after one fails: the postgres module's alone. CI's integration job runs it.
 [tasks.integration]
-description = "Run the postgres module's integration suite against a fresh compose PostgreSQL"
+description = "Run every provider's integration suite (today integration:postgres), continuing past a failure"
 run = '''
 rc=0
 mise -C "$MISE_PROJECT_ROOT" run integration:postgres || rc=1

@@ -147,8 +147,8 @@ the part again rather than miss again.
 
 ## Providers
 
-One nested module implements the `Cache` over a stack library, released on its own tags and with
-its own README, which states its use, the host's responsibilities, and its tiers:
+A provider is a nested module that implements `Cache` over a database. Each has its own tags and
+README, which states its use, the host's responsibilities, and its tests:
 
 | Module | What it is | Tags |
 | --- | --- | --- |
@@ -195,17 +195,16 @@ whose variable is unset skips, naming it. [`integration/doc.go`](integration/doc
 scenario. The check builds the tier but never runs it, and no CI job runs it, because the models
 are on the organization's own machines.
 
-`integration` runs the providers' live tiers, every one even after one fails: today
-`integration:postgres`, which starts the compose harness's PostgreSQL alone, runs the postgres
-module's suite, docinfertest's `Cache` suite among it, and stops the service whether the suite
-passes or fails, printing its log on a failure. CI's integration job runs `integration` on a push
-to main and on demand, never on a pull request.
+`integration` runs every provider's live tier, continuing past a failure; `integration:postgres`
+is the one provider tier. `integration:postgres` starts the compose harness's PostgreSQL alone,
+runs the postgres module's integration tests, `docinfertest`'s `Cache` suite among them, and stops
+the service whether they pass or fail, printing its log on a failure. CI's integration job runs
+`integration` on a push to main and on demand, never on a pull request.
 
-The compose harness, [`compose.yml`](compose.yml), is test-only: PostgreSQL on port 5437, built
-from `compose/postgres/Dockerfile`, which pins its image, and keeping its data in tmpfs, so every
-start is empty. `DOCINFER_POSTGRES_PORT` moves the port, and `DOCINFER_DSN`, the admin DSN
-`mise.toml` sets for the live tier, on which each postgres test creates and drops its own
-database, follows.
+The compose harness, [`compose.yml`](compose.yml), is test-only. It runs PostgreSQL on port 5437,
+built from `compose/postgres/Dockerfile`, which pins the image, with its data in tmpfs, so every
+start is empty. `DOCINFER_POSTGRES_PORT` moves the port. `mise.toml` sets `DOCINFER_DSN`, the
+admin DSN the postgres tests create and drop their databases on, to follow it.
 
 ## License
 

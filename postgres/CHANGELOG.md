@@ -28,9 +28,9 @@ The first release. The module is new: the spike has no PostgreSQL cache to copy.
   its own SQL.
 - `Verify`, which prepares every statement against a live schema, and `Statements`, which lists
   them: `lookup_values` and `hold_value`, both at the native tier.
-- `Cache`, the `docinfer.Cache` over PostgreSQL, made by `New` from a sqlate session whose pool
+- `Cache`, the `docinfer.Cache` over PostgreSQL, made by `New` from a `*sqlate.DB` whose pool
   must be on pgx's `database/sql` driver; another driver is refused, matching
-  `docinfer.ErrRequest`, and a nil session panics. `Get` reads any number of keys in one query,
+  `docinfer.ErrRequest`, and a nil `*sqlate.DB` panics. `Get` reads any number of keys in one query,
   the keys bound as one `text[]`; `Put` inserts a key's row or replaces its value in one
   statement, setting `written_at` to the database's clock. A key not of `Key`'s form and an empty
   value are refused, matching `docinfer.ErrRequest`, and an ended context with its own error,

@@ -4,8 +4,8 @@
 //
 // The package exports:
 //
-//   - [Cache], the docinfer.Cache, made by [New] from the context and a sqlate session, whose
-//     pool must be on pgx's database/sql driver, with its [Cache.Get] and [Cache.Put]
+//   - [Cache], the docinfer.Cache, made by [New] from a context and a *sqlate.DB, whose pool
+//     must be on pgx's database/sql driver, with its [Cache.Get] and [Cache.Put]
 //   - [Migrations], the cache's table as a migration set, named [Source] and recorded in the
 //     history table [Table]
 //   - [Verify], which prepares the statements against a live schema, and [Statements], which
@@ -53,7 +53,7 @@
 //
 // # Guards
 //
-// A nil session panics in New, as the caller's mistake. Get and Put refuse a key not of Key's
+// A nil db panics in New, as the caller's mistake. Get and Put refuse a key not of Key's
 // form, a capability of lowercase letters, a slash, and 64 lowercase hex digits, as docinfer's
 // FileCache does, so the table holds only keys docinfer makes; Put refuses an empty value. Each
 // refusal matches [docinfer.ErrRequest]. A context already ended is refused with its own error.

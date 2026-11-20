@@ -33,9 +33,9 @@ p, err := docinfer.New(docinfer.Config{
 })
 ```
 
-`New` takes no configuration beyond the session. A nil session panics; a pool on any other driver
-is refused, naming the driver connection's type it found, matching `docinfer.ErrRequest`. `New`
-reads the driver from a connection it takes from the pool, so a pool it can't reach fails too.
+`New` takes no configuration beyond `db`. A nil `db` panics; a pool on any other driver is
+refused, naming the driver connection's type it found, matching `docinfer.ErrRequest`. `New` reads
+the driver from a connection it takes from the pool, so a pool it can't reach fails too.
 
 ## The host's responsibilities
 
@@ -78,9 +78,9 @@ how a port to another engine would do without it.
 
 Tasks run from the repository root, `mise run <task>`:
 
-- `check`: the unit tier, with the base module, then `sqlint` over the module's SQL. It holds the
-  migration's golden hash, the statement list, the driver refusal, and the guards; it reads no
-  network.
+- `check`: the unit tier, run with the base module's, then `sqlint` over the module's SQL. The
+  unit tier covers the migration's golden hash, the statement list, the driver refusal, and the
+  guards, and reads no network.
 - `integration:postgres`: the live tier, under the `integration` build tag. It starts the compose
   harness's PostgreSQL alone, applies the set and verifies it, and runs docinfertest's `Cache`
   suite whole, each test on a database of its own made through `sqlate/postgres/pgtest`, and stops
