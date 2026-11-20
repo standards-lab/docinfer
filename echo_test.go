@@ -1,7 +1,6 @@
 package docinfer_test
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"slices"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docproc/dispatch"
-	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/aitest"
 )
 
@@ -42,31 +40,8 @@ func echoes(t *testing.T, o outcome, inputs []docinfer.Input) {
 // passed-through inputs, with vision, transcription, and extraction on. The passed-through inputs
 // do no work and count nothing: the run's counts are those of a run without them.
 func TestRunEchoesEveryInput(t *testing.T) {
-	e := aitest.Serve(t, aitest.Routes{
-		ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
-			if !req.Stream {
-				return aitest.ChatReply{Text: description, PromptTokens: 7, CompletionTokens: 3}
-			}
-			return aitest.ChatReply{Chunks: []string{`{"total":`, `1}`}, PromptTokens: 4, CompletionTokens: 2}
-		},
-		Transcriptions: func(_ context.Context, req aitest.TranscriptionRequest) aitest.Reply {
-			for _, w := range []win{win0, win1, win2} {
-				if string(req.File) == w.clip {
-					return aitest.TranscriptionReply{Text: w.said, InputTokens: 5, OutputTokens: 2}
-				}
-			}
-			t.Errorf("a transcription of clip %q, which no window says", req.File)
-			return aitest.ErrorReply{Status: 418, Message: "no such clip"}
-		},
-		Embeddings: embedAll,
-	})
-	config := func() docinfer.Config {
-		client := newClient(t, e.URL(), ai.TranscribeRoute)
-		return extractConfig(t, e, func(c *docinfer.Config) {
-			c.Vision = &docinfer.Vision{Client: client, Model: visionModel, MaxTokens: visionTokens}
-			c.Transcription = &docinfer.Transcription{Client: client, Model: transcriptionModel}
-		})
-	}
+	e := settleEndpoint(t, saying(win0, win1, win2), nil)
+	config := func() docinfer.Config { return settleConfig(t, e, nil) }
 	content := dispatch.NewMemoryContent()
 	work := []docinfer.Input{
 		outputInput(t, content, childPart, dispatch.TextOutput, plainText),
@@ -86,11 +61,7 @@ func TestRunEchoesEveryInput(t *testing.T) {
 	o := collect(t, newPipeline(t, config()).Run(t.Context(), content, seq(all...), extracting(false)))
 	echoes(t, o, all)
 	// collect's checks are vacuous without derived results of each kind to check.
-	kinds := map[docinfer.Capability]int{}
-	for _, inf := range o.inferences {
-		kinds[inf.Capability]++
-	}
-	if kinds[docinfer.CapabilityVision] != 1 || kinds[docinfer.CapabilityTranscription] != 1 || kinds[docinfer.CapabilityExtraction] != 4 {
+	if kinds := capabilities(o); kinds[docinfer.CapabilityVision] != 1 || kinds[docinfer.CapabilityTranscription] != 1 || kinds[docinfer.CapabilityExtraction] != 4 {
 		t.Errorf("inferences by capability %v, want a description, a transcript, and 4 extractions", kinds)
 	}
 	sources := map[string]bool{}

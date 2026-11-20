@@ -180,17 +180,15 @@ type outcome struct {
 func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 	t.Helper()
 	var o outcome
-	// echoed holds what the echoes so far name: each output's SHA-256, each metadata text's, and
-	// each inference's text's, which an extraction's source may be.
-	echoed := map[string]bool{}
+	// from holds the positions of the inputs each SHA-256 the echoes and inferences name derives
+	// from: each output's SHA-256, each metadata text's, and each inference's text's, which an
+	// extraction's source may be. settled holds the positions settled.
+	from := derivation{}
 	unechoed := func(what, sha string) {
-		if !echoed[sha] {
+		if len(from.bySHA[sha]) == 0 {
 			t.Errorf("%s %s before the echo of the input it derives from", what, sha)
 		}
 	}
-	// from holds the positions of the inputs each SHA-256 the echoes and inferences name derives
-	// from; settled the positions settled.
-	from := derivation{}
 	settled := map[int]bool{}
 	settledFrom := func(what string, positions []int) {
 		if len(positions) > 0 && !slices.ContainsFunc(positions, func(p int) bool { return !settled[p] }) {
@@ -218,11 +216,6 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 			o.err = err
 		case r.Input != nil:
 			o.inputs = append(o.inputs, *r.Input)
-			if out := r.Input.Event.Output; out != nil {
-				echoed[out.SHA256] = true
-			} else if r.Input.Metadata != "" {
-				echoed[sha(r.Input.Metadata)] = true
-			}
 		case r.Inference != nil:
 			if r.Inference.Capability == docinfer.CapabilityExtraction {
 				unechoed("extraction of", r.Inference.ContentSHA256[0])
@@ -232,9 +225,6 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 						unechoed("inference of", c)
 					}
 				}
-			}
-			if r.Inference.TextSHA256 != "" {
-				echoed[r.Inference.TextSHA256] = true
 			}
 			o.inferences = append(o.inferences, *r.Inference)
 		case r.Progress != nil:

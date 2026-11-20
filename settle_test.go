@@ -213,6 +213,9 @@ func TestRunWindowGroupSettles(t *testing.T) {
 			}
 			// The members settle together: nothing comes between their settlements.
 			first := slices.IndexFunc(o.all, func(r docinfer.Result) bool { return r.Settled != nil })
+			if first < 0 || first+len(inputs) > len(o.all) {
+				t.Fatalf("settlements from result %d of %d, want the group's %d", first, len(o.all), len(inputs))
+			}
 			for i := first; i < first+len(inputs); i++ {
 				if o.all[i].Settled == nil {
 					t.Errorf("result %d is %+v, between the group's settlements", i, o.all[i])
