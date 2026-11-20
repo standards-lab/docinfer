@@ -157,7 +157,13 @@ func TestRunCheckpointHeldBack(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{
 		Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 			if slices.Contains(req.Input, "message 1") {
-				_ = gate.Wait(ctx) // a context ended lets the request go, unanswered by the client
+				// A context ended lets the request go, unanswered by the client; the failsafe bounds
+				// a hold that messages 2 and 3 never settle around, a finding.
+				held, cancel := context.WithTimeout(ctx, failsafe)
+				defer cancel()
+				if err := gate.Wait(held); err != nil && ctx.Err() == nil {
+					t.Error("message 1's embedding was held past the failsafe: messages 2 and 3 never settled around it")
+				}
 			}
 			vectors := make([][]float32, len(req.Input))
 			for i, text := range req.Input {

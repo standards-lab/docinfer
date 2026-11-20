@@ -352,11 +352,15 @@ func TestRunOrder(t *testing.T) {
 	f := newFixture(t, map[string]string{"x.txt": childText}, serve(t))
 	message1 := sum("message 1")
 	release := make(chan struct{})
-	f.index.onRecord = func(_ context.Context, key dispatch.Key) {
+	// The input's record, and so its own event, waits until message 1 is inferred and batched: a
+	// job that held an output's results until its part's event stalls here, a finding.
+	f.index.onRecord = func(ctx context.Context, key dispatch.Key) {
 		if key == fixtureKey(inputText) {
 			select {
 			case <-release:
+			case <-ctx.Done():
 			case <-time.After(failsafe):
+				t.Error("the input's record was held past the failsafe: message 1 was never inferred and batched before it")
 			}
 		}
 	}
@@ -458,8 +462,16 @@ func TestRunOrder(t *testing.T) {
 			}
 		}
 	}
-	if !inferred || !batched {
-		t.Fatalf("message 1 inferred %v, batched %v: want both before the input's own event", inferred, batched)
+	// Message 1's inference and batch come before the input's own event.
+	inputAt := ownAt[input.ID]
+	inferredAt := slices.IndexFunc(r.updates, func(u job.Update) bool {
+		return u.Inference != nil && u.Inference.ContentSHA256[0] == message1
+	})
+	batchedAt := slices.IndexFunc(r.updates, func(u job.Update) bool {
+		return u.Batch != nil && slices.ContainsFunc(u.Batch.Sources, func(s docinfer.Source) bool { return sourceSHA(s) == message1 })
+	})
+	if inferredAt < 0 || inferredAt > inputAt || batchedAt < 0 || batchedAt > inputAt {
+		t.Fatalf("message 1 inferred at update %d, batched at %d: want both before the input's own event at %d", inferredAt, batchedAt, inputAt)
 	}
 
 	// The metadata text, chunked as kind metadata, is the depth-0 part's.
@@ -613,7 +625,7 @@ func TestRunDoneByLastEvent(t *testing.T) {
 	f.index.onClaim = func(key dispatch.Key) {
 		if key == fixtureKey(text) {
 			drop.Do(func() {
-				if err := f.index.Drop(context.Background(), fixtureKey(childText)); err != nil {
+				if err := f.index.Drop(t.Context(), fixtureKey(childText)); err != nil {
 					t.Error(err)
 				}
 			})
