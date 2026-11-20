@@ -50,6 +50,12 @@ type group struct {
 	n       int  // once closed, the windows it joins, indexes 0 to n-1
 	pending int  // placed windows whose transcription isn't in
 	joined  bool
+
+	// members are the positions in pull order of its windows and audio plan records, placed or
+	// not, which settle together once its transcript's derived results are out; settled is set
+	// then, and a member admitted after settles at once.
+	members []int
+	settled bool
 }
 
 // window is one placed window: its group, its event, its seams, and, once its transcription is
@@ -105,11 +111,11 @@ func (r *run) groupOf(ev dispatch.Event) *group {
 	return g
 }
 
-// admitWindow places a window in its group and starts its transcription, or finishes it at once
-// when its group has it already, by index, or has ended without it. A window of a media type
-// other than audio/wav or audio/mpeg, or whose Meta doesn't place it, is the input's defect, an
-// error that stops the job.
-func (r *run) admitWindow(ev dispatch.Event) error {
+// admitWindow places a window, the input at pos, in its group and starts its transcription, or
+// finishes it at once when its group has it already, by index, or has ended without it. Either
+// way it settles with its group. A window of a media type other than audio/wav or audio/mpeg, or
+// whose Meta doesn't place it, is the input's defect, an error that stops the job.
+func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 	out := ev.Output
 	if _, ok := windowFileNames[out.MediaType]; !ok {
 		return fmt.Errorf("docinfer: run: window %s of part %s has media type %q, not audio/wav or audio/mpeg: %w",
@@ -141,6 +147,7 @@ func (r *run) admitWindow(ev dispatch.Event) error {
 	}
 
 	g := r.groupOf(ev)
+	r.addMember(g, pos)
 	if g.closed || g.windows[index] != nil || index >= g.bound() {
 		// A repeated event of a placed window, or a window past the group's end: the first event
 		// of an index wins.
@@ -163,9 +170,10 @@ func (r *run) admitWindow(ev dispatch.Event) error {
 
 // admitPlan admits an audio plan record for its group's window count, read from its content on a
 // goroutine of its own; a group that has ended, or has a count already, needs none, and the
-// record is finished at once.
-func (r *run) admitPlan(ev dispatch.Event) {
+// record is finished at once. Either way it settles with its group.
+func (r *run) admitPlan(ev dispatch.Event, pos int) {
 	g := r.groupOf(ev)
+	r.addMember(g, pos)
 	if g.closed || g.plan {
 		r.finish()
 		return
@@ -190,6 +198,25 @@ func (r *run) admitPlan(ev dispatch.Event) {
 		}
 		r.send(planEvent{g: g, count: len(plan.Windows)})
 	})
+}
+
+// addMember makes the input at pos, a window or an audio plan record, a member of g, settled with
+// it: once g's transcript's derived results are out, or at once when they are already.
+func (r *run) addMember(g *group, pos int) {
+	if g.settled {
+		r.settleInput(pos)
+		return
+	}
+	g.members = append(g.members, pos)
+}
+
+// settleGroup settles g's members, its transcript's derived results all out.
+func (r *run) settleGroup(g *group) {
+	g.settled = true
+	for _, pos := range g.members {
+		r.settleInput(pos)
+	}
+	g.members = nil
 }
 
 // seamSeconds returns the seconds of a seam's span, "<start>-<end>" in seconds, as docproc's
@@ -503,8 +530,8 @@ func (r *run) settle(g *group, slot bool, yield func(Result, error) bool) (bool,
 func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool) (bool, error) {
 	n := g.n
 	if n == 0 {
-		// A plan of no windows: nothing to join.
-		r.finishState(&inputState{slotless: slotless})
+		// A plan of no windows: nothing to join, so its members settle now.
+		r.finishState(&inputState{g: g, slotless: slotless})
 		return true, nil
 	}
 	texts := make([]string, n)
@@ -598,6 +625,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	st := &inputState{
 		part:     g.part,
 		source:   Source{Kind: sourceTranscript, SHA256: textSHA, Stage: &stage, Output: first},
+		g:        g,
 		slotless: slotless,
 	}
 	if inf.Outcome != OutcomeTranscribed {

@@ -116,16 +116,21 @@ func TestRunEchoesEveryInput(t *testing.T) {
 	}
 }
 
-// A run of passed-through inputs alone echoes each, asks nothing, and counts nothing: the echoes,
-// then zero counts.
+// A run of passed-through inputs alone echoes each, asks nothing, and counts nothing: each echo
+// followed at once by its settlement, then zero counts.
 func TestRunPassesThrough(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	p := newPipeline(t, runConfig(t, e, nil))
 	inputs := passThrough()
 	o := collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), seq(inputs...), docinfer.Options{}))
 	echoes(t, o, inputs)
-	if o.results != len(inputs)+1 || o.counts == nil {
-		t.Fatalf("%d results, want %d echoes and the counts", o.results, len(inputs))
+	if o.results != 2*len(inputs)+1 || o.counts == nil {
+		t.Fatalf("%d results, want %d echoes, each followed by its settlement, and the counts", o.results, len(inputs))
+	}
+	for i := range inputs {
+		if echo, settled := o.all[2*i], o.all[2*i+1]; echo.Input == nil || settled.Settled == nil || *settled.Settled != i {
+			t.Errorf("results %d and %d are %+v and %+v, want input %d's echo, then its settlement", 2*i, 2*i+1, echo, settled, i)
+		}
 	}
 	if *o.counts != (docinfer.Counts{}) {
 		t.Errorf("counts %+v, want none", *o.counts)
