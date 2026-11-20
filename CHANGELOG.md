@@ -9,6 +9,10 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+### Changed
+
+- The module requires docproc v0.4.1, a patch with its exported API unchanged.
+
 ## [v0.2.0] - 2026-11-20
 
 Adds `job`, which runs one job end to end over docproc's dispatcher and the pipeline, and the two
