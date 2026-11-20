@@ -24,8 +24,8 @@ type Options struct {
 	Final bool
 }
 
-// Input is one of a job's inputs to [Pipeline.Run]: an output's event, or the input's metadata
-// text.
+// Input is one of a job's inputs to [Pipeline.Run]: an output's event, the input's metadata
+// text, or any other event, which Run passes through.
 type Input struct {
 	// Event is an output's event: a text or Markdown output is chunked; image, audio, and record
 	// outputs are described, transcribed, or read as their capabilities say. Its content is
@@ -38,10 +38,15 @@ type Input struct {
 
 // Result is one thing [Pipeline.Run] made. One field is set.
 type Result struct {
+	// Input is an input, echoed as Run admits it, in pull order, before anything derived from it.
+	Input     *Input
 	Inference *Inference
 	Progress  *Progress
 	Batch     *Batch
-	Done      *Counts // last
+	// Settled is an input's position in pull order, from 0, yielded once everything derived from
+	// that input is out.
+	Settled *int
+	Done    *Counts // last
 }
 
 // MissingError is [Pipeline.Run]'s error for an input whose content Run's content misses: Event
@@ -94,8 +99,22 @@ const (
 var errInputDefect = errors.New("docinfer: the input's defect")
 
 // Run infers over one job's inputs, opening their content from content, and yields what it makes
-// as it makes it: each [Inference], each extraction's [Progress], each [Batch] once its chunks'
-// embeddings complete, and the job's [Counts] last.
+// as it makes it: each [Input] as it admits it, each [Inference], each extraction's [Progress],
+// each [Batch] once its chunks' embeddings complete, and the job's [Counts] last.
+//
+// Each input is echoed as Result.Input exactly once, in pull order, before anything derived from
+// it: its inference, its progress, and the batches holding its chunks. An input that is neither an
+// output nor a metadata text, such as a warning or a part's own event, is passed through: echoed,
+// then settled, with no work and nothing counted.
+//
+// Each input settles exactly once, before the counts, as Result.Settled, its position in pull
+// order from 0, once everything derived from it is out: a text, Markdown, or metadata input's
+// batches and extraction; an image's inference, batches, and extraction; for a window, and an audio
+// plan record, its group's transcript inference, that transcript's batches, and its extraction, so
+// neither settles before its group is joined, at the end of the inputs at the latest; and an input
+// that needs no work, a skipped output or a passed-through input, at once, after its echo.
+// Settlement is not in pull order: a window waits on its group while a later text settles. A job
+// that stops settles nothing more.
 //
 // A text or Markdown output is chunked as a source of kind output, and a Metadata input as one of
 // kind metadata. With Config.Vision set, an image output is described from its content, sent as a
@@ -264,6 +283,11 @@ type run struct {
 	groups      map[groupKey]*group
 	groupOrder  []*group
 	inputsEnded bool // the input stream has ended: a group still open ends once its count is in
+	// pulled counts the inputs admitted: the next one's position in pull order.
+	pulled int
+	// settled holds the positions of inputs whose derived results are all out, yielded as
+	// Result.Settled once the event that settled them has yielded its own results.
+	settled []int
 }
 
 // event is one goroutine's news to the coordinator: one of its types below.
@@ -297,6 +321,7 @@ type inferenceEvent struct {
 	inf      *Inference
 	requests int
 	usage    Usage
+	pos      int // the image's position in pull order
 	last     bool
 }
 
@@ -316,6 +341,10 @@ type inputState struct {
 	part     dispatch.Part
 	partJSON []byte // the part's JSON, a batch's Parts element
 	source   Source // its Part index set per batch
+	// pos is its input's position in pull order, settled once the input finishes; a transcript's
+	// g is its group instead, whose inputs all settle then.
+	pos int
+	g   *group
 
 	split     bool // the coordinator has its count of chunks
 	remaining int
@@ -426,6 +455,11 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 		}
 		switch e := e.(type) {
 		case inputEvent:
+			// The echo is yielded here, before admit starts the input's work, so nothing derived
+			// from it can reach the coordinator ahead of it.
+			if !yield(Result{Input: &e.in}, nil) {
+				return nil
+			}
 			if err := r.admit(e.in); err != nil {
 				return err
 			}
@@ -473,6 +507,7 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			}
 			if e.last {
 				r.finish()
+				r.settleInput(e.pos)
 			}
 		case progressEvent:
 			if !yield(Result{Progress: e.p}, nil) {
@@ -493,6 +528,20 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 		case errEvent:
 			return e.err
 		}
+		// What the event settled is yielded after what it yielded of its own, so an input's
+		// settlement follows everything derived from it. A job whose context ended while the event
+		// yielded settles nothing more.
+		if len(r.settled) > 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		for _, pos := range r.settled {
+			if !yield(Result{Settled: &pos}, nil) {
+				return nil
+			}
+		}
+		r.settled = r.settled[:0]
 	}
 	counts := r.counts
 	yield(Result{Done: &counts}, nil)
@@ -516,9 +565,18 @@ func (r *run) finish() {
 	<-r.slots
 }
 
+// settleInput marks the input at pos settled, for the coordinator to yield once the event at hand
+// has yielded its own results.
+func (r *run) settleInput(pos int) { r.settled = append(r.settled, pos) }
+
 // finishState finishes the input whose source text st is, or, for a transcript joined at the end
-// of the inputs, the transcript, which holds no slot.
+// of the inputs, the transcript, which holds no slot, and settles st's input, or its group's.
 func (r *run) finishState(st *inputState) {
+	if st.g != nil {
+		r.settleGroup(st.g)
+	} else {
+		r.settleInput(st.pos)
+	}
 	if st.slotless {
 		r.active--
 		return
@@ -530,14 +588,20 @@ func (r *run) finishState(st *inputState) {
 // with nothing to do at once. It returns an error that stops the job.
 func (r *run) admit(in Input) error {
 	r.active++
+	pos := r.pulled
+	r.pulled++
 	out := in.Event.Output
 	if out == nil {
 		if in.Metadata == "" {
+			// Neither an output nor a metadata text, a warning or a part's own event: passed
+			// through, its echo and its settlement all it yields, nothing counted.
 			r.finish()
+			r.settleInput(pos)
 			return nil
 		}
 		st := &inputState{
 			part:   in.Event.Part,
+			pos:    pos,
 			source: Source{Kind: sourceMetadata, SHA256: sha256Hex([]byte(in.Metadata))},
 		}
 		return r.start(st, func() (string, error) { return in.Metadata, nil })
@@ -547,6 +611,7 @@ func (r *run) admit(in Input) error {
 		stage := in.Event.Stage
 		st := &inputState{
 			part: in.Event.Part,
+			pos:  pos,
 			// An output's text SHA-256 is its Output.SHA256, held there alone.
 			source: Source{Kind: sourceOutput, Stage: &stage, Output: new(*out)},
 		}
@@ -557,24 +622,26 @@ func (r *run) admit(in Input) error {
 			if out.MediaType == "" {
 				return fmt.Errorf("docinfer: run: image %s of part %s has no media type: %w", out.SHA256, in.Event.Part.ID, errInputDefect)
 			}
-			r.spawn(func() { r.describe(in.Event) })
+			r.spawn(func() { r.describe(in.Event, pos) })
 			return nil
 		}
 	case dispatch.AudioOutput:
 		r.counts.Windows++
 		if r.p.cfg.Transcription != nil {
-			return r.admitWindow(in.Event)
+			return r.admitWindow(in.Event, pos)
 		}
 	case dispatch.RecordOutput:
 		// An audio plan record counts its group's windows; a video plan's holds none, and ends no
 		// group.
 		if r.p.cfg.Transcription != nil && out.MediaType == dispatch.MediaAudioPlan {
-			r.admitPlan(in.Event)
+			r.admitPlan(in.Event, pos)
 			return nil
 		}
 	}
-	// A skipped image or window, another record, or an output of another kind: nothing to do.
+	// A skipped image or window, another record, or an output of another kind: nothing to do, so
+	// it settles at once.
 	r.finish()
+	r.settleInput(pos)
 	return nil
 }
 

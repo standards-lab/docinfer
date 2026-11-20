@@ -13,18 +13,18 @@ import (
 // sourceVision is the source kind of an image's text, its description.
 const sourceVision = "vision"
 
-// describe describes the image ev's output is, on the image's own goroutine, as lead does, unless
-// another call has claimed its key: then it waits for that call's answer, holding no Bounds slot,
-// and takes it as a cache read, or asks again itself when the claimant ended without a result. A
-// permanent failure the claimant answered with stops the job. A cancelled job stops waiting at
-// once.
-func (r *run) describe(ev dispatch.Event) {
+// describe describes the image ev's output is, the input at pos in pull order, on the image's own
+// goroutine, as lead does, unless another call has claimed its key: then it waits for that call's
+// answer, holding no Bounds slot, and takes it as a cache read, or asks again itself when the
+// claimant ended without a result. A permanent failure the claimant answered with stops the job. A
+// cancelled job stops waiting at once.
+func (r *run) describe(ev dispatch.Event, pos int) {
 	start := time.Now()
 	key := Key(*r.p.profile.Vision, ev.Output.SHA256)
 	for {
 		l, own, waits := r.p.claims.claim([]string{key})
 		if len(own) == 1 {
-			r.lead(ev, start, key, l)
+			r.lead(ev, pos, start, key, l)
 			return
 		}
 		a, err := r.p.claims.wait(r.ctx, waits[0].c)
@@ -37,20 +37,20 @@ func (r *run) describe(ev dispatch.Event) {
 				ev.Output.SHA256, ev.Part.ID, a.err))
 			return
 		case a.held != nil:
-			r.described(ev, start, *a.held, true, 0, Usage{})
+			r.described(ev, pos, start, *a.held, true, 0, Usage{})
 			return
 		}
 	}
 }
 
-// lead describes the image ev's output is, its key claimed in l: it reads the cache, and on a
-// miss opens the image's content and asks the vision model under the vision bound, then holds the
-// reply before it answers the claim, so a waiter's answer is what a cache read would give. A
-// failure maps by its row: a refusal is held as the image's outcome; a permanent failure is the
-// claim's answer, and stops the job; a failed call is recorded failed on the last delivery,
+// lead describes the image ev's output is, the input at pos, its key claimed in l: it reads the
+// cache, and on a miss opens the image's content and asks the vision model under the vision bound,
+// then holds the reply before it answers the claim, so a waiter's answer is what a cache read would
+// give. A failure maps by its row: a refusal is held as the image's outcome; a permanent failure is
+// the claim's answer, and stops the job; a failed call is recorded failed on the last delivery,
 // never held, and otherwise stops the job, as a transient failure does. A key lead ends without
 // answering is released unanswered, a panic included, so its waiters ask the model themselves.
-func (r *run) lead(ev dispatch.Event, start time.Time, key string, l *lease) {
+func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *lease) {
 	defer l.release()
 	values, err := r.p.cfg.Cache.Get(r.ctx, key)
 	if err != nil {
@@ -62,7 +62,7 @@ func (r *run) lead(ev dispatch.Event, start time.Time, key string, l *lease) {
 	// the model's reply replaces.
 	if h, ok := decodeHeld(values[0]); ok && h.Vector == "" {
 		l.answer(key, answer{held: &h})
-		r.described(ev, start, h, true, 0, Usage{})
+		r.described(ev, pos, start, h, true, 0, Usage{})
 		return
 	}
 
@@ -114,7 +114,7 @@ func (r *run) lead(ev dispatch.Event, start time.Time, key string, l *lease) {
 		if !r.hold(l, key, "the description of image "+ev.Output.SHA256, h) {
 			return
 		}
-		r.described(ev, start, h, false, requests, usage)
+		r.described(ev, pos, start, h, false, requests, usage)
 		return
 	}
 
@@ -125,7 +125,7 @@ func (r *run) lead(ev dispatch.Event, start time.Time, key string, l *lease) {
 		if !r.hold(l, key, "the refusal of image "+ev.Output.SHA256, h) {
 			return
 		}
-		r.described(ev, start, h, false, requests, usage)
+		r.described(ev, pos, start, h, false, requests, usage)
 	case rowPermanent:
 		l.answer(key, answer{err: err})
 		r.fail(wrapped)
@@ -137,7 +137,7 @@ func (r *run) lead(ev dispatch.Event, start time.Time, key string, l *lease) {
 		}
 		inf := r.inference(ev, start, OutcomeFailed, usage)
 		inf.Reason = failureText(err)
-		r.send(inferenceEvent{inf: inf, requests: requests, usage: usage, last: true})
+		r.send(inferenceEvent{inf: inf, requests: requests, usage: usage, pos: pos, last: true})
 	default:
 		l.release()
 		r.fail(wrapped)
@@ -198,10 +198,10 @@ func refusalText(resp *protocol.Response) string {
 	return b.String()
 }
 
-// described hands the coordinator the image's inference from h, its result, read from the cache
-// or a leader when held, or made by requests, which took usage. A refusal ends the input; a text
-// kept, described or incomplete, is then chunked and embedded as a source of kind vision.
-func (r *run) described(ev dispatch.Event, start time.Time, h Held, held bool, requests int, usage Usage) {
+// described hands the coordinator the inference of the image at pos from h, its result, read from
+// the cache or a leader when held, or made by requests, which took usage. A refusal ends the input;
+// a text kept, described or incomplete, is then chunked and embedded as a source of kind vision.
+func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, held bool, requests int, usage Usage) {
 	var inf *Inference
 	switch {
 	case h.Refused != "":
@@ -215,7 +215,7 @@ func (r *run) described(ev dispatch.Event, start time.Time, h Held, held bool, r
 	}
 	inf.Held = held
 	if inf.Outcome == OutcomeRefused {
-		r.send(inferenceEvent{inf: inf, requests: requests, usage: usage, last: true})
+		r.send(inferenceEvent{inf: inf, requests: requests, usage: usage, pos: pos, last: true})
 		return
 	}
 	inf.Text = h.Text
@@ -226,6 +226,7 @@ func (r *run) described(ev dispatch.Event, start time.Time, h Held, held bool, r
 	stage := ev.Stage
 	st := &inputState{
 		part:   ev.Part,
+		pos:    pos,
 		source: Source{Kind: sourceVision, SHA256: textSHA, Incomplete: h.Incomplete, Stage: &stage, Output: new(*ev.Output)},
 	}
 	b, err := marshal(st.part)

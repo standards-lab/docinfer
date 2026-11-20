@@ -19,10 +19,10 @@ it (go-ai, library, job, postgres, docinfer, or acceptance), **rejected** with i
 **deferred** to the backlog. Where a finding changes a name, the API section states the name.
 
 Citations are relative to `internal/docinfer/` at 6a631f1 unless they start with `audio/`
-(spike-ai-pipeline-processing at v0.9.0), `go-ai:`, or `docproc:` (each at v0.3.0). The measures
-are cited in short. A bare page name, such as `timeouts.md`, is a Go Elemental principle under
-the architecture repository's `standards/go-elemental/principles/`; `principles/<page>` is an
-architecture principle; a quoted name is the page's section. "layers" is docproc's
+(spike-ai-pipeline-processing at v0.9.0), `go-ai:` (at v0.3.0), or `docproc:` (at v0.4.0). The
+measures are cited in short. A bare page name, such as `timeouts.md`, is a Go Elemental principle
+under the architecture repository's `standards/go-elemental/principles/`; `principles/<page>` is
+an architecture principle; a quoted name is the page's section. "layers" is docproc's
 `context/layers.md` at 673ed3d. "data-intelligence" is standards-lab's
 `context/data-intelligence.md`, which states what Cerebro asks of v1.ai.inference.
 
@@ -522,7 +522,7 @@ route by a test's function over the decoded request and its arrival number. Its 
 in Chat Completions' shapes only, a raw reply answers any route, an error reply carries
 Retry-After, a route with no function answers 404, and a `Gate` and stream holds park requests and
 streams. `internal/aitest` stays go-ai's format-test kit. Every other go-ai name is v0.3.0's, and
-every docproc name docproc v0.3.0's. layers' docinfer sections are superseded by this one.
+every docproc name docproc v0.4.0's. layers' docinfer sections are superseded by this one.
 
 ### Modules and packages
 
@@ -543,7 +543,7 @@ github.com/standards-lab/docinfer/cmd/docinfer  the docinfer command; requires t
                                                 v0.12.0 (C2)
 ```
 
-The base module requires docproc v0.3.0 and go-ai v0.4.0 and no third module: the join of work in
+The base module requires docproc v0.4.0 and go-ai v0.4.0 and no third module: the join of work in
 flight is its own ("Join of work in flight"), and its tests drive go-ai's client against go-ai's
 `aitest` (W2, G3).
 
@@ -666,8 +666,9 @@ func New(cfg Config) (*Pipeline, error)
 // Profile is the resolved identity: the models, settings, dimensions, and chunker, known before
 // any job runs.
 func (p *Pipeline) Profile() Profile
-// Run infers over one job's inputs, opening their content from content, and yields its
-// inference texts, extraction progress, batches, and counts as made.
+// Run infers over one job's inputs, opening their content from content, and yields each input
+// as it admits it, its inference texts, extraction progress, and batches as made, each input's
+// settlement once everything derived from it is out, and the counts.
 func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs iter.Seq2[Input, error], opts Options) iter.Seq2[Result, error]
 
 type Options struct { // one run's
@@ -696,9 +697,11 @@ type MissingError struct { Event dispatch.Event; Err error }
 func (e *MissingError) Error() string
 func (e *MissingError) Unwrap() error
 type Result struct { // one field is set
+    Input     *Input // the input, echoed as Run admits it, before anything derived from it
     Inference *Inference
     Progress  *Progress
     Batch     *Batch
+    Settled   *int    // an input's pull-order position, from 0, once all derived from it is out
     Done      *Counts // last
 }
 ```
@@ -737,6 +740,25 @@ job's other goroutines have ended.
   extracted. A window refused, failed, incomplete, or never cut joins as empty and is listed in
   the transcript's `Failed`.
 - **Any other output**, another record among them, is skipped.
+- **Any other input**, neither an output nor a metadata text, such as a warning or a part's own
+  event, is passed through: echoed, then settled, with no work and nothing counted.
+
+`Run` yields each input back as `Result.Input` as it admits it, in pull order, before anything
+derived from it: its inference, its progress, and the batches holding its chunks. Every input is
+echoed exactly once. `Run` yields `Result.Settled`, the input's position in pull order from 0, once
+everything derived from that input is out:
+
+- **text, Markdown, and metadata**: its batches and its extraction;
+- **an image**: its inference, its batches, and its extraction;
+- **a window, and its audio plan record**: its group's transcript inference, that transcript's
+  batches, and its extraction, so neither settles before its group ends, at the end of `Run`'s
+  inputs at the latest;
+- **an input that needs no work**, a skipped output or a passed-through input: at once, after its
+  echo.
+
+Each input settles exactly once, before `Done`, and not in pull order: a window waits on its group
+while a later text settles. The echo and the settlement are what `job` reads ("One job"): the echo
+keeps an event ahead of its results, and the settlement moves the watermark.
 
 Content is opened only on a miss, or to chunk an output's text: an output's `SHA256` is already its
 key's content (L2). A content `content` misses is `*MissingError`.
@@ -810,12 +832,14 @@ func (t Transcript) Text() string
 
 `Pipeline.Run` streams per job, in the order things are made (L1):
 
+- an input's echo as `Run` admits it;
 - an `Inference` as each image's text, each part's joined transcript, or each extraction is made,
   or read from the cache, and an extraction's `Progress` as it streams;
 - a `Batch` once its chunks' embeddings complete. A batch is yielded when the next chunk, with the
   part and source it adds, would take the batch's marshalled JSON past `Config.BatchBytes`, or
   when no embedded chunk is waiting, so it never waits to fill; a chunk alone past the cap is a
   batch of one;
+- an input's settlement once everything derived from it is out;
 - the job's `Counts` last.
 
 A result is held as it completes, before anything derived from it is yielded (L1). `Run` pulls its
@@ -989,48 +1013,68 @@ type Update struct {
     Done       *Done
 }
 type Checkpoint struct { // a store's cursor, a low watermark
-    After uint64 `json:"after"` // the last message, in read order, whose updates, and every
-                                // earlier message's, are out, their batches included
+    After uint64 `json:"after"` // the last message whose inputs, and every earlier input, have
+                                // settled
 }
-type Done struct { // one attempt's
+type Done struct { // one attempt's; each part ID counted once, by its last own event
     Parts   map[dispatch.Outcome]int `json:"parts"`   // by outcome, every depth
-    Outputs int                      `json:"outputs"` // by part ID, never by event
-    Counts  docinfer.Counts          `json:"counts"`
+    Outputs int                      `json:"outputs"` // each part's Outputs, summed
+    Counts  docinfer.Counts          `json:"counts"`  // the pipeline's, unchanged
 }
 ```
 
 A job's ID is its host's: `Run` takes the input alone, and Cerebro names the job in each event's
-subject. `job` feeds `Run` from dispatch's events: each output event, the plan records among them
-(L19), and the depth-0 part's own event with its `Metadata`, `docinfer.MetadataText`'s.
+subject. `job` feeds `Run` every dispatch event as one `Input`: the depth-0 part's own event with
+its `Metadata`, `docinfer.MetadataText`'s, and every other event as it is, the plan records (L19),
+the warnings, and the other parts' own events among them. `job` loops over the pipeline's `Run`
+alone, and calls `yield` from that loop's goroutine alone: each `Result.Input` yields its event as
+`Update.Event`, and each inference, progress, and batch yields as made. `Checkpoint`'s and `Done`'s
+JSON is under `docinfer.Version` "1", added to and never changed; `Update` has none of its own.
 
 `job` has one content store, the dispatcher's (`Dispatcher.Content()`): the dispatcher stores each
 output's content there before its event, the pipeline opens its inputs' content from it, and `Run`
-puts each inference text into it before its inference's update. `job` keeps no output's file past
-its event, and no quarantined part's file. A process that dies leaves its files in the dispatcher's
-`Dir`, so a host empties its `Dir` when it starts; Cerebro's work queue redelivers the job.
+puts each inference's `Text` into it under its `TextSHA256` before its `Update.Inference`. An
+inference with no `TextSHA256` puts nothing, and a failed put stops the job with the error, which
+`Permanent` doesn't report. `job` keeps no output's file past its event, and no quarantined part's
+file. A process that dies leaves its files in the dispatcher's `Dir`, so a host empties its `Dir`
+when it starts; Cerebro's work queue redelivers the job.
 
 A content the store misses reaches `job` as `*docinfer.MissingError`. `job` drops its part's entry,
 `Dispatcher.Index().Drop` on `dispatch.Key{SHA256: e.Part.SHA256, Stage: e.Stage}`, `e` the error's
-`Event`, and stops the attempt with the error, which is transient, so the work queue redelivers
-the job, whose replay prepares the nearest part with a file again; its events may repeat, so `Done`
-counts parts by ID, never events. `cmd/docinfer` has no index, and reports the miss as its run's
-error.
+`Event`, and stops the attempt with the error, alone and last, joined to a failed drop's error. It
+is transient, and `Permanent` doesn't report it, so the work queue redelivers the job, whose replay
+prepares the nearest part with a file again, and whose run completes. Any other error the dispatch
+or the pipeline yields stops the job alone and last, keeping what `Permanent` reads:
+`dispatch.ErrSHA256` and `dispatch.ErrRequest` are permanent, and `dispatch.ErrClaimLost` and a
+store's error are not. `cmd/docinfer` has no index, and reports the miss as its run's error.
 
-Updates keep one order: an output's update precedes anything derived from it (its inference, the
-batches holding its chunks), and a part's update follows its outputs', warnings', and children's.
-Nothing else is promised. A part's results may precede its own event, which a consumer reads to
-drop a quarantined or failed part's results (L6).
+`Done` comes last, after the pipeline's `Counts`. Its `Parts` counts parts by outcome at every
+depth, and its `Outputs` sums each part's `Outputs`; both count each part ID once, by its last own
+event, since a replay after a miss prepares the part again and makes its replayed event out of
+date. `Counts` is the pipeline's, unchanged.
 
-`job` tracks a store's progress by its low watermark alone: a checkpoint carries the last message,
-in read order, whose updates, and every earlier message's, are out, never the highest
-`Event.After`, at most every `CheckpointEvery` messages. A host resumes from the last checkpoint by
-setting `dispatch.Input.After` on the redelivery. `job` threads no mail: a consumer threads the
-record outputs with docproc's `email.Threader`, so no threader state joins the checkpoint.
+Updates keep one order, the order of `Run`'s results: an output's update precedes anything derived
+from it (its inference, the batches holding its chunks), and a part's update follows its outputs',
+warnings', and children's. Nothing else is promised. No output is held back until its part's
+event, so a part's results may precede its own event, which a consumer reads to drop a quarantined
+or failed part's results (L6).
 
-A job is cancelled through `Run`'s context, which is the job's own. Its end stops the job's tool
-runs, its index waits and claims, its join waits, and its go-ai calls, since each takes the
-context. It removes the job's files and yields `ctx.Err()` alone, last. Other jobs on the same
-`Runner` go on. Stopping the loop early does the same.
+`job` tracks a store's progress by its low watermark alone. A message is the stretch of inputs that
+ends at an output event with a non-zero `Event.After`; the watermark is the last message whose
+inputs, and every earlier input, have settled (`Result.Settled`). `job` yields a `Checkpoint` with
+that message's `After` once the watermark has advanced by at least `CheckpointEvery` messages since
+the last checkpoint, or since the start. It never carries the highest `After` seen, nor one ahead of
+an unsettled earlier input, and a dispatch input with no store yields none. A host resumes from the
+last checkpoint by setting `dispatch.Input.After` on the redelivery. `job` threads no mail: a
+consumer threads the record outputs with docproc's `email.Threader`, so no threader state joins the
+checkpoint.
+
+A job is cancelled through `Run`'s context, which is the job's own. Its end stops the dispatch, its
+tool runs, its index waits and claims, its join waits, and its go-ai calls, since each takes the
+context. It yields `ctx.Err()` alone, last, in place of whatever error the stop surfaced as, a
+content miss's included, whose entry it doesn't drop, and leaves none of the job's files in the
+dispatcher's working directory. Other jobs on the same `Runner` go on and complete. Stopping the
+loop early does the same, yielding nothing.
 
 ### go-ai use
 
@@ -1068,7 +1112,9 @@ type Embeddings struct {
 func (e Embeddings) Identity() Identity // {embeddings, Model, ""} (L16)
 // Permanent reports whether an error Pipeline.Run or job.Runner.Run yields is one no
 // redelivery changes: a row the table marks permanent, a mismatched input (dispatch.ErrSHA256),
-// an input's defect, a vector whose length is not Config.Dimensions, a refused Extract
+// a refused dispatch (dispatch.ErrRequest: an input with neither or both of Path and Reader, an
+// input SHA-256 that isn't lowercase hex, or a resume cursor that matches no message), an
+// input's defect, a vector whose length is not Config.Dimensions, a refused Extract
 // (ErrRequest), or a run asking for extraction with no Config.Extraction. An input's defect is:
 //   - an image without a MediaType
 //   - a window of another media type
@@ -1373,7 +1419,7 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 | `Extraction.Identity` | carried | |
 | `Embeddings`, `Embeddings.Client`, `Embeddings.Model` | carried | |
 | `Embeddings.Identity` | carried | settings `""` (L16) |
-| `Permanent` | carried | `*format.UnsupportedError` and input defects added (L9, L25) |
+| `Permanent` | carried | `*format.UnsupportedError`, input defects, and `dispatch.ErrRequest` added (L9, L25) |
 | `Describer`, `Transcriber`, `Embedder` | dropped | never declared, as layers has it |
 | `infer.Pipeline` | dropped | a spelling layers rejects |
 | `chunk.Chunk`, `chunk.Chunk.Text`, `chunk.Chunk.Span` | carried | |
@@ -1409,8 +1455,8 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 | `tools/infer` | carried | outside docinfer |
 | go-ai's harness-session surface | carried | outside docinfer |
 | `dispatch.Content`, `Content.Open` | carried | the content's one reader (W3) |
-| `dispatch.Event`, `Event.After`, `dispatch.Part`, `dispatch.Output`, `Output.SHA256`, `dispatch.Identity`, `dispatch.Outcome`, `dispatch.Version` | carried | docproc v0.3.0 |
-| `dispatch.Dispatcher`, `Dispatcher.Content`, `Dispatcher.Index`, `Index.Drop`, `dispatch.Key`, `Key.SHA256`, `Part.SHA256`, `dispatch.Input`, `Input.After`, `dispatch.ErrSHA256` | carried | docproc v0.3.0 |
+| `dispatch.Event`, `Event.After`, `dispatch.Part`, `dispatch.Output`, `Output.SHA256`, `dispatch.Identity`, `dispatch.Outcome`, `dispatch.Version` | carried | docproc v0.4.0 |
+| `dispatch.Dispatcher`, `Dispatcher.Content`, `Dispatcher.Index`, `Index.Drop`, `dispatch.Key`, `Key.SHA256`, `Part.SHA256`, `dispatch.Input`, `Input.After`, `dispatch.ErrSHA256` | carried | docproc v0.4.0 |
 | `FileContent` | carried | `dispatch.FileContent`, now `texts/` too (C10) |
 | `Content` (docproc's store, as layers' section names it) | carried | `dispatch.Content` |
 | `tool.Run`, `email.Threader`, `Pool` | carried | docproc's, unchanged |
@@ -1454,10 +1500,11 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 
 Names this API adds: `ErrRequest`, `CapabilityVision`, `CapabilityTranscription`,
 `CapabilityExtraction`, `CapabilityEmbeddings`, the six `Outcome` constants, `Inference.Reason`,
-`TranscriptionCounts.Incomplete`, `MissingError.Error`, `DecodeVector`, `docinfertest.Cache`,
-`chunk.ErrRequest`, `join.ErrRequest`, `join.Request.WordsPerSecond`, and
-`join.Transcript.Text`; the command's `outdir.json`, `inferences.jsonl`, `report/`, `Manifest`'s
-`Docinfer`, `Inputs`, and `Outputs`, `Build`, `Input`, and `integration`.
+`TranscriptionCounts.Incomplete`, `MissingError.Error`, `Result.Input`, `Result.Settled`,
+`DecodeVector`, `docinfertest.Cache`, `chunk.ErrRequest`, `join.ErrRequest`,
+`join.Request.WordsPerSecond`, and `join.Transcript.Text`; the command's `outdir.json`,
+`inferences.jsonl`, `report/`, `Manifest`'s `Docinfer`, `Inputs`, and `Outputs`, `Build`, `Input`,
+and `integration`.
 
 ## Releases
 
@@ -1469,9 +1516,9 @@ patch of the module it fixes.
 | --- | --- | --- | --- |
 | go-ai `v0.4.0` | go-ai's base module, in go-ai's repository | go-ai | G1–G3's additions (G4) |
 | `v0.1.0` | the base module | library | docproc v0.3.0, go-ai v0.4.0 |
-| `v0.2.0` | the base module | job | docproc v0.3.0, go-ai v0.4.0 |
+| `v0.2.0` | the base module | job | docproc v0.4.0, go-ai v0.4.0 |
 | `postgres/v0.1.0` | `postgres` | postgres | the base module, sqlate, sqlate/postgres |
-| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.3.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
+| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.4.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
 
 - A module is tagged only after every module it requires: go-ai v0.4.0 before the base module's
   v0.1.0, and the base module's tag before `postgres`'s or `cmd/docinfer`'s that requires it.

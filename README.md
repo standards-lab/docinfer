@@ -6,7 +6,7 @@ describes images, transcribes audio windows, extracts by a caller's prompt and J
 chunks and embeds text. It yields each result in batches as it is made, and holds every model
 result behind a cache, so content seen before is replayed rather than asked again.
 
-The base module requires docproc v0.3.0 and go-ai v0.4.0 alone, and calls go-ai directly. Only
+The base module requires docproc v0.4.0 and go-ai v0.4.0 alone, and calls go-ai directly. Only
 the layers above go-ai's tier use it.
 
 ## Install
@@ -90,11 +90,49 @@ for r, err := range p.Run(ctx, d.Content(), inputs, docinfer.Options{Final: true
 A nil `Vision` or `Transcription` skips images or windows, counted; `Extraction` is needed only by
 a run whose `Options.Extract` asks for one.
 
+## Running a job
+
+Package `job` runs one job end to end: docproc's dispatch of the job's input, then the pipeline's
+inference over what it prepares. A `Runner` feeds every dispatch event to the pipeline, puts each
+inference's text into the dispatcher's content store, and yields the job's updates in one order:
+an output's event before its inference and batches, and a part's own event after its outputs',
+warnings', and children's. For a store's input it yields a `Checkpoint` at the low watermark,
+every `CheckpointEvery` settled messages; a host keeps the last one's `After` and resumes a
+redelivered job from it.
+
+```go
+// d is a docproc dispatch.Dispatcher and p the Pipeline above; in is the job's dispatch.Input,
+// cursor its kept checkpoint, and final whether this is its last delivery.
+runner, err := job.New(job.Config{Dispatcher: d, Pipeline: p, CheckpointEvery: 100})
+if err != nil {
+	return err
+}
+
+in.After = cursor // the last checkpoint's After kept for this input, or 0 to start
+for u, err := range runner.Run(ctx, in, docinfer.Options{Final: final}) {
+	if err != nil {
+		return err // docinfer.Permanent(err) says whether a redelivery could change it
+	}
+	switch {
+	case u.Event != nil: // a part's own, an output's, or a warning's event
+	case u.Inference != nil: // a description, transcript, or extraction, its text already in the content store
+	case u.Batch != nil: // embedded chunks, ready to index
+	case u.Checkpoint != nil:
+		cursor = u.Checkpoint.After // keep it: a redelivery resumes after it
+	case u.Done != nil: // the attempt's parts by outcome, outputs, and counts, last
+	}
+}
+```
+
+A content miss stops the job, but drops its part's index entry first, so a redelivery prepares
+the part again rather than miss again.
+
 ## Packages
 
 | Package | What it does |
 | --- | --- |
 | `docinfer` (the root) | The pipeline over go-ai's client: `Config`, `New`, and `Pipeline.Run`; `Bounds`; the `Cache`, its `Key` and `Held`, and `FileCache` and `MemoryCache`; the go-ai failure table and `Permanent`; and the shapes of its results. |
+| `job` | One job's dispatch and inference: `Config`, `New`, and `Runner.Run`, yielding `Update`s, `Checkpoint`s, and the `Done` that ends them. |
 | `docinfertest` | The `Cache` conformance suite every implementation runs, the module's and a provider's. |
 | `chunk` | The chunker: `Splitter`, `Chunk`, `Span`, and `Version`. |
 | `join` | A part's window transcripts joined at their seams. |

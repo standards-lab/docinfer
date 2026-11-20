@@ -267,8 +267,9 @@ func TestJoinWaiterCancelled(t *testing.T) {
 	awaitWaiters(t, waits, 1)
 	waiter.cancel()
 	wo := waiter.outcome(t)
-	if !errors.Is(wo.err, context.Canceled) || wo.results != 1 {
-		t.Errorf("the cancelled waiter yielded %d results, %v, want context.Canceled alone", wo.results, wo.err)
+	if !errors.Is(wo.err, context.Canceled) || len(wo.inputs) != 1 || wo.results != 2 {
+		t.Errorf("the cancelled waiter yielded %d results, %d echoes, %v, want its input's echo, then context.Canceled alone",
+			wo.results, len(wo.inputs), wo.err)
 	}
 	if n := e.gate.Parked(); n != 1 {
 		t.Errorf("%d requests parked once the waiter returned, want the leader's 1", n)

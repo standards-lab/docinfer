@@ -152,29 +152,61 @@ func seq(inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	}
 }
 
-// outcome is everything one Run yielded: its inferences, its progress, its batches, its counts,
-// and its error, each in the order yielded, and whether anything came after the counts or the
-// error.
+// outcome is everything one Run yielded: its echoed inputs, its inferences, its progress, its
+// batches, its settlements, its counts, and its error, each in the order yielded, and whether
+// anything came after the counts or the error.
 type outcome struct {
+	inputs     []docinfer.Input
 	inferences []docinfer.Inference
 	progress   []docinfer.Progress
 	batches    []docinfer.Batch
+	settled    []int
 	counts     *docinfer.Counts
 	err        error
 	after      bool // something was yielded after the counts or the error, which must be last
 	results    int
+	all        []docinfer.Result // every result but the error, in the order yielded
 }
 
 // collect ranges over a Run's results. It fails the test when a batch holds a chunk of an image's
-// text whose inference wasn't yielded before it, or when an extraction's progress follows its
-// inference.
+// text whose inference wasn't yielded before it, when an extraction's progress follows its
+// inference, when a result derived from an input comes before that input's echo or after its
+// settlement, or when a settlement names no input echoed, or one settled already; and, once the
+// counts are yielded, unless every input echoed has settled.
+//
+// An input is told by its SHA-256, and inputs of the same content are told apart by none: a result
+// derived from that content is after its input's settlement only when every input of it has
+// settled. settlesAfter checks a run of inputs of distinct contents strictly.
 func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 	t.Helper()
 	var o outcome
+	// from holds the positions of the inputs each SHA-256 the echoes and inferences name derives
+	// from: each output's SHA-256, each metadata text's, and each inference's text's, which an
+	// extraction's source may be. settled holds the positions settled.
+	from := derivation{}
+	unechoed := func(what, sha string) {
+		if len(from.bySHA[sha]) == 0 {
+			t.Errorf("%s %s before the echo of the input it derives from", what, sha)
+		}
+	}
+	settled := map[int]bool{}
+	settledFrom := func(what string, positions []int) {
+		if len(positions) > 0 && !slices.ContainsFunc(positions, func(p int) bool { return !settled[p] }) {
+			t.Errorf("%s after the settlement of every input it may derive from, %v", what, positions)
+		}
+	}
 	for r, err := range results {
 		o.results++
 		if o.counts != nil || o.err != nil {
 			o.after = true
+		}
+		if err == nil {
+			o.all = append(o.all, r)
+			if r.Input != nil {
+				from.echo(len(o.inputs), *r.Input)
+			} else if what, positions := from.derived(r); positions != nil {
+				settledFrom(what, positions)
+			}
 		}
 		switch {
 		case err != nil:
@@ -182,9 +214,21 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 				t.Errorf("a result beside the error %v", err)
 			}
 			o.err = err
+		case r.Input != nil:
+			o.inputs = append(o.inputs, *r.Input)
 		case r.Inference != nil:
+			if r.Inference.Capability == docinfer.CapabilityExtraction {
+				unechoed("extraction of", r.Inference.ContentSHA256[0])
+			} else {
+				for _, c := range r.Inference.ContentSHA256 {
+					if c != "" { // a window never cut has no input
+						unechoed("inference of", c)
+					}
+				}
+			}
 			o.inferences = append(o.inferences, *r.Inference)
 		case r.Progress != nil:
+			unechoed("progress of", r.Progress.ContentSHA256)
 			if slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
 				return inf.Capability == docinfer.CapabilityExtraction && slices.Equal(inf.ContentSHA256, []string{r.Progress.ContentSHA256})
 			}) {
@@ -193,6 +237,12 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 			o.progress = append(o.progress, *r.Progress)
 		case r.Batch != nil:
 			for _, s := range r.Batch.Sources {
+				switch {
+				case s.Kind == "metadata":
+					unechoed("a batch of metadata", s.SHA256)
+				case s.Output != nil:
+					unechoed("a batch of "+s.Kind, s.Output.SHA256)
+				}
 				if s.Kind == "vision" && !slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
 					return slices.Equal(inf.ContentSHA256, []string{s.Output.SHA256})
 				}) {
@@ -200,8 +250,23 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 				}
 			}
 			o.batches = append(o.batches, *r.Batch)
+		case r.Settled != nil:
+			p := *r.Settled
+			switch {
+			case p < 0 || p >= len(o.inputs):
+				t.Errorf("settlement of input %d, of %d echoed", p, len(o.inputs))
+			case settled[p]:
+				t.Errorf("input %d settled twice", p)
+			}
+			settled[p] = true
+			o.settled = append(o.settled, p)
 		case r.Done != nil:
 			o.counts = r.Done
+			for p := range o.inputs {
+				if !settled[p] {
+					t.Errorf("input %d, %+v, unsettled at the counts", p, o.inputs[p].Event)
+				}
+			}
 		default:
 			t.Errorf("a result with nothing set: %+v", r)
 		}
@@ -210,6 +275,74 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 		t.Error("Run yielded after its counts or its error, which must be last")
 	}
 	return o
+}
+
+// derivation tells which inputs a result derives from, by the SHA-256s it names: an output's, a
+// metadata text's, and an inference's text's. A transcript derives from every window and audio
+// plan record of its part.
+type derivation struct {
+	bySHA  map[string][]int // the positions of the inputs each SHA-256 derives from
+	byPart map[string][]int // the positions of each part's windows and audio plan records
+}
+
+// echo records the echo of in, the input at position p in pull order.
+func (d *derivation) echo(p int, in docinfer.Input) {
+	if d.bySHA == nil {
+		d.bySHA, d.byPart = map[string][]int{}, map[string][]int{}
+	}
+	switch out := in.Event.Output; {
+	case out != nil:
+		d.bySHA[out.SHA256] = append(d.bySHA[out.SHA256], p)
+		if out.Kind == dispatch.AudioOutput || (out.Kind == dispatch.RecordOutput && out.MediaType == dispatch.MediaAudioPlan) {
+			d.byPart[in.Event.Part.ID] = append(d.byPart[in.Event.Part.ID], p)
+		}
+	case in.Metadata != "":
+		s := sha(in.Metadata)
+		d.bySHA[s] = append(d.bySHA[s], p)
+	}
+}
+
+// derived returns what r is and the positions of the inputs it may derive from, nil for an echo,
+// a settlement, or the counts. An inference's text is recorded as derived from the same inputs.
+func (d *derivation) derived(r docinfer.Result) (string, []int) {
+	var positions []int
+	add := func(sha string) {
+		for _, p := range d.bySHA[sha] {
+			if !slices.Contains(positions, p) {
+				positions = append(positions, p)
+			}
+		}
+	}
+	switch {
+	case r.Inference != nil:
+		inf := r.Inference
+		if inf.Capability == docinfer.CapabilityTranscription {
+			positions = slices.Clone(d.byPart[inf.Part])
+		} else {
+			add(inf.ContentSHA256[0])
+		}
+		if inf.TextSHA256 != "" && positions != nil {
+			for _, p := range positions {
+				if !slices.Contains(d.bySHA[inf.TextSHA256], p) {
+					d.bySHA[inf.TextSHA256] = append(d.bySHA[inf.TextSHA256], p)
+				}
+			}
+		}
+		return fmt.Sprintf("the %s inference of %v", inf.Capability, inf.ContentSHA256), positions
+	case r.Progress != nil:
+		add(r.Progress.ContentSHA256)
+		return "progress of " + r.Progress.ContentSHA256, positions
+	case r.Batch != nil:
+		for _, s := range r.Batch.Sources {
+			if s.SHA256 != "" {
+				add(s.SHA256) // a metadata text's, or an inference's text's
+			} else {
+				add(s.Output.SHA256)
+			}
+		}
+		return fmt.Sprintf("a batch of %d sources", len(r.Batch.Sources)), positions
+	}
+	return "", nil
 }
 
 // chunks returns every chunk of o's batches, with its source and part, in the order yielded.
@@ -637,7 +770,8 @@ func TestRunBatchBytes(t *testing.T) {
 	}
 }
 
-// A cancelled context yields ctx.Err() alone, last, once the requests in flight have ended.
+// A cancelled context yields ctx.Err() alone, last, once the requests in flight have ended: only
+// the input's echo comes before it.
 func TestRunCancelled(t *testing.T) {
 	gate := &aitest.Gate{}
 	e := aitest.Serve(t, aitest.Routes{Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
@@ -652,7 +786,13 @@ func TestRunCancelled(t *testing.T) {
 	done := make(chan []error, 1)
 	go func() {
 		var errs []error
+		first := true
 		for r, err := range p.Run(ctx, content, seq(outputInput(t, content, childPart, dispatch.TextOutput, plainText)), docinfer.Options{}) {
+			// The first result is the input's echo, yielded at admission, before its request.
+			if first && r.Input != nil && err == nil {
+				first = false
+				continue
+			}
 			if r != (docinfer.Result{}) {
 				errs = append(errs, fmt.Errorf("a result %+v", r))
 			}
@@ -741,6 +881,9 @@ func TestRunWaitsForRequestsInFlight(t *testing.T) {
 			defer cancel()
 			var results []error
 			for r, err := range p.Run(ctx, content, inputs, docinfer.Options{}) {
+				if r.Input != nil {
+					continue // the inputs' echoes, at their admission
+				}
 				results = append(results, err)
 				if err != nil {
 					if !routeReturned() {
