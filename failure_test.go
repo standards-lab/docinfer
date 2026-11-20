@@ -14,6 +14,8 @@ import (
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docproc/dispatch"
+	"github.com/standards-lab/docproc/dispatch/dispatchtest"
+	"github.com/standards-lab/docproc/route"
 	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/aitest"
 	"github.com/standards-lab/go-ai/format"
@@ -250,7 +252,9 @@ func stopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Cache) 
 
 // Permanent reports exactly the permanent rows and the input's defects: a permanent status, a
 // request the format can't send, which Embed never makes but generation does, a mismatched input,
-// an image output without a MediaType, a window of another media type, and a refused request, and
+// a dispatch's refused request, made by a real dispatch: an input of neither or both of Path and
+// Reader, an input SHA-256 that isn't lowercase hex, or a resume cursor that names no message; an
+// image output without a MediaType, a window of another media type, and a refused request, and
 // nothing else: not a refused, transient, or failed status, nor a failed reply, a transport
 // failure, or a content miss.
 func TestPermanent(t *testing.T) {
@@ -261,6 +265,10 @@ func TestPermanent(t *testing.T) {
 	}{
 		{"unsupported", fmt.Errorf("wrapped: %w", &format.UnsupportedError{Format: "completions", Feature: "content part"}), true},
 		{"mismatched input", fmt.Errorf("dispatch: %w", dispatch.ErrSHA256), true},
+		{"input of neither Path nor Reader", dispatchError(t, false, dispatch.Input{}), true},
+		{"input of both Path and Reader", dispatchError(t, false, dispatch.Input{Path: "a.txt", Reader: strings.NewReader("text")}), true},
+		{"input SHA-256 not lowercase hex", dispatchError(t, false, dispatch.Input{Reader: strings.NewReader("text"), SHA256: strings.Repeat("A", 64)}), true},
+		{"resume cursor of no message", dispatchError(t, true, dispatch.Input{Reader: strings.NewReader(twoMessages), Name: "store.txt", After: 99}), true},
 		{"refused request", fmt.Errorf("docinfer: %w", docinfer.ErrRequest), true},
 		{"image without a media type", noMediaTypeError(t), true},
 		{"window of another media type", windowDefectError(t), true},
@@ -284,4 +292,43 @@ func TestPermanent(t *testing.T) {
 			t.Errorf("Permanent(%s) = %t, want %t", tc.name, got, tc.want)
 		}
 	}
+}
+
+// twoMessages is a store of two messages, 1 and 2, to the fixture stage, which a part named
+// store.txt routes to.
+const twoMessages = "message 1\nmessage 2"
+
+// dispatchError dispatches in through a dispatcher of docproc's fixture stage over memory stores,
+// first dispatching twoMessages whole when prepared, so in may resume it, and returns the error that
+// ended the dispatch of in, failing the test unless it matches dispatch.ErrRequest or if the first
+// dispatch failed.
+func dispatchError(t *testing.T, prepared bool, in dispatch.Input) error {
+	t.Helper()
+	d, err := dispatch.New(dispatch.Config{
+		Stages:  dispatch.Stages{route.Text: dispatchtest.NewStage(nil)},
+		Index:   dispatch.NewMemoryIndex(0),
+		Content: dispatch.NewMemoryContent(),
+		Dir:     t.TempDir(),
+		Puts:    1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared {
+		for _, err := range d.Dispatch(t.Context(), dispatch.Input{Reader: strings.NewReader(twoMessages), Name: "store.txt"}) {
+			if err != nil {
+				t.Fatalf("dispatch of the messages: %v", err)
+			}
+		}
+	}
+	for _, err := range d.Dispatch(t.Context(), in) {
+		if err != nil {
+			if !errors.Is(err, dispatch.ErrRequest) {
+				t.Fatalf("dispatch of %+v: %v, want an error matching dispatch.ErrRequest", in, err)
+			}
+			return err
+		}
+	}
+	t.Fatalf("dispatch of %+v ended without an error", in)
+	return nil
 }
