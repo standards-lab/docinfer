@@ -55,6 +55,16 @@ func New(cfg Config) (*Runner, error) {
 // update; one with no TextSHA256 puts nothing. An error stops the job, yielded alone and last once
 // the pipeline and the dispatch have stopped: a refused opts.Extract, before the dispatch starts,
 // and an error of the dispatch, the pipeline, or a put, which docinfer.Permanent doesn't report.
+//
+// A store's input yields [Checkpoint]s at its low watermark. A message is the stretch of inputs,
+// in pull order, that ends at an output event with a non-zero After; the watermark is the last
+// message whose inputs, and every earlier input, have settled, which settlement out of pull order
+// can hold back while later messages settle. Once the watermark has passed at least
+// CheckpointEvery messages since the last checkpoint, or since the start, Run yields a
+// Checkpoint of its message's After, after everything derived from the inputs it covers: never
+// the highest After seen, and never one ahead of an unsettled earlier input. An input with no
+// store yields none, and the job's end adds none: a finished job needs no cursor. A dispatch
+// resumed with dispatch.Input.After set to a checkpoint's After yields only the messages after it.
 func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Options) iter.Seq2[Update, error] {
 	return func(yield func(Update, error) bool) {
 		// The job's own context, cancelled as the job stops, so a dispatch the pipeline's input
@@ -63,6 +73,7 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 		defer cancel()
 		content := r.cfg.Dispatcher.Content()
 		parts := map[string]dispatch.Event{} // each part's last own event, by part ID
+		mark := watermark{every: r.cfg.CheckpointEvery}
 		var counts *docinfer.Counts
 		var stop error
 	results:
@@ -77,6 +88,7 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 				if own(ev) {
 					parts[ev.Part.ID] = ev
 				}
+				mark.echo(ev)
 				u.Event = &ev
 			case res.Inference != nil:
 				if err := put(ctx, content, res.Inference); err != nil {
@@ -92,8 +104,12 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 			case res.Done != nil:
 				counts = res.Done
 				continue
-			default: // a settlement, which moves no watermark yet
-				continue
+			default: // a settlement, which may move the watermark far enough for a checkpoint
+				after, ok := mark.settle(*res.Settled)
+				if !ok {
+					continue
+				}
+				u.Checkpoint = &Checkpoint{After: after}
 			}
 			if !yield(u, nil) {
 				// Cancelled first, so the pipeline's stop doesn't wait on a dispatch blocked
@@ -113,6 +129,54 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 		}
 		yield(Update{Done: done(parts, *counts)}, nil)
 	}
+}
+
+// watermark is a job's low watermark over its inputs, in pull order: the end of the last message
+// whose inputs, and every earlier input, have settled. A message is the stretch of inputs that
+// ends at an output event with a non-zero After, a store's cursor.
+type watermark struct {
+	every int // messages the watermark passes between checkpoints
+	// afters holds each echoed input's After, by its position in pull order: a message's last
+	// output's cursor, or zero.
+	afters []uint64
+	// settled holds whether each input has settled, by position; an input settles after its echo.
+	settled []bool
+	// low is the position of the first input not yet settled: every input before it has.
+	low int
+	// passed counts the messages the watermark has passed since the last checkpoint, or since
+	// the start, and last is the After of the last of them.
+	passed int
+	last   uint64
+}
+
+// echo records ev, the next input in pull order.
+func (w *watermark) echo(ev dispatch.Event) {
+	var after uint64
+	if ev.Output != nil {
+		after = ev.After
+	}
+	w.afters = append(w.afters, after)
+	w.settled = append(w.settled, false)
+}
+
+// settle records that the input at pos has settled, returning the After of a checkpoint when
+// the watermark has now passed at least every messages since the last. One settlement that
+// passes several messages makes one checkpoint, at the last of them; an input with no store
+// passes no message, and makes none.
+func (w *watermark) settle(pos int) (uint64, bool) {
+	w.settled[pos] = true
+	for w.low < len(w.settled) && w.settled[w.low] {
+		if after := w.afters[w.low]; after != 0 {
+			w.passed++
+			w.last = after
+		}
+		w.low++
+	}
+	if w.passed < w.every {
+		return 0, false
+	}
+	w.passed = 0
+	return w.last, true
 }
 
 // inputs dispatches in, yielding each event as the pipeline's input: the depth-0 part's own event

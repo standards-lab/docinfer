@@ -133,17 +133,21 @@ func (h *hookIndex) Record(ctx context.Context, key dispatch.Key, token string, 
 	return h.Index.Record(ctx, key, token, e)
 }
 
-// putContent is a content store that keeps the SHA-256 of each put, in order, and fails a put of
-// a SHA-256 fail names with its error.
+// putContent is a content store that keeps the SHA-256 of each put, in order, fails a put of a
+// SHA-256 fail names with its error, and calls onPut, when set, as each put begins.
 type putContent struct {
 	dispatch.Content
-	fail map[string]error
+	fail  map[string]error
+	onPut func(ctx context.Context, sha string)
 
 	mu   sync.Mutex
 	puts []string
 }
 
 func (c *putContent) Put(ctx context.Context, sha string, r io.Reader) error {
+	if c.onPut != nil {
+		c.onPut(ctx, sha)
+	}
 	if err := c.fail[sha]; err != nil {
 		return err
 	}
@@ -170,8 +174,14 @@ type fixture struct {
 }
 
 // newFixture returns a fixture over world, the content the stage's "file" directives find, and
-// a pipeline on e's routes.
+// a pipeline on e's routes, checkpointing every message.
 func newFixture(t *testing.T, world map[string]string, e *aitest.Endpoint) *fixture {
+	t.Helper()
+	return newFixtureEvery(t, world, e, 1)
+}
+
+// newFixtureEvery returns newFixture's fixture, checkpointing every every messages.
+func newFixtureEvery(t *testing.T, world map[string]string, e *aitest.Endpoint, every int) *fixture {
 	t.Helper()
 	f := &fixture{
 		stage:   dispatchtest.NewStage(world),
@@ -184,7 +194,7 @@ func newFixture(t *testing.T, world map[string]string, e *aitest.Endpoint) *fixt
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.runner, err = job.New(job.Config{Dispatcher: d, Pipeline: newPipeline(t, e), CheckpointEvery: 1})
+	f.runner, err = job.New(job.Config{Dispatcher: d, Pipeline: newPipeline(t, e), CheckpointEvery: every})
 	if err != nil {
 		t.Fatal(err)
 	}
