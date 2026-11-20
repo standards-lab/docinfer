@@ -2,6 +2,7 @@ package job
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"strings"
@@ -54,7 +55,13 @@ func New(cfg Config) (*Runner, error) {
 // An inference's Text is put into the dispatcher's content store under its TextSHA256 before its
 // update; one with no TextSHA256 puts nothing. An error stops the job, yielded alone and last once
 // the pipeline and the dispatch have stopped: a refused opts.Extract, before the dispatch starts,
-// and an error of the dispatch, the pipeline, or a put, which docinfer.Permanent doesn't report.
+// and an error of the dispatch, the pipeline, or a put, each keeping what docinfer.Permanent
+// reads of it, a put's never permanent. A content miss, a *docinfer.MissingError, first drops
+// the index entry of the output's part, under the part's SHA-256 and the event's stage, so a
+// redelivery prepares the part again; a failed drop is joined to the miss. A cancelled ctx yields
+// ctx.Err() alone, last, once the dispatch has removed the job's files from its working
+// directory; a loop stopped early stops the job the same way, and nothing more is yielded. Other
+// jobs on the Runner go on.
 //
 // A store's input yields [Checkpoint]s at its low watermark. A message is the stretch of inputs,
 // in pull order, that ends at an output event with a non-zero After; the watermark is the last
@@ -68,7 +75,9 @@ func New(cfg Config) (*Runner, error) {
 func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Options) iter.Seq2[Update, error] {
 	return func(yield func(Update, error) bool) {
 		// The job's own context, cancelled as the job stops, so a dispatch the pipeline's input
-		// side is blocked in ends rather than holds the pipeline's stop.
+		// side is blocked in ends rather than holds the pipeline's stop. The caller's is kept to
+		// tell a cancellation from the job's own stop.
+		caller := ctx
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		content := r.cfg.Dispatcher.Content()
@@ -121,6 +130,15 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 		// The loop's end has stopped the pipeline, and with it the dispatch, before the error is
 		// yielded, alone and last.
 		if stop != nil {
+			switch {
+			case caller.Err() != nil:
+				// The caller's context ended: its error is the job's, however the stop surfaced.
+				stop = caller.Err()
+			default:
+				if miss, ok := errors.AsType[*docinfer.MissingError](stop); ok {
+					stop = r.drop(ctx, miss, stop)
+				}
+			}
 			yield(Update{}, stop)
 			return
 		}
@@ -197,6 +215,21 @@ func (r *Runner) inputs(ctx context.Context, in dispatch.Input) iter.Seq2[docinf
 			}
 		}
 	}
+}
+
+// drop drops the index entry of the part whose content miss stopped the job, err the stop that
+// carries miss, so a redelivery prepares the part again and puts its content back rather than
+// replay the entry and miss again. miss's Event is the output's event the pipeline was fed, which
+// names its part, the part's SHA-256, and its stage: the entry's key. The dispatch has stopped,
+// so no claim of the job's records the entry again. A failed drop is joined to err, which both
+// then match.
+func (r *Runner) drop(ctx context.Context, miss *docinfer.MissingError, err error) error {
+	ev := miss.Event
+	key := dispatch.Key{SHA256: ev.Part.SHA256, Stage: ev.Stage}
+	if dropErr := r.cfg.Dispatcher.Index().Drop(ctx, key); dropErr != nil {
+		return errors.Join(err, fmt.Errorf("job: drop the index entry of part %s under %s: %w", ev.Part.ID, ev.Stage, dropErr))
+	}
+	return err
 }
 
 // own reports whether ev is a part's own event: neither an output's nor a warning's.

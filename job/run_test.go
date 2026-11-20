@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"net/http"
 	"os"
@@ -112,29 +114,49 @@ func newPipeline(t *testing.T, e *aitest.Endpoint) *docinfer.Pipeline {
 	return p
 }
 
-// hookIndex is an index that calls its hooks, when set, as a claim or a record of key begins.
+// hookIndex is an index that calls its hooks, when set, as a claim or a record of key begins, and
+// fails each method fail names, "claim", "append", or "drop", with its error.
 type hookIndex struct {
 	dispatch.Index
 	onClaim  func(dispatch.Key)
-	onRecord func(dispatch.Key)
+	onRecord func(ctx context.Context, key dispatch.Key)
+	fail     map[string]error
 }
 
 func (h *hookIndex) Claim(ctx context.Context, key dispatch.Key) (string, time.Duration, bool, error) {
 	if h.onClaim != nil {
 		h.onClaim(key)
 	}
+	if err := h.fail["claim"]; err != nil {
+		return "", 0, false, err
+	}
 	return h.Index.Claim(ctx, key)
+}
+
+func (h *hookIndex) Append(ctx context.Context, key dispatch.Key, token string, r dispatch.Recorded) error {
+	if err := h.fail["append"]; err != nil {
+		return err
+	}
+	return h.Index.Append(ctx, key, token, r)
 }
 
 func (h *hookIndex) Record(ctx context.Context, key dispatch.Key, token string, e dispatch.Entry) error {
 	if h.onRecord != nil {
-		h.onRecord(key)
+		h.onRecord(ctx, key)
 	}
 	return h.Index.Record(ctx, key, token, e)
 }
 
+func (h *hookIndex) Drop(ctx context.Context, key dispatch.Key) error {
+	if err := h.fail["drop"]; err != nil {
+		return err
+	}
+	return h.Index.Drop(ctx, key)
+}
+
 // putContent is a content store that keeps the SHA-256 of each put, in order, fails a put of a
-// SHA-256 fail names with its error, and calls onPut, when set, as each put begins.
+// SHA-256 fail names with its error, and calls onPut, when set, as each put begins. A content
+// lost, by lose, misses on Open until it is put again.
 type putContent struct {
 	dispatch.Content
 	fail  map[string]error
@@ -142,6 +164,7 @@ type putContent struct {
 
 	mu   sync.Mutex
 	puts []string
+	lost map[string]bool
 }
 
 func (c *putContent) Put(ctx context.Context, sha string, r io.Reader) error {
@@ -153,8 +176,29 @@ func (c *putContent) Put(ctx context.Context, sha string, r io.Reader) error {
 	}
 	c.mu.Lock()
 	c.puts = append(c.puts, sha)
+	delete(c.lost, sha)
 	c.mu.Unlock()
 	return c.Content.Put(ctx, sha, r)
+}
+
+func (c *putContent) Open(ctx context.Context, sha string) (io.ReadCloser, error) {
+	c.mu.Lock()
+	lost := c.lost[sha]
+	c.mu.Unlock()
+	if lost {
+		return nil, fmt.Errorf("putContent: %s is lost: %w", sha, fs.ErrNotExist)
+	}
+	return c.Content.Open(ctx, sha)
+}
+
+// lose makes the content sha names miss until it is put again, as a store that has lost it.
+func (c *putContent) lose(sha string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.lost == nil {
+		c.lost = map[string]bool{}
+	}
+	c.lost[sha] = true
 }
 
 // Puts returns the SHA-256 of each put so far.
@@ -171,6 +215,7 @@ type fixture struct {
 	stage   *dispatchtest.Stage
 	index   *hookIndex
 	content *putContent
+	dir     string // the dispatcher's working directory
 }
 
 // newFixture returns a fixture over world, the content the stage's "file" directives find, and
@@ -187,9 +232,10 @@ func newFixtureEvery(t *testing.T, world map[string]string, e *aitest.Endpoint, 
 		stage:   dispatchtest.NewStage(world),
 		index:   &hookIndex{Index: dispatch.NewMemoryIndex(0)},
 		content: &putContent{Content: dispatch.NewMemoryContent()},
+		dir:     t.TempDir(),
 	}
 	d, err := dispatch.New(dispatch.Config{
-		Stages: dispatch.Stages{route.Text: f.stage}, Index: f.index, Content: f.content, Dir: t.TempDir(), Puts: 2,
+		Stages: dispatch.Stages{route.Text: f.stage}, Index: f.index, Content: f.content, Dir: f.dir, Puts: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -306,7 +352,7 @@ func TestRunOrder(t *testing.T) {
 	f := newFixture(t, map[string]string{"x.txt": childText}, serve(t))
 	message1 := sum("message 1")
 	release := make(chan struct{})
-	f.index.onRecord = func(key dispatch.Key) {
+	f.index.onRecord = func(_ context.Context, key dispatch.Key) {
 		if key == fixtureKey(inputText) {
 			select {
 			case <-release:
