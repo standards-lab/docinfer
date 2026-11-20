@@ -343,7 +343,8 @@ const (
 // before its inference and the batches holding its chunks, a part's own event after its outputs',
 // warnings', and children's. The input's message 1 is extracted and embedded before the input's
 // own event, which the index holds back until both are out, so no output waits on its part's
-// event. The depth-0 part's own event carries its metadata text, chunked as kind metadata; every
+// event. An extraction's streamed text is yielded as Update.Progress, after its source output's
+// event and before that source's extraction inference. The depth-0 part's own event carries its metadata text, chunked as kind metadata; every
 // other event is fed as it is, the warning, the unread child, and the record among them. Each
 // inference's text is in the content store as its update is yielded; the refused extraction puts
 // nothing. Done comes last: each part by its outcome, their outputs summed, and the pipeline's
@@ -425,11 +426,14 @@ func TestRunOrder(t *testing.T) {
 		t.Errorf("events:\n got %+v\nwant %+v", steps, want)
 	}
 
-	// The order: each inference and batch after the events it derives from, each part's own event
-	// after its outputs', warnings', and children's.
+	// The order: each progress, inference, and batch after the events it derives from, each
+	// progress before its source's extraction inference, each part's own event after its outputs',
+	// warnings', and children's.
 	echoed := map[string]bool{}
+	extracted := map[string]bool{}
 	ownAt := map[string]int{}
 	var input dispatch.Part
+	progress := 0
 	for i, u := range r.updates {
 		switch {
 		case u.Event != nil && u.Event.Output != nil:
@@ -440,9 +444,17 @@ func TestRunOrder(t *testing.T) {
 				input = u.Event.Part
 				echoed[sum(docinfer.MetadataText(input))] = true
 			}
+		case u.Progress != nil:
+			progress++
+			if sha := u.Progress.ContentSHA256; !echoed[sha] || extracted[sha] {
+				t.Errorf("update %d, a progress of %s, isn't between its output's event and its extraction", i, sha)
+			}
 		case u.Inference != nil:
 			if !echoed[u.Inference.ContentSHA256[0]] {
 				t.Errorf("update %d, an inference of %s, precedes its output's event", i, u.Inference.ContentSHA256[0])
+			}
+			if u.Inference.Capability == docinfer.CapabilityExtraction {
+				extracted[u.Inference.ContentSHA256[0]] = true
 			}
 		case u.Batch != nil:
 			for _, s := range u.Batch.Sources {
@@ -451,6 +463,9 @@ func TestRunOrder(t *testing.T) {
 				}
 			}
 		}
+	}
+	if progress == 0 {
+		t.Error("no extraction's progress was yielded as an Update.Progress")
 	}
 	for i, u := range r.updates {
 		if ev := u.Event; ev != nil {

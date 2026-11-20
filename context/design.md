@@ -522,7 +522,7 @@ route by a test's function over the decoded request and its arrival number. Its 
 in Chat Completions' shapes only, a raw reply answers any route, an error reply carries
 Retry-After, a route with no function answers 404, and a `Gate` and stream holds park requests and
 streams. `internal/aitest` stays go-ai's format-test kit. Every other go-ai name is v0.3.0's, and
-every docproc name docproc v0.3.0's. layers' docinfer sections are superseded by this one.
+every docproc name docproc v0.4.0's. layers' docinfer sections are superseded by this one.
 
 ### Modules and packages
 
@@ -1454,8 +1454,8 @@ Every exported name layers' docinfer sections write, by where it lives, against 
 | `tools/infer` | carried | outside docinfer |
 | go-ai's harness-session surface | carried | outside docinfer |
 | `dispatch.Content`, `Content.Open` | carried | the content's one reader (W3) |
-| `dispatch.Event`, `Event.After`, `dispatch.Part`, `dispatch.Output`, `Output.SHA256`, `dispatch.Identity`, `dispatch.Outcome`, `dispatch.Version` | carried | docproc v0.3.0 |
-| `dispatch.Dispatcher`, `Dispatcher.Content`, `Dispatcher.Index`, `Index.Drop`, `dispatch.Key`, `Key.SHA256`, `Part.SHA256`, `dispatch.Input`, `Input.After`, `dispatch.ErrSHA256` | carried | docproc v0.3.0 |
+| `dispatch.Event`, `Event.After`, `dispatch.Part`, `dispatch.Output`, `Output.SHA256`, `dispatch.Identity`, `dispatch.Outcome`, `dispatch.Version` | carried | docproc v0.4.0 |
+| `dispatch.Dispatcher`, `Dispatcher.Content`, `Dispatcher.Index`, `Index.Drop`, `dispatch.Key`, `Key.SHA256`, `Part.SHA256`, `dispatch.Input`, `Input.After`, `dispatch.ErrSHA256` | carried | docproc v0.4.0 |
 | `FileContent` | carried | `dispatch.FileContent`, now `texts/` too (C10) |
 | `Content` (docproc's store, as layers' section names it) | carried | `dispatch.Content` |
 | `tool.Run`, `email.Threader`, `Pool` | carried | docproc's, unchanged |
@@ -1517,7 +1517,7 @@ patch of the module it fixes.
 | `v0.1.0` | the base module | library | docproc v0.3.0, go-ai v0.4.0 |
 | `v0.2.0` | the base module | job | docproc v0.4.0, go-ai v0.4.0 |
 | `postgres/v0.1.0` | `postgres` | postgres | the base module, sqlate, sqlate/postgres |
-| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.3.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
+| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.4.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
 
 - A module is tagged only after every module it requires: go-ai v0.4.0 before the base module's
   v0.1.0, and the base module's tag before `postgres`'s or `cmd/docinfer`'s that requires it.
