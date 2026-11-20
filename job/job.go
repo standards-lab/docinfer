@@ -1,7 +1,10 @@
 package job
 
 import (
+	"context"
 	"fmt"
+	"iter"
+	"strings"
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docproc/dispatch"
@@ -34,6 +37,126 @@ func New(cfg Config) (*Runner, error) {
 		return nil, fmt.Errorf("job: New: %w: CheckpointEvery %d is below 1", docinfer.ErrRequest, cfg.CheckpointEvery)
 	}
 	return &Runner{cfg: cfg}, nil
+}
+
+// Run dispatches in through the Config's dispatcher and infers over what it prepares through the
+// Config's pipeline, under opts and ctx, yielding the job's updates as made and its [Done] last.
+//
+// Each dispatch event is fed to the pipeline as one input: the depth-0 part's own event with
+// docinfer.MetadataText's text of that part, and every other event as it is. Run ranges over the
+// pipeline's Run alone, which pulls the dispatch from its input side, so yield is called from the
+// caller's goroutine alone. Updates keep the pipeline's order: each event as the pipeline echoes
+// it, before anything derived from it, and each inference, progress, and batch as made, so an
+// output's event precedes its inference and the batches holding its chunks, and a part's own
+// event follows its outputs', warnings', and children's. No output is held back until its part's
+// event: a consumer drops a quarantined or failed part's results by that part's own event.
+//
+// An inference's Text is put into the dispatcher's content store under its TextSHA256 before its
+// update; one with no TextSHA256 puts nothing. An error stops the job, yielded alone and last once
+// the pipeline and the dispatch have stopped: a refused opts.Extract, before the dispatch starts,
+// and an error of the dispatch, the pipeline, or a put, which docinfer.Permanent doesn't report.
+func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Options) iter.Seq2[Update, error] {
+	return func(yield func(Update, error) bool) {
+		// The job's own context, cancelled as the job stops, so a dispatch the pipeline's input
+		// side is blocked in ends rather than holds the pipeline's stop.
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		content := r.cfg.Dispatcher.Content()
+		parts := map[string]dispatch.Event{} // each part's last own event, by part ID
+		var counts *docinfer.Counts
+		var stop error
+	results:
+		for res, err := range r.cfg.Pipeline.Run(ctx, content, r.inputs(ctx, in), opts) {
+			var u Update
+			switch {
+			case err != nil:
+				stop = err
+				break results
+			case res.Input != nil:
+				ev := res.Input.Event
+				if own(ev) {
+					parts[ev.Part.ID] = ev
+				}
+				u.Event = &ev
+			case res.Inference != nil:
+				if err := put(ctx, content, res.Inference); err != nil {
+					stop = err
+					cancel() // as for a loop stopped early, below
+					break results
+				}
+				u.Inference = res.Inference
+			case res.Progress != nil:
+				u.Progress = res.Progress
+			case res.Batch != nil:
+				u.Batch = res.Batch
+			case res.Done != nil:
+				counts = res.Done
+				continue
+			default: // a settlement, which moves no watermark yet
+				continue
+			}
+			if !yield(u, nil) {
+				// Cancelled first, so the pipeline's stop doesn't wait on a dispatch blocked
+				// short of its next event.
+				cancel()
+				return
+			}
+		}
+		// The loop's end has stopped the pipeline, and with it the dispatch, before the error is
+		// yielded, alone and last.
+		if stop != nil {
+			yield(Update{}, stop)
+			return
+		}
+		if counts == nil { // the pipeline always ends with its counts or an error
+			return
+		}
+		yield(Update{Done: done(parts, *counts)}, nil)
+	}
+}
+
+// inputs dispatches in, yielding each event as the pipeline's input: the depth-0 part's own event
+// with its metadata text, every other event as it is, and the dispatch's error alone, last.
+func (r *Runner) inputs(ctx context.Context, in dispatch.Input) iter.Seq2[docinfer.Input, error] {
+	return func(yield func(docinfer.Input, error) bool) {
+		for ev, err := range r.cfg.Dispatcher.Dispatch(ctx, in) {
+			if err != nil {
+				yield(docinfer.Input{}, err)
+				return
+			}
+			input := docinfer.Input{Event: ev}
+			if own(ev) && ev.Part.Depth == 0 {
+				input.Metadata = docinfer.MetadataText(ev.Part)
+			}
+			if !yield(input, nil) {
+				return
+			}
+		}
+	}
+}
+
+// own reports whether ev is a part's own event: neither an output's nor a warning's.
+func own(ev dispatch.Event) bool { return ev.Output == nil && ev.Warning == nil }
+
+// put puts inf's Text into content under its TextSHA256, putting nothing when it has none.
+func put(ctx context.Context, content dispatch.Content, inf *docinfer.Inference) error {
+	if inf.TextSHA256 == "" {
+		return nil
+	}
+	if err := content.Put(ctx, inf.TextSHA256, strings.NewReader(inf.Text)); err != nil {
+		return fmt.Errorf("job: put the text %s of part %s's %s: %w", inf.TextSHA256, inf.Part, inf.Capability, err)
+	}
+	return nil
+}
+
+// done returns the attempt's Done of parts, each part's last own event, and the pipeline's counts.
+func done(parts map[string]dispatch.Event, counts docinfer.Counts) *Done {
+	d := &Done{Parts: map[dispatch.Outcome]int{}, Counts: counts}
+	for _, ev := range parts {
+		d.Parts[ev.Outcome]++
+		d.Outputs += ev.Outputs
+	}
+	return d
 }
 
 // Update is one thing a run yields; one field is set. It is the Go side's one-of alone: each
