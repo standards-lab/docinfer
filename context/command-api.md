@@ -1,6 +1,6 @@
-# command-api
+# cmd/docinfer's API
 
-cmd/docinfer's API: layers' docinfer sections at 673ed3d, restated in go-ai's and docproc's
+This note states cmd/docinfer's planned API: layers' docinfer sections at 673ed3d, restated in go-ai's and docproc's
 released names, with [command.md](command.md)'s findings applied. A finding's id marks where it
 changes layers. The directory's `outdir` and the report are [command-report.md](command-report.md).
 

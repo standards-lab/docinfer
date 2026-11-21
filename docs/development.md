@@ -11,8 +11,8 @@ them, and turns off mise's automatic install, so a task never fetches a tool mid
 tool is a `mise install` away.
 
 - **Modules.** `GO_MODULES` is the space-separated list of module directories, kept in sync with
-  `go.work`'s use list: `.` is the base module, `postgres` the PostgreSQL cache's, and
-  `cmd/docinfer` the command's, added as the task that builds it lands.
+  `go.work`'s use list: `.` is the base module and `postgres` the PostgreSQL cache's;
+  `cmd/docinfer`, the command's, is planned.
 - **The live tier's DSN.** `DOCINFER_DSN` names the compose harness's PostgreSQL, whose port
   follows `DOCINFER_POSTGRES_PORT` as `compose/postgres.yml`'s does. Each test creates and drops
   its own database on it.
@@ -37,7 +37,7 @@ tool is a `mise install` away.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
   its log on a failure. **`integration`** runs every provider's live tier one module at a time,
-  continuing past a failure; today that is the postgres module's alone.
+  continuing past a failure; the postgres module has the only one.
 - **`upgrade`** moves each go directive to the current Go minor with no toolchain line, skips
   `go get` for a module with no direct requirement, and passes `--no-global` so it writes this
   `mise.toml` alone, never the global configuration.
@@ -72,8 +72,8 @@ per-PR rate by design; it installs only Go, docker being the runner's. No job ru
 module's AI tier, `test:integration`, whose models are on the organization's own machines.
 
 The release workflow runs on a pushed tag; nothing in CI tags. A tag is the base module's,
-`vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z`, and `cmd/docinfer/vX.Y.Z`
-once that module lands. The tag's prefix, empty for the base module, picks the module's own
+`vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z`, and, once the planned command
+module exists, `cmd/docinfer/vX.Y.Z`. The tag's prefix, empty for the base module, picks the module's own
 changelog, `CHANGELOG.md` at the root or `<module>/CHANGELOG.md`, and the release notes are the
 version's section, headed `## [vX.Y.Z] - <date>`. A release has no assets: the module proxy
 serves the module from the tag, and docinfer builds no system tool.

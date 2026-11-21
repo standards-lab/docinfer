@@ -70,7 +70,7 @@ Two-way: docs, comments, and configuration only, with no tag and no change to a 
 
 ## Progress
 
-slices 0/6 committed · standards — · spec — · editor —
+slices 6/6 committed · standards ✓ · spec ✓ · editor ✓
 
 ## Decisions
 

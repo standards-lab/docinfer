@@ -1,13 +1,13 @@
-# command
+# cmd/docinfer's evaluation
 
-cmd/docinfer's evaluation, which v1.ai.inference's docinfer task builds to; the API is
-[command-api.md](command-api.md), the report and C16–C20 [command-report.md](command-report.md).
+v1.ai.inference's docinfer task builds cmd/docinfer to these findings;
+[command-api.md](command-api.md) states its API, [command-report.md](command-report.md) its report
+and C16–C20.
 
 ## Evaluation
 
-Fable 5.2's evaluation of the spike's command, and the session's own review against the
-workspace, one finding per issue or simplification, each settled in a review round with the
-architect. Each names the spike's file and lines, what it is measured against, and a verdict.
+Fable 5.2 evaluated the spike's command, and the session reviewed it against the workspace,
+one finding per issue or simplification, each settled with the architect in a review round. Each names the spike's file and lines, what it is measured against, and a verdict.
 Where a finding changes a name, the API states the name.
 
 Citations are relative to spike-ai-pipeline's `internal/docinfer/` at 6a631f1. A bare page name,
