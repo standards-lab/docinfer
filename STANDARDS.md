@@ -31,8 +31,8 @@ and `context/command-report.md`, and apply to the base module, `postgres`, and `
   sqlate, each an adapter behind the one interface.
 - `architecture/principles/downward-dependencies.md`: nothing at or below go-ai's tier imports
   docinfer; `postgres` and `cmd/docinfer` depend down on the base module.
-- `architecture/standards/go-elemental/principles/dependencies.md`: the base, `postgres`, and
-  `cmd/docinfer` `go.mod` files.
+- `architecture/standards/go-elemental/principles/dependencies.md`: the base module's,
+  `postgres`'s, and `cmd/docinfer`'s `go.mod`.
 - `architecture/principles/independent-releases.md`: each module tags on its own, the base module
   before any that requires it, and no tagged module carries a replace directive.
 - `architecture/standards/go-elemental/principles/construction-and-execution.md`: `docinfer.New`

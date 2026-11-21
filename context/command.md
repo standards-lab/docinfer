@@ -43,8 +43,8 @@ its node, before the docproc run is read.
 `apptest/apptest.go:31`, `go.mod`. Against `construction-and-execution.md`, `cli-applications.md`,
 and `principles/rolling-currency.md`. **accepted**, docinfer: `internal/app` and
 `internal/apptest` start from go-cli-sdk-template's latest `template/v*` release, as `cmd/docproc`
-did, on go-cli-sdk v0.4.0's `cli.Program` and go-core v0.12.0's
-`Graph.Observe(func(graph.Ref))`; the spike's files are not ported.
+did, on go-cli-sdk's `cli.Program` and go-core's `Graph.Observe(func(graph.Ref))`; the spike's
+files are not ported.
 
 **C3. issue: the layout and packages are the spike root's, not a nested command module's.**
 `cmd/docinfer/main.go:1`, `infer/progress.go:1`, `models/models.go:181`, `report/report.go:1`.
