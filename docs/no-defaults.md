@@ -20,8 +20,8 @@ windows say nothing about it. `WordsPerSecond` has no default either.
 
 `Pending` and `BatchBytes` have no library default; a host ships its own. 512 KiB is the starting
 `BatchBytes`: it keeps a batch under NATS's default 1 MB `max_payload`, a 768-dimension vector
-being 4,096 B in base64. docproc's layers proposed that value as a library default, and docinfer
-dropped it.
+being 4,096 B in base64. docproc's layers note (at docproc commit f3633c3) proposed that value as a
+library default, and docinfer dropped it.
 
 ## A request's time
 
