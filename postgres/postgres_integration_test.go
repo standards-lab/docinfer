@@ -11,16 +11,11 @@ import (
 	"github.com/standards-lab/sqlate/postgres/pgtest"
 )
 
-// dsnEnv names the PostgreSQL the live tier creates its databases on, which the root mise.toml
-// sets for the compose harness's server, and prefix starts each database's name.
 const (
 	dsnEnv = "DOCINFER_DSN"
 	prefix = "docinfer"
 )
 
-// TestLive_Migrations applies the set, as a host applies it, to a throwaway database pgtest
-// creates on the server DOCINFER_DSN names, and finds docinfer_cache there. pgtest drops the
-// database when the test ends.
 func TestLive_Migrations(t *testing.T) {
 	set, err := postgres.Migrations()
 	if err != nil {

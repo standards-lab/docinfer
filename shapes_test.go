@@ -14,8 +14,6 @@ import (
 	"github.com/standards-lab/docinfer/chunk"
 )
 
-// A vector is standard base64 of little-endian float32s: these strings are pinned, since held
-// vectors and every batch's chunks carry them.
 func TestDecodeVector(t *testing.T) {
 	for _, tc := range []struct {
 		vector string
@@ -43,23 +41,22 @@ func TestDecodeVector(t *testing.T) {
 	if err != nil || !slices.Equal(got, want) {
 		t.Errorf("decode of %v encoded: %v, %v", want, got, err)
 	}
-	for _, vector := range []string{
-		"",          // no vector
-		"AACAPw",    // unpadded
-		"AACAPw=",   // padded short
-		"AACA",      // three bytes
-		"AACAPwAA",  // five bytes, padded
-		"AACAP w==", // not base64
-		"AACAPx==",  // non-zero trailing bits, which a strict decoding refuses
-		"AACAP-8_",  // URL base64
+	for name, vector := range map[string]string{
+		"no vector":              "",
+		"unpadded":               "AACAPw",
+		"padded short":           "AACAPw=",
+		"three bytes":            "AACA",
+		"five bytes, padded":     "AACAPwAA",
+		"not base64":             "AACAP w==",
+		"non-zero trailing bits": "AACAPx==",
+		"URL base64":             "AACAP-8_",
 	} {
 		if got, err := docinfer.DecodeVector(vector); err == nil {
-			t.Errorf("decode %q: %v, want an error", vector, got)
+			t.Errorf("decode %s, %q: %v, want an error", name, vector, got)
 		}
 	}
 }
 
-// A batch's digest is the SHA-256 of its chunks' digests, in order, each prefixed by its length.
 func TestBatchDigest(t *testing.T) {
 	d1, d2 := sha("first"), sha("second")
 	batch := docinfer.Batch{Chunks: []docinfer.Chunk{{Digest: d1}, {Digest: d2}}}
@@ -82,8 +79,6 @@ func TestBatchDigest(t *testing.T) {
 	}
 }
 
-// A Chunk's JSON is {digest, text, span, index, source, vector, error}, chunk.Chunk's fields
-// inline, vector and error only when set.
 func TestChunkJSON(t *testing.T) {
 	c := docinfer.Chunk{
 		Digest: sha("Hello"),
@@ -112,7 +107,6 @@ func TestChunkJSON(t *testing.T) {
 	}
 }
 
-// Counts' JSON names are snake_case, and a skipped capability's counts and tokens are absent.
 func TestCountsJSON(t *testing.T) {
 	c := docinfer.Counts{
 		Texts: 1, Windows: 2,

@@ -10,10 +10,8 @@ import (
 	"github.com/standards-lab/docproc/dispatch"
 )
 
-// inputPart is the part the text scenarios' outputs come from, and whose metadata is a job's.
 var inputPart = dispatch.Part{ID: "/", Name: "report.docx", Size: 2048, SHA256: strings.Repeat("c", 64)}
 
-// textInput returns an input of an output of kind on inputPart, its text put in content.
 func textInput(t *testing.T, content *dispatch.MemoryContent, kind dispatch.OutputKind, text string) docinfer.Input {
 	t.Helper()
 	return docinfer.Input{Event: dispatch.Event{
@@ -23,10 +21,6 @@ func textInput(t *testing.T, content *dispatch.MemoryContent, kind dispatch.Outp
 	}}
 }
 
-// TestEmbeddings runs a text output, a Markdown output, and the input's metadata through Run on
-// the embedding role's endpoint, and wants each chunked, as kind output or metadata, and every
-// chunk embedded at the configured dimensions, none rejected. A second run over the same content
-// is held whole, from the FileCache, asking no model and counting no token.
 func TestEmbeddings(t *testing.T) {
 	emb, dims := embeddings(t)
 	p := newPipeline(t, emb, dims, nil)

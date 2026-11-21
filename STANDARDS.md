@@ -2,28 +2,31 @@
 
 The judgement calls the standards-reviewer applies to docinfer, beyond what `mise run check`
 enforces: each one line, with a pointer to the architecture page that applies. They come from
-docinfer's design review, `context/design.md`, and apply to the base module, `postgres`, and
-`cmd/docinfer`.
+docinfer's design review, now in its package docs, `docs/`, and the command notes
+`context/command.md`, `context/command-api.md`, and `context/command-report.md`, and apply to the
+base module, `postgres`, and `cmd/docinfer`.
 
 - `architecture/principles/repository-topology.md`: docinfer is an adjacent library whose base
   module, over go-ai, sits above go-ai's tier, so only the layers above it use docinfer; `postgres`
   and `cmd/docinfer` pin only their own levels.
 - `architecture/principles/tool-beside-library.md`: `cmd/docinfer` is a thin consumer of the
-  library, and nothing of its terminal progress enters the root package (L4).
+  library, and nothing of its terminal progress enters the root package.
 - `architecture/principles/composition-root.md`: the library builds no client; each capability's
-  `*ai.Client` is built by the host, in `cmd/docinfer`'s `internal/app` a graph node (L3, C1).
+  `*ai.Client` is built by the host, in `cmd/docinfer`'s `internal/app` a graph node
+  (`context/command.md`, C1).
 - `architecture/principles/validation-first.md`: `docinfer.New`, `NewBounds`, and `job.New` refuse
   a bad value before any job runs, `join.Request` validated at `docinfer.New`, and `Run` refuses an
   `Extract` before it reads an input; `cmd/docinfer`'s configuration fails its Build before the
   docproc run is read.
 - `architecture/principles/resolution.md`: docinfer calls go-ai's client as go-ai presents it:
   no helper restating go-ai, no `/models` request of its own, and no re-validation of what go-ai
-  validates (L14, C5, C7).
+  validates (`context/command.md`, C5, C7).
 - `architecture/principles/rolling-currency.md`: every module's requirements and the root's mise
-  pins are current; `cmd/docinfer` starts from go-cli-sdk-template's template/v0.3.0 (C2).
+  pins are current; `cmd/docinfer` starts from go-cli-sdk-template's template/v0.3.0
+  (`context/command.md`, C2).
 - `architecture/principles/minimal-footprint.md`: the base module requires docproc and go-ai
   alone; the join of work in flight is docinfer's own, `golang.org/x/sync` rejected
-  (`context/design.md`, "Join of work in flight").
+  (`docs/join-of-work-in-flight.md`).
 - `architecture/principles/service-tiers.md`: `Cache` is the interface, `FileCache` and
   `MemoryCache` its implementations in the base module, and `postgres` its provider module, over
   sqlate, each an adapter behind the one interface.
@@ -52,6 +55,13 @@ docinfer's design review, `context/design.md`, and apply to the base module, `po
   runs against the endpoints go-ai's `AI_<ROLE>_*` variables name and no CI job runs, and the
   command's in `cmd/docinfer/integration` over `processtest`; every `Cache` passes
   `docinfertest`'s one suite; golden keys and a chunk corpus pin the cache's formats.
+- `architecture/principles/comments.md`: every comment is one of the five kinds, in source,
+  tests, scripts, SQL, and every configuration file (TOML, YAML, `.gitignore`, Dockerfiles,
+  compose); a configuration file's header is a short description plus `See` lines, and its
+  reasoning lives in `docs/` or the README. A doc comment on an unexported identifier or a test
+  function is not package documentation. A SQL file's header is its package documentation, and
+  in sqlate's format also its template metadata. Released migrations in `postgres/migrations` are
+  frozen, byte-identical, comments included.
 - `architecture/standards/go-elemental/principles/release-and-ci.md`: the check, currency, the
   root `go.work`, a changelog per module, and per-module tags, with CI as the gate.
 - `architecture/standards/go-elemental/principles/dsl-driven-services.md`: `postgres`'s cache,

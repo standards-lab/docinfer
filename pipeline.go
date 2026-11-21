@@ -32,10 +32,8 @@ type Config struct {
 type Pipeline struct {
 	cfg     Config
 	profile Profile
-	// claims joins the work in flight of every job the pipeline runs, by Key.
-	claims claims
-	// now is the clock an extraction's progress is coalesced by: time.Now, and a test's own.
-	now func() time.Time
+	claims  claims
+	now     func() time.Time
 }
 
 // New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or

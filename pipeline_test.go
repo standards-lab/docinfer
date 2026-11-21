@@ -15,7 +15,6 @@ import (
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-// newClient returns a Chat Completions client of baseURL in mode, failing the test on an error.
 func newClient(t *testing.T, baseURL string, mode ai.TranscriptionMode) *ai.Client {
 	t.Helper()
 	c, err := ai.New(baseURL, http.DefaultClient, completions.New(completions.Options{}), ai.Options{TranscriptionMode: mode})
@@ -25,7 +24,6 @@ func newClient(t *testing.T, baseURL string, mode ai.TranscriptionMode) *ai.Clie
 	return c
 }
 
-// newBounds returns Bounds of the given bounds, failing the test on an error.
 func newBounds(t *testing.T, vision, transcription, extraction, embeddings int) *docinfer.Bounds {
 	t.Helper()
 	b, err := docinfer.NewBounds(vision, transcription, extraction, embeddings)
@@ -35,8 +33,6 @@ func newBounds(t *testing.T, vision, transcription, extraction, embeddings int) 
 	return b
 }
 
-// validConfig returns a Config New accepts, every capability set, each of its counts 1 more than
-// the least New accepts so a test can tell a value from a default.
 func validConfig(t *testing.T) docinfer.Config {
 	t.Helper()
 	c := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
@@ -75,8 +71,6 @@ func TestNewAcceptsLeastValues(t *testing.T) {
 	}
 }
 
-// New panics by name on each missing wiring: a nil Cache, Bounds, or embeddings client, or a set
-// capability with no client.
 func TestNewPanicsNamingTheField(t *testing.T) {
 	cases := []struct {
 		field string
@@ -107,8 +101,6 @@ func TestNewPanicsNamingTheField(t *testing.T) {
 	}
 }
 
-// New refuses each count below 1, 0 and -1 alike, and each empty model, naming the field: nothing
-// has a default.
 func TestNewRefusesNamingTheField(t *testing.T) {
 	counts := []struct {
 		field string
@@ -150,7 +142,6 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 	}
 }
 
-// refused fails the test unless New refuses cfg, matching ErrRequest and naming field.
 func refused(t *testing.T, cfg docinfer.Config, field string) {
 	t.Helper()
 	p, err := docinfer.New(cfg)
@@ -165,7 +156,6 @@ func refused(t *testing.T, cfg docinfer.Config, field string) {
 	}
 }
 
-// NewBounds refuses each bound below 1, naming its capability.
 func TestNewBoundsRefuses(t *testing.T) {
 	for i, capability := range []string{"vision", "transcription", "extraction", "embeddings"} {
 		for _, n := range []int{0, -1} {

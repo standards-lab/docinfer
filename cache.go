@@ -41,10 +41,6 @@ type Held struct {
 	Refused    string `json:"refused,omitzero"`    // the refusal's text, or the refusing reply's
 }
 
-// decodeHeld decodes a held value as [Held], reporting false for one that doesn't decode, which
-// the pipeline takes for a miss: the model is asked again, and its Put replaces the value. It
-// decodes only a single JSON object with none but Held's members, whose Vector, when set, is one
-// [DecodeVector] reads.
 func decodeHeld(b []byte) (Held, bool) {
 	if trimmed := bytes.TrimLeft(b, " \t\r\n"); len(trimmed) == 0 || trimmed[0] != '{' {
 		return Held{}, false

@@ -1,23 +1,22 @@
-# crane lists an image's tags for currency's scan of the compose harness's image pins; no CI job
-# installs it.
+# See architecture/standards/go-elemental/principles/release-and-ci.md
+# See architecture/principles/rolling-currency.md
+# See docs/development.md
+[settings]
+task.run_auto_install = false
+
 [tools]
 "aqua:google/go-containerregistry" = "0.22.1"
+"github:standards-lab/claude-plugins" = { version = "0.22.0", version_prefix = "marathon/v" }
 go = "1.27.4"
 golangci-lint = "2.15.0"
 jq = "1.8.2"
 
-# Space-separated list of module directories, kept in sync with go.work's use list. "." is the
-# base module, postgres the PostgreSQL cache's, and cmd/docinfer the command's, added as the task
-# that builds it lands.
 [env]
 GO_MODULES = ". postgres"
-# The postgres module's live tier's server: compose.yml's PostgreSQL, whose port follows
-# DOCINFER_POSTGRES_PORT as compose/postgres.yml's does. Each test creates and drops its own
-# database on it.
 DOCINFER_DSN = "postgres://app:app@127.0.0.1:{{ get_env(name='DOCINFER_POSTGRES_PORT', default='5437') }}/app?sslmode=disable"
 
 [tasks.check]
-description = "Build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL; writes nothing"
+description = "Build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL, stopping at the first failure, then run both lint-context and lint-references; writes nothing"
 run = '''
 set -eu
 export GOWORK=off
@@ -36,25 +35,23 @@ for mod in $GO_MODULES; do
   golangci-lint run ./...
   golangci-lint run --build-tags integration ./...
 done
-# sqlint is the postgres module's tool, and resolves the engine sqlint.toml names through the
-# module's own requirements.
 echo "check: sqlint"
 cd "$MISE_PROJECT_ROOT/postgres"
 go tool sqlint .
+cd "$MISE_PROJECT_ROOT"
+fail=0
+for lint in lint-context lint-references; do
+  echo "check: $lint"
+  if ! command -v "$lint" >/dev/null; then
+    echo "FAIL: $lint is not on PATH; run mise install" >&2
+    fail=1
+  elif ! "$lint"; then
+    fail=1
+  fi
+done
+exit "$fail"
 '''
 
-# The integration tier runs the integration-tagged tests, integration/, against the endpoints the
-# AI_*_BASE_URL variables name, go-ai's tier's, which pass through from the caller's environment:
-# AI_EMBEDDING_BASE_URL, which every scenario needs, AI_VISION_BASE_URL, AI_TRANSCRIPTION_BASE_URL
-# (route mode), AI_AUDIO_BASE_URL (chat mode), and AI_AGENT_BASE_URL (extraction), each an API root
-# including /v1. Each role may add its credentials, also passed through: AI_<ROLE>_TOKEN, the
-# bearer token, and AI_<ROLE>_HEADER, one or more "Name: value" lines separated by newlines; unset,
-# none is sent, and no failing scenario prints a token or header value. Each role may also name its
-# model in AI_<ROLE>_MODEL, for an endpoint that lists more than one; unset, a scenario sends to the
-# one model the endpoint lists. integration/doc.go tells each scenario in full. A scenario whose
-# variable is unset skips, naming it, so with none set the run skips whole and passes. It runs
-# verbose, so the log lists each scenario passed or skipped, with the variable a skip wants. It
-# never starts a server, and no CI job runs it.
 [tasks."test:integration"]
 description = "Run the integration tier against the endpoints the AI_*_BASE_URL variables name"
 run = '''
@@ -62,17 +59,12 @@ set -eu
 export GOWORK=off
 for mod in $GO_MODULES; do
   cd "$MISE_PROJECT_ROOT/$mod"
-  # Only a module with an integration tier has the package to run.
   [ -d integration ] || continue
   echo "test:integration: $mod"
   go test -race -tags integration -count=1 -v ./integration/...
 done
 '''
 
-# The postgres module's live tier against compose.yml's PostgreSQL, the same definition CI's
-# integration job runs. The service keeps its data in tmpfs, so every start is empty. The task
-# starts only its own service, runs the module's integration suite, and stops the service whether
-# the suite passes or fails, printing its log on failure.
 [tasks."integration:postgres"]
 description = "Run the postgres module's integration suite against a fresh compose PostgreSQL"
 dir = "{{config_root}}"
@@ -84,8 +76,6 @@ docker compose up -d --wait --build postgres
 (cd postgres && go test -race -tags integration -count=1 -v ./...)
 '''
 
-# The provider modules' live tiers, each against its compose service, one module at a time, every
-# module even after one fails: the postgres module's alone. CI's integration job runs it.
 [tasks.integration]
 description = "Run every provider's integration suite (today integration:postgres), continuing past a failure"
 run = '''
@@ -99,22 +89,19 @@ description = "Report every requirement, Go version, tool, action pin, and compo
 run = "scripts/currency.sh"
 
 [tasks.upgrade]
-description = "Upgrade every module's go directive and direct requirements and the local mise tools to their latest, rewriting go.mod and mise.toml"
+description = "Upgrade every module's go directive to the current Go minor, with no toolchain line, and its direct requirements and the local mise tools to their latest, rewriting go.mod and mise.toml"
 run = '''
 set -eu
 export GOWORK=off
-# The go directive follows the current Go minor, with no toolchain line.
 go_minor=$(mise latest go | cut -d. -f1,2)
 for mod in $GO_MODULES; do
   echo "upgrade: $mod"
   cd "$MISE_PROJECT_ROOT/$mod"
   go mod edit -go="$go_minor" -toolchain=none
-  # A module with no direct requirement gets nothing.
   direct=$(go mod edit -json | jq -r '.Require[]? | select(.Indirect | not) | .Path')
   [ -z "$direct" ] || go get $(printf '%s@latest ' $direct)
   go mod tidy
 done
 cd "$MISE_PROJECT_ROOT"
-# --no-global writes this mise.toml alone, never the global config.
 mise upgrade --bump --no-global
 '''

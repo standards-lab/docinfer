@@ -14,28 +14,15 @@ import (
 	"github.com/standards-lab/go-ai/format"
 )
 
-// row is a go-ai failure's row of the failure table: what a model call's error comes to.
 type row int
 
 const (
-	// rowRefused is a status that judges the content, 400, 413, 415, or 422: the item's outcome,
-	// recorded and held.
 	rowRefused row = iota
-	// rowPermanent is a status that judges the caller or the route, or a request the format can't
-	// send: it fails the same way on every delivery, so it stops the job, and Permanent reports it.
 	rowPermanent
-	// rowTransient is a status the gateway or an upstream may answer differently later, or a
-	// transport failure: it stops the job, and a redelivery retries it after the reply's
-	// RetryAfter.
 	rowTransient
-	// rowFailed is a 500, a failed or undecodable 2xx reply, or any other error a call returns: it
-	// stops the job, but on the last delivery the item is recorded failed, never held, and the job
-	// goes on.
 	rowFailed
 )
 
-// classify returns err's row. err is a go-ai call's, made under a context that hasn't ended: a
-// cancelled call is the job's cancellation, which no row holds.
 func classify(err error) row {
 	if apiErr, ok := errors.AsType[*ai.APIError](err); ok {
 		return statusRow(apiErr.Status)
@@ -43,16 +30,12 @@ func classify(err error) row {
 	if _, ok := errors.AsType[*format.UnsupportedError](err); ok {
 		return rowPermanent
 	}
-	// A reply that doesn't decode is the failed row's, though a truncated body's syntax error
-	// matches io.ErrUnexpectedEOF too: the reply arrived whole, and decoded wrong.
 	if _, ok := errors.AsType[*jsontext.SyntacticError](err); ok {
 		return rowFailed
 	}
 	if _, ok := errors.AsType[*json.SemanticError](err); ok {
 		return rowFailed
 	}
-	// A transport failure is a *url.Error from the client's Do, with no reply; a stream that breaks
-	// matches io.ErrUnexpectedEOF, Options.StreamIdleTimeout's included.
 	if _, ok := errors.AsType[*url.Error](err); ok {
 		return rowTransient
 	}
@@ -62,7 +45,6 @@ func classify(err error) row {
 	return rowFailed
 }
 
-// statusRow returns an *ai.APIError's row by its status.
 func statusRow(status int) row {
 	switch status {
 	case http.StatusBadRequest, http.StatusRequestEntityTooLarge, http.StatusUnsupportedMediaType,
@@ -81,13 +63,9 @@ func statusRow(status int) row {
 	case status >= 500 && status < 600:
 		return rowTransient
 	}
-	// A status outside 4xx and 5xx that go-ai still reports as an error, such as a 3xx it didn't
-	// follow, is no row's but "any other error a call returns".
 	return rowFailed
 }
 
-// failureText is the text a refused or failed item records: the endpoint's reply, as its
-// *ai.APIError reports it, or else the call's error.
 func failureText(err error) string {
 	if apiErr, ok := errors.AsType[*ai.APIError](err); ok {
 		return apiErr.Error()
@@ -95,10 +73,8 @@ func failureText(err error) string {
 	return err.Error()
 }
 
-// dimensionsError is a vector whose length isn't Config.Dimensions, made by the model or held in
-// the cache: the embedding space is the profile's, so no redelivery changes it.
 type dimensionsError struct {
-	digest    string // the chunk's
+	digest    string
 	got, want int
 	held      bool
 }

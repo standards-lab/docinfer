@@ -227,8 +227,6 @@ type Tokens struct {
 	Embeddings    Usage  `json:"embeddings"`
 }
 
-// hashParts returns the lowercase hex SHA-256 of parts, each prefixed by its length in bytes as a
-// big-endian uint64, so no two lists of parts hash the same input.
 func hashParts(parts ...string) string {
 	h := sha256.New()
 	var n [8]byte

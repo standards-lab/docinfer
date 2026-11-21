@@ -87,15 +87,11 @@ func MetadataText(p dispatch.Part) string {
 	return b.String()
 }
 
-// Source kinds: what a chunk's text is.
 const (
 	sourceOutput   = "output"
 	sourceMetadata = "metadata"
 )
 
-// errInputDefect is the cause of an input no redelivery mends, which [Permanent] reports: an image
-// output without a MediaType, a window of a media type other than audio/wav or audio/mpeg, or
-// whose Meta doesn't place it, and an audio plan record that doesn't decode.
 var errInputDefect = errors.New("docinfer: the input's defect")
 
 // Run infers over one job's inputs, opening their content from content, and yields what it makes
@@ -197,7 +193,6 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // its value on the goroutine ranging over it once the job's other goroutines have ended.
 func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs iter.Seq2[Input, error], opts Options) iter.Seq2[Result, error] {
 	return func(yield func(Result, error) bool) {
-		// An Extract is checked before an input is read, so a refused one reads nothing.
 		if opts.Extract != nil {
 			if err := p.checkExtract(*opts.Extract); err != nil {
 				yield(Result{}, err)
@@ -235,7 +230,6 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		if err == nil {
 			return
 		}
-		// The job stops: its requests are cancelled and waited for before the error, last.
 		cancel()
 		r.wg.Wait()
 		r.repanic()
@@ -246,68 +240,45 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 	}
 }
 
-// run is one job's Run: the state its goroutines share, and the coordinator's own.
+// See docs/internals.md
 type run struct {
-	p       *Pipeline
-	ctx     context.Context // the job's: cancelled when Run stops, which ends every request
-	cancel  context.CancelFunc
-	content dispatch.Content
-	opts    Options
-	embedID Identity
-	// extractID is extraction's identity for the run's Extract, which keys its extractions; set
-	// only when the run asks for extraction.
+	p         *Pipeline
+	ctx       context.Context
+	cancel    context.CancelFunc
+	content   dispatch.Content
+	opts      Options
+	embedID   Identity
 	extractID Identity
-	// events carries every goroutine's news to the coordinator, Run's own goroutine, which alone
-	// yields.
-	events chan event
-	// slots holds a place per input admitted and not yet finished, Config.Pending in all: the
-	// feeder takes one before it pulls an input, and the coordinator frees it once the input is
-	// finished.
-	slots chan struct{}
-	wg    sync.WaitGroup
+	events    chan event
+	slots     chan struct{}
+	wg        sync.WaitGroup
 
-	// panicMu guards panicked and panicValue: the first panic on one of the job's goroutines,
-	// which Run panics with once they have ended.
 	panicMu    sync.Mutex
 	panicked   bool
 	panicValue any
 
-	// The coordinator's alone.
-	counts  Counts
-	waiting []item // embedded chunks not yet in a yielded batch, in the order they completed
-	// active counts the inputs admitted and not yet finished, and the transcripts joined at the
-	// end of the inputs, which hold no slot, not yet chunked and embedded.
-	active int
-	// groups are the job's window groups, by part and stage, and groupOrder the same in the order
-	// their first events were admitted.
+	counts      Counts
+	waiting     []item
+	active      int
 	groups      map[groupKey]*group
 	groupOrder  []*group
-	inputsEnded bool // the input stream has ended: a group still open ends once its count is in
-	// pulled counts the inputs admitted: the next one's position in pull order.
-	pulled int
-	// settled holds the positions of inputs whose derived results are all out, yielded as
-	// Result.Settled once the event that settled them has yielded its own results.
-	settled []int
+	inputsEnded bool
+	pulled      int
+	settled     []int
 }
 
-// event is one goroutine's news to the coordinator: one of its types below.
 type event interface{ isEvent() }
 
-// inputEvent is an input the feeder pulled, its slot held.
 type inputEvent struct{ in Input }
 
-// endEvent is the end of the inputs, err the input stream's error, if any.
 type endEvent struct{ err error }
 
-// splitEvent is an input's text cut into n chunks, extract set when the text is extracted too,
-// after its chunks are under way.
 type splitEvent struct {
 	st      *inputState
 	n       int
 	extract bool
 }
 
-// doneEvent is an input's chunks complete, embedded or rejected, and the requests that made them.
 type doneEvent struct {
 	st       *inputState
 	items    []item
@@ -315,17 +286,14 @@ type doneEvent struct {
 	usage    Usage
 }
 
-// inferenceEvent is an image's inference, and the requests that made it and their usage. last
-// is set when the input finishes with it, no text following to chunk.
 type inferenceEvent struct {
 	inf      *Inference
 	requests int
 	usage    Usage
-	pos      int // the image's position in pull order
+	pos      int
 	last     bool
 }
 
-// errEvent is an error that stops the job.
 type errEvent struct{ err error }
 
 func (inputEvent) isEvent()     {}
@@ -335,35 +303,25 @@ func (doneEvent) isEvent()      {}
 func (inferenceEvent) isEvent() {}
 func (errEvent) isEvent()       {}
 
-// inputState is one admitted input's, as its source text: what its chunks come from, and, the
-// coordinator's alone, how many of them are yet to complete.
 type inputState struct {
 	part     dispatch.Part
-	partJSON []byte // the part's JSON, a batch's Parts element
-	source   Source // its Part index set per batch
-	// pos is its input's position in pull order, settled once the input finishes; a transcript's
-	// g is its group instead, whose inputs all settle then.
-	pos int
-	g   *group
+	partJSON []byte
+	source   Source
+	pos      int
+	g        *group
 
-	split     bool // the coordinator has its count of chunks
-	remaining int
-	// extracting is set while the text's extraction is under way: the input finishes once it is
-	// in and its chunks are complete.
+	split      bool
+	remaining  int
 	extracting bool
-	// slotless is a transcript's joined at the end of the inputs, which holds no input's slot.
-	slotless bool
+	slotless   bool
 }
 
-// item is one chunk on its way to a batch: its source text's input, the chunk, its Source index
-// set per batch, and whether it was read from the cache.
 type item struct {
 	st    *inputState
 	chunk Chunk
 	held  bool
 }
 
-// send hands e to the coordinator, reporting false once the job has stopped.
 func (r *run) send(e event) bool {
 	select {
 	case r.events <- e:
@@ -373,13 +331,8 @@ func (r *run) send(e event) bool {
 	}
 }
 
-// fail hands err to the coordinator, which stops the job with it.
 func (r *run) fail(err error) { r.send(errEvent{err}) }
 
-// spawn runs f on a goroutine of the job's, which Run waits for. A panic in f is recovered, once
-// f's deferred calls, a lease's release among them, have run: it stops the job, and Run panics
-// with its value on its own goroutine, so the panic reaches Run's caller rather than ending the
-// process.
 func (r *run) spawn(f func()) {
 	r.wg.Go(func() {
 		defer func() {
@@ -396,8 +349,6 @@ func (r *run) spawn(f func()) {
 	})
 }
 
-// repanic panics with the value a goroutine of the job's panicked with, if one did, once. Run
-// calls it after waiting for the job's goroutines.
 func (r *run) repanic() {
 	r.panicMu.Lock()
 	v, ok := r.panicValue, r.panicked
@@ -408,9 +359,6 @@ func (r *run) repanic() {
 	}
 }
 
-// feed pulls the inputs, each only once a slot is free, and hands them to the coordinator. It
-// takes a slot before each pull, so no more than Config.Pending inputs are admitted and not
-// finished, and the input stream is never read ahead of that.
 func (r *run) feed(inputs iter.Seq2[Input, error]) {
 	acquire := func() bool {
 		select {
@@ -435,9 +383,6 @@ func (r *run) feed(inputs iter.Seq2[Input, error]) {
 	r.send(endEvent{})
 }
 
-// coordinate runs the job on Run's goroutine: it admits each input, counts what completes, and
-// yields batches as they fill, then the counts. It returns the error that stops the job, or nil
-// once it has yielded the counts or yield has stopped it.
 func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) error {
 	ended := false
 	for !ended || r.active > 0 {
@@ -446,17 +391,14 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 		case e = <-r.events:
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-r.ctx.Done(): // a goroutine of the job's panicked
+		case <-r.ctx.Done():
 			return r.ctx.Err()
 		}
-		// Nothing derived from the job is yielded once its context has ended.
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		switch e := e.(type) {
 		case inputEvent:
-			// The echo is yielded here, before admit starts the input's work, so nothing derived
-			// from it can reach the coordinator ahead of it.
 			if !yield(Result{Input: &e.in}, nil) {
 				return nil
 			}
@@ -528,9 +470,6 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 		case errEvent:
 			return e.err
 		}
-		// What the event settled is yielded after what it yielded of its own, so an input's
-		// settlement follows everything derived from it. A job whose context ended while the event
-		// yielded settles nothing more.
 		if len(r.settled) > 0 {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -548,8 +487,6 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 	return nil
 }
 
-// countSource counts an input's source text once it is chunked: an image's text is counted with
-// its inference.
 func (r *run) countSource(st *inputState) {
 	switch st.source.Kind {
 	case sourceMetadata:
@@ -559,18 +496,13 @@ func (r *run) countSource(st *inputState) {
 	}
 }
 
-// finish frees a finished input's slot, so the feeder may pull the next.
 func (r *run) finish() {
 	r.active--
 	<-r.slots
 }
 
-// settleInput marks the input at pos settled, for the coordinator to yield once the event at hand
-// has yielded its own results.
 func (r *run) settleInput(pos int) { r.settled = append(r.settled, pos) }
 
-// finishState finishes the input whose source text st is, or, for a transcript joined at the end
-// of the inputs, the transcript, which holds no slot, and settles st's input, or its group's.
 func (r *run) finishState(st *inputState) {
 	if st.g != nil {
 		r.settleGroup(st.g)
@@ -584,8 +516,6 @@ func (r *run) finishState(st *inputState) {
 	r.finish()
 }
 
-// admit starts an input's work by its kind, as dispatch's constants name it, or finishes an input
-// with nothing to do at once. It returns an error that stops the job.
 func (r *run) admit(in Input) error {
 	r.active++
 	pos := r.pulled
@@ -593,8 +523,6 @@ func (r *run) admit(in Input) error {
 	out := in.Event.Output
 	if out == nil {
 		if in.Metadata == "" {
-			// Neither an output nor a metadata text, a warning or a part's own event: passed
-			// through, its echo and its settlement all it yields, nothing counted.
 			r.finish()
 			r.settleInput(pos)
 			return nil
@@ -610,9 +538,8 @@ func (r *run) admit(in Input) error {
 	case dispatch.TextOutput, dispatch.MarkdownOutput:
 		stage := in.Event.Stage
 		st := &inputState{
-			part: in.Event.Part,
-			pos:  pos,
-			// An output's text SHA-256 is its Output.SHA256, held there alone.
+			part:   in.Event.Part,
+			pos:    pos,
 			source: Source{Kind: sourceOutput, Stage: &stage, Output: new(*out)},
 		}
 		return r.start(st, func() (string, error) { return r.text(in.Event) })
@@ -631,22 +558,16 @@ func (r *run) admit(in Input) error {
 			return r.admitWindow(in.Event, pos)
 		}
 	case dispatch.RecordOutput:
-		// An audio plan record counts its group's windows; a video plan's holds none, and ends no
-		// group.
 		if r.p.cfg.Transcription != nil && out.MediaType == dispatch.MediaAudioPlan {
 			r.admitPlan(in.Event, pos)
 			return nil
 		}
 	}
-	// A skipped image or window, another record, or an output of another kind: nothing to do, so
-	// it settles at once.
 	r.finish()
 	r.settleInput(pos)
 	return nil
 }
 
-// start runs an input's source text, as text gives it, through chunking and embedding on a
-// goroutine of its own.
 func (r *run) start(st *inputState, text func() (string, error)) error {
 	b, err := marshal(st.part)
 	if err != nil {
@@ -664,13 +585,11 @@ func (r *run) start(st *inputState, text func() (string, error)) error {
 	return nil
 }
 
-// text reads an output's text from Run's content, by its SHA-256.
 func (r *run) text(ev dispatch.Event) (string, error) {
 	b, err := r.read(ev)
 	return string(b), err
 }
 
-// read reads an output's content from Run's content, by its SHA-256.
 func (r *run) read(ev dispatch.Event) ([]byte, error) {
 	rc, err := r.content.Open(r.ctx, ev.Output.SHA256)
 	if errors.Is(err, fs.ErrNotExist) {

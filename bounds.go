@@ -10,12 +10,7 @@ import (
 // capability as a whole whatever profiles its jobs use. It is safe for concurrent use, and its
 // zero value is not ready; [NewBounds] makes one.
 type Bounds struct {
-	// slots holds one semaphore per capability: a request in flight holds a slot, a buffered
-	// channel's place, from before its call until after it returns.
-	slots map[Capability]chan struct{}
-	// onWait, when set, is called as a request finds its capability's slots all held and starts to
-	// wait: a test's hook, set before any request, so a test sees requests held at a bound without
-	// a sleep.
+	slots  map[Capability]chan struct{}
 	onWait func(Capability)
 }
 
@@ -42,14 +37,10 @@ func NewBounds(vision, transcription, extraction, embeddings int) (*Bounds, erro
 	return b, nil
 }
 
-// do runs call, one request of capability c, once a slot of c's bound is free, and frees the slot
-// when call returns, a panic included. It waits for a slot only as long as ctx lasts, returning
-// ctx's error unwrapped, without calling call, when ctx ends first. It is the one runner every
-// capability's model request goes through, so each is bounded the same way.
 func (b *Bounds) do(ctx context.Context, c Capability, call func(ctx context.Context) error) error {
 	slots := b.slots[c]
 	if slots == nil {
-		panic(fmt.Sprintf("docinfer: no bound for capability %q", c)) // a capability is a constant
+		panic(fmt.Sprintf("docinfer: no bound for capability %q", c))
 	}
 	if err := ctx.Err(); err != nil {
 		return err

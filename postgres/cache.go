@@ -24,13 +24,11 @@ type Cache struct {
 	db *sqlate.DB
 }
 
-// held is one row a lookup returns: a key and its value.
 type held struct {
 	key   string
 	value []byte
 }
 
-// The statements the cache runs, bound once.
 var (
 	lookupValues = statements.Statement("lookup_values").Scan(func(r query.Row) (held, error) {
 		var h held
@@ -54,9 +52,6 @@ func New(ctx context.Context, db *sqlate.DB) (*Cache, error) {
 	return &Cache{db: db}, nil
 }
 
-// checkDriver refuses db unless its driver is pgx's database/sql driver, naming the driver
-// connection's type it found. A pinned connection is the one way to reach the driver through a
-// sqlate session.
 func checkDriver(ctx context.Context, db *sqlate.DB) error {
 	conn, err := db.Conn(ctx)
 	if err != nil {
@@ -71,9 +66,6 @@ func checkDriver(ctx context.Context, db *sqlate.DB) error {
 	})
 }
 
-// checkKey refuses a key not of [docinfer.Key]'s form, "<capability>/<hash>" with a capability
-// of lowercase letters and a hash of 64 lowercase hex digits, as docinfer's FileCache does, so
-// the table holds only keys docinfer makes.
 func checkKey(key string) error {
 	capability, hash, ok := strings.Cut(key, "/")
 	if !ok || !isCapability(capability) || !isHash(hash) {
@@ -82,7 +74,6 @@ func checkKey(key string) error {
 	return nil
 }
 
-// isCapability reports whether s is one or more lowercase ASCII letters.
 func isCapability(s string) bool {
 	if s == "" {
 		return false
@@ -95,7 +86,6 @@ func isCapability(s string) bool {
 	return true
 }
 
-// isHash reports whether s is a SHA-256 as lowercase hex.
 func isHash(s string) bool {
 	if len(s) != 64 {
 		return false
@@ -124,7 +114,6 @@ func (c *Cache) Get(ctx context.Context, keys ...string) ([][]byte, error) {
 	if len(keys) == 0 {
 		return values, nil
 	}
-	// The keys are bound once each, in the order first asked.
 	unique := make([]string, 0, len(keys))
 	seen := make(map[string]bool, len(keys))
 	for _, k := range keys {
@@ -141,7 +130,6 @@ func (c *Cache) Get(ctx context.Context, keys ...string) ([][]byte, error) {
 	for _, r := range rows {
 		found[r.key] = r.value
 	}
-	// A row's value answers its key's first ask as scanned, and each later ask with a copy.
 	answered := make(map[string]bool, len(rows))
 	for i, k := range keys {
 		v, ok := found[k]

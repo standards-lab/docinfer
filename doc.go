@@ -21,10 +21,18 @@
 // it admits it, in pull order, before anything derived from it, passing through an input that
 // needs no work, and yields [Result.Settled], the input's position in pull order, once
 // everything derived from it is out. Every result is held before anything derived from it is
-// yielded. A go-ai failure maps by one table: a refused status is the item's outcome, held; a
-// permanent or transient failure stops the job, [Permanent] telling them apart for the host; and
-// a failed call stops it too, but on the job's last delivery ([Options].Final) its items are
-// recorded failed, never held, and the job goes on.
+// yielded. A go-ai failure maps by one table, the failure table below: a refused status is the
+// item's outcome, held; a permanent or transient failure stops the job, [Permanent] telling them
+// apart for the host; and a failed call stops it too, but on the job's last delivery
+// ([Options].Final) its items are recorded failed, never held, and the job goes on.
+//
+// A held refusal stays until its key changes, by [Version], a request's version, or the model, or
+// until the host removes it from its own store. A chunk is identified by its job, its part's ID,
+// its source's kind and text SHA-256, and its index: the same content in two places is two chunks,
+// and a redelivery's repeat is the same one. A transcript that isn't transcribed carries its
+// outcome in its chunks' [Source].Incomplete. A [Batch] carries no index, since its host
+// identifies it. [Counts] counts occurrences, and its Embedded and Rejected add up to the chunks
+// the job's batches hold.
 //
 // The consumer's contract: Run yields a part's results as they are made, which may be before the
 // part's own event, whatever that event comes to, since holding a part's outputs until its event
@@ -65,4 +73,49 @@
 //   - [Counts], one job's, with [VisionCounts], [TranscriptionCounts], [ExtractionCounts], and
 //     [Tokens]
 //   - [ErrRequest], the cause of a refused request
+//
+// # The failure table
+//
+// Each go-ai result maps to docinfer by one row of this table, and each row has its own test
+// against go-ai's aitest:
+//
+//   - protocol.Usage{InputTokens, OutputTokens} and ai.TranscriptionUsage{InputTokens,
+//     OutputTokens} are a [Usage]{Input, Output}, and ai.EmbeddingUsage{PromptTokens} a
+//     Usage{Input}.
+//   - A reply in protocol.StatusCompleted, its text (*protocol.Response).OutputText, is outcome
+//     described or extracted, held.
+//   - A reply in protocol.StatusIncomplete is outcome incomplete, its text kept, held:
+//     Response.IncompleteDetails.Reason is its [Held].Incomplete, [Inference].Reason, and
+//     [Source].Incomplete.
+//   - A completed reply with a protocol.Refusal part and no output text is outcome refused, held,
+//     the refusal's text its Held.Refused and Inference.Reason.
+//   - An *ai.IncompleteTranscriptError is the window's outcome incomplete, joined as empty, held
+//     under its settings, its Reason the Held.Incomplete.
+//   - Refused: an *ai.APIError of 400, 413, 415, or 422 is the inference's outcome refused, or the
+//     chunk's Error, its text the error's, recorded and held. An embedding batch so refused is
+//     re-sent a text at a time, and only then.
+//   - Permanent: an *ai.APIError of 401, 403, 404, 501, 505, or any other 4xx but 408 and 429,
+//     and a *format.UnsupportedError, stop the job with the error, wrapped, and [Permanent]
+//     reports it.
+//   - Transient: an *ai.APIError of 408, 429, or any 5xx but 500, 501, and 505, once go-ai's own
+//     retries (408, 429, 502, 503, 504) are spent, stops the job with the error, wrapped, and a
+//     redelivery retries it, the APIError's RetryAfter the redelivery's delay. A transport
+//     failure does the same: an *url.Error with no reply, the transport's ResponseHeaderTimeout
+//     among them, or a stream that breaks, matching io.ErrUnexpectedEOF, go-ai's
+//     Options.StreamIdleTimeout included.
+//   - Failed: an *ai.APIError of 500; a 2xx reply in protocol.StatusFailed, a stream's
+//     ResponseFailed among them; a 2xx reply that doesn't decode; and any other error a call
+//     returns, a 3xx go-ai didn't follow among them, stop the job with the error, wrapped. A
+//     reply that doesn't decode takes this row even when its syntax error matches
+//     io.ErrUnexpectedEOF: the reply arrived whole, and decoded wrong. On the last delivery,
+//     [Options].Final, the item's outcome is failed instead, or the chunk's Error, recorded and
+//     never held, and the job goes on.
+//   - A cancelled context is ctx.Err(), yielded alone and last.
+//
+// docinfer refuses only the statuses that judge the content. A status that judges the caller or
+// the route, or a request the format can't send, fails the same way on every delivery, so it ends
+// the job at once. A job the gateway turned away, or failed transiently, stops; the work queue
+// redelivers it after RetryAfter, and the cache replays what it finished, since such a status is
+// the gateway's or an upstream's, never the item's. Only the last delivery records an item failed,
+// so one item a model can't answer never holds the rest back.
 package docinfer

@@ -7,17 +7,14 @@ import (
 	"github.com/standards-lab/docproc/dispatch"
 )
 
-// emptyBatchSize is the length of an empty batch's JSON, {"parts":[],"sources":[],"chunks":[]}.
 var emptyBatchSize = len(`{"parts":[],"sources":[],"chunks":[]}`)
 
-// batchBuilder builds one batch, keeping the length its JSON would marshal to: an element's JSON
-// is the same within the batch as alone, so each addition costs its element's length and a comma
-// after the first of its kind.
+// See docs/internals.md
 type batchBuilder struct {
 	batch   Batch
 	size    int
-	parts   map[string]int      // a part's index in the batch, by its ID
-	sources map[*inputState]int // a source's index in the batch, by its input
+	parts   map[string]int
+	sources map[*inputState]int
 }
 
 func newBatchBuilder() *batchBuilder {
@@ -29,8 +26,6 @@ func newBatchBuilder() *batchBuilder {
 	}
 }
 
-// addition is what adding an item would add to a batch: its part and source, when the batch
-// doesn't hold them, its chunk, and the bytes they take.
 type addition struct {
 	part   bool
 	source *Source
@@ -38,7 +33,6 @@ type addition struct {
 	size   int
 }
 
-// plan returns what adding it would add to b.
 func (b *batchBuilder) plan(it item) (addition, error) {
 	var a addition
 	partIndex, ok := b.parts[it.st.part.ID]
@@ -69,7 +63,6 @@ func (b *batchBuilder) plan(it item) (addition, error) {
 	return a, nil
 }
 
-// add adds a to b, as plan made it for it.
 func (b *batchBuilder) add(it item, a addition) {
 	if a.part {
 		b.parts[it.st.part.ID] = len(b.batch.Parts)
@@ -83,7 +76,6 @@ func (b *batchBuilder) add(it item, a addition) {
 	b.size += a.size
 }
 
-// comma is the comma an array's next element takes after n elements.
 func comma(n int) int {
 	if n == 0 {
 		return 0
@@ -91,7 +83,6 @@ func comma(n int) int {
 	return 1
 }
 
-// marshal returns v's JSON, as encoding/json marshals it within a batch.
 func marshal(v any) ([]byte, error) {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -100,8 +91,6 @@ func marshal(v any) ([]byte, error) {
 	return b, nil
 }
 
-// flush yields the waiting chunks as batches, in order, each as full as Config.BatchBytes allows,
-// so no embedded chunk is left waiting. It reports false when yield stopped the run.
 func (r *run) flush(yield func(Result, error) bool) (bool, error) {
 	b := newBatchBuilder()
 	for _, it := range r.waiting {

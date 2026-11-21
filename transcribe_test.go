@@ -28,32 +28,23 @@ import (
 	"github.com/standards-lab/go-ai/format/messages"
 )
 
-// The transcription tests transcribe windows through Run, against aitest's transcriptions route
-// in route mode and its Chat Completions route in chat mode, then join each part's windows, and
-// take the transcription rows of design.md's failure table, one test per row.
-
 const (
 	transcriptionModel = "transcription-model"
 	transcriptionLang  = "en"
 )
 
-// The audio part the windows come from, and the stage that cut them.
 var (
 	audioPart = dispatch.Part{ID: "/talk.mp3", Name: "talk.mp3", Size: 4096, SHA256: strings.Repeat("d", 64),
 		Parent: "/", Depth: 1, Where: "talk.mp3"}
 	audioStage = dispatch.Identity{Name: "audio", Version: "1", Config: "a0"}
 )
 
-// The windows' transcripts: each pair of neighbours shares words a 2-second seam at the tests'
-// 3 words a second reaches, and the first pair's overlap is past a 1-second seam's reach.
 const (
 	said0 = "one two three four five six seven"
 	said1 = "three four five six seven eight nine ten"
 	said2 = "nine ten eleven twelve"
 )
 
-// win is a window a test sends: its index, its clip, the transcript the endpoint says for it, its
-// seams' Meta values, "" for none, and its media type, audio/wav when "".
 type win struct {
 	index         int
 	clip          string
@@ -62,15 +53,12 @@ type win struct {
 	mediaType     string
 }
 
-// The three windows of the tests' plan, each seam 2 seconds, the last without MetaSeamAfter.
 var (
 	win0 = win{index: 0, clip: "clip 0", said: said0, after: "8-10"}
 	win1 = win{index: 1, clip: "clip 1", said: said1, before: "8-10", after: "18-20"}
 	win2 = win{index: 2, clip: "clip 2", said: said2, before: "18-20"}
 )
 
-// windowInput returns an input of w as an audio output of audioPart from audioStage, its clip put
-// in content, unless content is nil.
 func windowInput(t *testing.T, content *dispatch.MemoryContent, w win) docinfer.Input {
 	t.Helper()
 	if content != nil {
@@ -96,8 +84,6 @@ func windowInput(t *testing.T, content *dispatch.MemoryContent, w win) docinfer.
 	}}
 }
 
-// planInput returns an input of a plan record of mediaType listing n windows, as docproc's audio
-// plan does, its content put in content.
 func planInput(t *testing.T, content *dispatch.MemoryContent, mediaType string, n int) docinfer.Input {
 	t.Helper()
 	windows := make([]map[string]any, n)
@@ -118,8 +104,6 @@ func planInput(t *testing.T, content *dispatch.MemoryContent, mediaType string, 
 	}}
 }
 
-// speaker is the fake endpoint's transcription in one mode: what it says for each clip, a reply
-// of its own for the clips in replies, and, when gate is set, each request parked on it first.
 type speaker struct {
 	mode    ai.TranscriptionMode
 	said    map[string]string
@@ -127,7 +111,6 @@ type speaker struct {
 	gate    *aitest.Gate
 }
 
-// speakerOf returns a speaker in mode that says each window's transcript.
 func speakerOf(mode ai.TranscriptionMode, windows ...win) *speaker {
 	s := &speaker{mode: mode, said: map[string]string{}, replies: map[string]aitest.Reply{}}
 	for _, w := range windows {
@@ -136,8 +119,6 @@ func speakerOf(mode ai.TranscriptionMode, windows ...win) *speaker {
 	return s
 }
 
-// reply answers clip: its reply of its own, or its transcript in the mode's shape, 5 input and 2
-// output tokens.
 func (s *speaker) reply(ctx context.Context, t *testing.T, clip string) aitest.Reply {
 	if s.gate != nil {
 		if err := s.gate.Wait(ctx); err != nil {
@@ -157,8 +138,6 @@ func (s *speaker) reply(ctx context.Context, t *testing.T, clip string) aitest.R
 	return aitest.TranscriptionReply{Text: text, InputTokens: 5, OutputTokens: 2}
 }
 
-// serve serves s's routes, beside embedAll, checking each transcription request: the model, the
-// language, and a .wav or .mp3 clip.
 func (s *speaker) serve(t *testing.T) *aitest.Endpoint {
 	t.Helper()
 	routes := aitest.Routes{Embeddings: embedAll}
@@ -187,7 +166,6 @@ func (s *speaker) serve(t *testing.T) *aitest.Endpoint {
 	return aitest.Serve(t, routes)
 }
 
-// transcriptionConfig returns runConfig's Config with Transcription set on e in mode.
 func transcriptionConfig(t *testing.T, e *aitest.Endpoint, mode ai.TranscriptionMode, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	return runConfig(t, e, func(c *docinfer.Config) {
@@ -200,7 +178,6 @@ func transcriptionConfig(t *testing.T, e *aitest.Endpoint, mode ai.Transcription
 	})
 }
 
-// transcriptionID is the identity of transcriptionConfig's transcripts in mode.
 func transcriptionID(t *testing.T, mode ai.TranscriptionMode) docinfer.Identity {
 	t.Helper()
 	return docinfer.Transcription{
@@ -208,7 +185,6 @@ func transcriptionID(t *testing.T, mode ai.TranscriptionMode) docinfer.Identity 
 	}.Identity()
 }
 
-// heldWindow returns the Held the cache holds for clip's transcript in mode, or nil.
 func heldWindow(t *testing.T, cache docinfer.Cache, mode ai.TranscriptionMode, clip string) *docinfer.Held {
 	t.Helper()
 	values, err := cache.Get(t.Context(), docinfer.Key(transcriptionID(t, mode), sha(clip)))
@@ -225,7 +201,6 @@ func heldWindow(t *testing.T, cache docinfer.Cache, mode ai.TranscriptionMode, c
 	return &h
 }
 
-// joinedAt returns join.Join of texts at seams, at the tests' 3 words a second.
 func joinedAt(t *testing.T, texts []string, seams ...float64) join.Transcript {
 	t.Helper()
 	tr, err := join.Join(texts, seams, join.Request{WordsPerSecond: 3})
@@ -235,8 +210,6 @@ func joinedAt(t *testing.T, texts []string, seams ...float64) join.Transcript {
 	return tr
 }
 
-// transcript returns o's one inference, failing the test unless there is exactly one, a
-// transcript of audioPart's windows, contents in order, "" for one never cut.
 func transcript(t *testing.T, o outcome, contents ...string) docinfer.Inference {
 	t.Helper()
 	if o.err != nil {
@@ -252,7 +225,6 @@ func transcript(t *testing.T, o outcome, contents ...string) docinfer.Inference 
 	return inf
 }
 
-// shas returns each clip's SHA-256, "" for "".
 func shas(clips ...string) []string {
 	out := make([]string, len(clips))
 	for i, c := range clips {
@@ -263,8 +235,6 @@ func shas(clips ...string) []string {
 	return out
 }
 
-// checkTranscript fails the test unless inf is outcome with text tr's, seams tr's, failed the
-// windows listed, and held as said.
 func checkTranscript(t *testing.T, inf docinfer.Inference, outcome docinfer.Outcome, tr join.Transcript, failed []int, held bool) {
 	t.Helper()
 	text := tr.Text()
@@ -277,9 +247,6 @@ func checkTranscript(t *testing.T, inf docinfer.Inference, outcome docinfer.Outc
 	}
 }
 
-// transcriptCounts is the Counts of a job of windows windows, tc theirs, made of them transcribed
-// by a request, at 5 and 2 tokens each, and o's chunks embedded by one request, or read from the
-// cache when held.
 func transcriptCounts(o outcome, windows int, tc docinfer.TranscriptionCounts, made int, held bool) docinfer.Counts {
 	chunks := len(o.chunks())
 	c := docinfer.Counts{
@@ -294,9 +261,6 @@ func transcriptCounts(o outcome, windows int, tc docinfer.TranscriptionCounts, m
 	return c
 }
 
-// endsBefore returns inputs as a stream that, once they are all pulled, waits for release before
-// it ends, at most failsafe, setting late if it waited it out: a group that ends before the
-// inputs do releases it.
 func endsBefore(release <-chan struct{}, late *atomic.Bool, inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	return func(yield func(docinfer.Input, error) bool) {
 		for _, in := range inputs {
@@ -312,7 +276,6 @@ func endsBefore(release <-chan struct{}, late *atomic.Bool, inputs ...docinfer.I
 	}
 }
 
-// releasing passes results on, closing release at the first inference.
 func releasing(results iter.Seq2[docinfer.Result, error], release chan struct{}) iter.Seq2[docinfer.Result, error] {
 	return func(yield func(docinfer.Result, error) bool) {
 		var once sync.Once
@@ -327,11 +290,6 @@ func releasing(results iter.Seq2[docinfer.Result, error], release chan struct{})
 	}
 }
 
-// Each window is transcribed from its content and held under transcription's identity and its
-// SHA-256, in route mode through the transcriptions route and in chat mode as a Chat Completions
-// request of the clip; the part's windows are joined at their seams into one transcript, yielded
-// before its batches, chunked as kind transcript, and embedded. A second run reads every window
-// from the cache, asks nothing, opens no content, and the transcript is held.
 func TestRunTranscribesWindows(t *testing.T) {
 	for _, mode := range []ai.TranscriptionMode{ai.TranscribeRoute, ai.TranscribeChat} {
 		t.Run(mode.String(), func(t *testing.T) {
@@ -386,19 +344,15 @@ func TestRunTranscribesWindows(t *testing.T) {
 	}
 }
 
-// A group ends at the first of its audio plan record's window count, its last window once every
-// earlier index is in, and the end of Run's inputs: the first two are seen to end it while the
-// input stream is still open.
 func TestRunWindowGroupEnds(t *testing.T) {
 	open1 := win1
-	open1.after, open1.said = "", said1 // win1 as the last window
+	open1.after, open1.said = "", said1
 	cases := []struct {
 		name   string
 		inputs func(content *dispatch.MemoryContent) []docinfer.Input
-		before bool // the group ends before the inputs do
+		before bool
 	}{
 		{"plan count", func(c *dispatch.MemoryContent) []docinfer.Input {
-			// Both windows have MetaSeamAfter, so only the plan's count ends the group.
 			return []docinfer.Input{windowInput(t, c, win0), windowInput(t, c, win1), planInput(t, c, dispatch.MediaAudioPlan, 2)}
 		}, true},
 		{"last window", func(c *dispatch.MemoryContent) []docinfer.Input {
@@ -431,8 +385,6 @@ func TestRunWindowGroupEnds(t *testing.T) {
 	}
 }
 
-// A video plan record holds no windows and ends no group, even one whose content would read as a
-// plan of one window: both windows join at the end of the inputs.
 func TestRunVideoPlanEndsNoGroup(t *testing.T) {
 	e := speakerOf(ai.TranscribeRoute, win0, win1).serve(t)
 	p := newPipeline(t, transcriptionConfig(t, e, ai.TranscribeRoute, func(c *docinfer.Config) { c.Pending = 1 }))
@@ -443,8 +395,6 @@ func TestRunVideoPlanEndsNoGroup(t *testing.T) {
 	checkTranscript(t, inf, docinfer.OutcomeTranscribed, joinedAt(t, []string{said0, said1}, 2), nil, false)
 }
 
-// The first event of an index wins: a later event of it, of other content, is counted a window
-// and never transcribed. Windows arriving out of order are joined in index order.
 func TestRunWindowPlacement(t *testing.T) {
 	again := win{index: 0, clip: "clip 0 again", said: "not this one", after: "8-10"}
 	e := speakerOf(ai.TranscribeRoute, win0, win1, win2, again).serve(t)
@@ -462,9 +412,6 @@ func TestRunWindowPlacement(t *testing.T) {
 	checkCounts(t, o, transcriptCounts(o, 4, docinfer.TranscriptionCounts{Transcribed: 3, Requests: 3, Transcripts: 1, SeamsMatched: 2}, 3, false))
 }
 
-// A seam's seconds are the earlier window's MetaSeamAfter, or, without it, the later window's
-// MetaSeamBefore: the windows' overlap is within a 2-second seam's bound and past a 1-second
-// one's.
 func TestRunSeamSeconds(t *testing.T) {
 	cases := []struct {
 		name          string
@@ -481,8 +428,6 @@ func TestRunSeamSeconds(t *testing.T) {
 			w0, w1 := win0, win1
 			w0.after, w1.before, w1.after = tc.after, tc.before, ""
 			e := speakerOf(ai.TranscribeRoute, w0, w1).serve(t)
-			// A Pending of 1 admits the plan's count before the first window, so the count, not
-			// a window without MetaSeamAfter, ends the group.
 			p := newPipeline(t, transcriptionConfig(t, e, ai.TranscribeRoute, func(c *docinfer.Config) { c.Pending = 1 }))
 			content := dispatch.NewMemoryContent()
 			o := collect(t, p.Run(t.Context(), content,
@@ -505,10 +450,6 @@ func TestRunSeamSeconds(t *testing.T) {
 	}
 }
 
-// A window refused, incomplete, failed on the last delivery, or never cut joins as "" and is
-// listed in Failed; the transcript is failed when a window failed, refused when one was refused
-// and none failed, and incomplete otherwise. A refusal and an incomplete transcript are held, a
-// failure never is.
 func TestRunWindowsNotTranscribed(t *testing.T) {
 	refusedText := (&ai.APIError{Status: 400, Message: "clip refused"}).Error()
 	cases := []struct {
@@ -516,9 +457,9 @@ func TestRunWindowsNotTranscribed(t *testing.T) {
 		mode    ai.TranscriptionMode
 		replies map[string]aitest.Reply
 		final   bool
-		plan    int // windows the plan lists, 0 for no plan
+		plan    int
 		outcome docinfer.Outcome
-		held1   *docinfer.Held // window 1's
+		held1   *docinfer.Held
 		counts  docinfer.TranscriptionCounts
 	}{
 		{"refused and never cut", ai.TranscribeRoute, map[string]aitest.Reply{win1.clip: aitest.ErrorReply{Status: 400, Message: "clip refused"}},
@@ -539,7 +480,7 @@ func TestRunWindowsNotTranscribed(t *testing.T) {
 			cfg := transcriptionConfig(t, e, tc.mode, nil)
 			content := dispatch.NewMemoryContent()
 			w2 := win2
-			w2.after = "28-30" // so only the plan, or the end of the inputs, ends the group
+			w2.after = "28-30"
 			inputs := []docinfer.Input{windowInput(t, content, win0), windowInput(t, content, win1), windowInput(t, content, w2)}
 			texts, contents, failed := []string{said0, "", said2}, []string{win0.clip, win1.clip, win2.clip}, []int{1}
 			if tc.plan > 0 {
@@ -549,7 +490,6 @@ func TestRunWindowsNotTranscribed(t *testing.T) {
 			o := collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(inputs...), docinfer.Options{Final: tc.final}))
 			inf := transcript(t, o, shas(contents...)...)
 			tr := joinedAt(t, texts, make([]float64, len(texts)-1)...)
-			// The seams' seconds don't matter: every seam has an empty window beside it.
 			checkTranscript(t, inf, tc.outcome, tr, failed, false)
 			if h := heldWindow(t, cfg.Cache, tc.mode, win1.clip); !reflect.DeepEqual(h, tc.held1) {
 				t.Errorf("window 1 held as %+v, want %+v", h, tc.held1)
@@ -564,8 +504,6 @@ func TestRunWindowsNotTranscribed(t *testing.T) {
 	}
 }
 
-// Two jobs transcribing one window at once send one request: the second waits for the first's
-// transcript, holding no transcription slot, and counts it held, with no tokens.
 func TestRunJoinsWindow(t *testing.T) {
 	only := win{index: 0, clip: "the only clip", said: said0}
 	s := speakerOf(ai.TranscribeRoute, only)
@@ -605,8 +543,6 @@ func TestRunJoinsWindow(t *testing.T) {
 	}
 }
 
-// A window holds its input's slot only until its own transcript is in: a group of more windows
-// than Pending, ended by its last window, is joined rather than waiting on windows it can't pull.
 func TestRunWindowGroupWithinPending(t *testing.T) {
 	e := speakerOf(ai.TranscribeRoute, win0, win1, win2).serve(t)
 	p := newPipeline(t, transcriptionConfig(t, e, ai.TranscribeRoute, func(c *docinfer.Config) { c.Pending = 1 }))
@@ -621,9 +557,6 @@ func TestRunWindowGroupWithinPending(t *testing.T) {
 	}
 }
 
-// A window of a media type other than audio/wav or audio/mpeg, or whose Meta doesn't place it, is
-// the input's defect: it stops the job, permanent, before anything is asked. With transcription
-// skipped, it is counted and skipped.
 func TestRunWindowDefects(t *testing.T) {
 	cases := []struct {
 		name string
@@ -654,7 +587,6 @@ func TestRunWindowDefects(t *testing.T) {
 			checkCounts(t, o, docinfer.Counts{Windows: 1})
 		})
 	}
-	// An audio/mpeg window is sent as window.mp3.
 	mp3 := win0
 	mp3.mediaType, mp3.after = "audio/mpeg", ""
 	e := speakerOf(ai.TranscribeRoute, mp3).serve(t)
@@ -666,7 +598,6 @@ func TestRunWindowDefects(t *testing.T) {
 	}
 }
 
-// windowDefectError returns the error Run stops with over a window of audio/ogg.
 func windowDefectError(t *testing.T) error {
 	t.Helper()
 	e := aitest.Serve(t, aitest.Routes{})
@@ -680,7 +611,6 @@ func windowDefectError(t *testing.T) error {
 	return o.err
 }
 
-// A window whose content the store misses stops the job with a *MissingError, final or not.
 func TestRunWindowMissingContent(t *testing.T) {
 	e := speakerOf(ai.TranscribeRoute, win0).serve(t)
 	only := win0
@@ -692,7 +622,6 @@ func TestRunWindowMissingContent(t *testing.T) {
 	}
 }
 
-// runWindow runs a pipeline of cfg over one window, the last of its group, with opts.
 func runWindow(t *testing.T, cfg docinfer.Config, opts docinfer.Options) outcome {
 	t.Helper()
 	only := win0
@@ -701,8 +630,6 @@ func runWindow(t *testing.T, cfg docinfer.Config, opts docinfer.Options) outcome
 	return collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(windowInput(t, content, only)), opts))
 }
 
-// windowStopped fails the test unless the run stopped yielding nothing but its error, after at
-// most one request, and held no transcript.
 func windowStopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Cache, mode ai.TranscriptionMode) {
 	t.Helper()
 	if o.counts != nil || len(o.batches) > 0 || len(o.inferences) > 0 {
@@ -716,8 +643,6 @@ func windowStopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.C
 	}
 }
 
-// A refused status, 400, 413, 415, or 422, is the window's outcome refused, its text the error's,
-// held, and the transcript refused.
 func TestRunWindowRefusedStatus(t *testing.T) {
 	for _, status := range []int{400, 413, 415, 422} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
@@ -736,8 +661,6 @@ func TestRunWindowRefusedStatus(t *testing.T) {
 	}
 }
 
-// A permanent status, 401, 403, 404, 501, 505, or any other 4xx but 408 and 429, and a request
-// the format can't send, stop the job, final or not, holding nothing, and Permanent reports it.
 func TestRunWindowPermanent(t *testing.T) {
 	for _, status := range []int{401, 403, 404, 405, 409, 418, 451, 501, 505} {
 		for _, final := range []bool{false, true} {
@@ -757,7 +680,6 @@ func TestRunWindowPermanent(t *testing.T) {
 			})
 		}
 	}
-	// A chat-mode client whose format carries no audio, Messages, refuses before anything is sent.
 	for _, final := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unsupported final=%t", final), func(t *testing.T) {
 			e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
@@ -780,8 +702,6 @@ func TestRunWindowPermanent(t *testing.T) {
 	}
 }
 
-// A transient status, 408, 429, or any 5xx but 500, 501, and 505, stops the job, final or not,
-// its *ai.APIError's RetryAfter carried for the redelivery.
 func TestRunWindowTransient(t *testing.T) {
 	for _, status := range []int{408, 429, 502, 503, 504, 507, 599} {
 		for _, final := range []bool{false, true} {
@@ -807,8 +727,6 @@ func TestRunWindowTransient(t *testing.T) {
 	}
 }
 
-// A transport failure, a *url.Error with no reply, stops the job, final or not, and isn't
-// permanent.
 func TestRunWindowTransportFailure(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -836,8 +754,6 @@ func TestRunWindowTransportFailure(t *testing.T) {
 	}
 }
 
-// A 500, or a 2xx reply that doesn't decode, stops the job; on the last delivery the window is
-// recorded failed instead, never held, and the transcript is failed.
 func TestRunWindowFailed(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -869,8 +785,6 @@ func TestRunWindowFailed(t *testing.T) {
 	}
 }
 
-// A chat-mode reply the model didn't complete is an *ai.IncompleteTranscriptError: the window is
-// incomplete, joined as "", held with its reason, and a second run reads it back.
 func TestRunWindowIncomplete(t *testing.T) {
 	s := speakerOf(ai.TranscribeChat)
 	s.replies[win0.clip] = aitest.ChatReply{Text: "one two", Finish: "content_filter"}
@@ -892,7 +806,6 @@ func TestRunWindowIncomplete(t *testing.T) {
 	checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Held: 1, Transcripts: 1}, 0, true))
 }
 
-// openCounter is Run's content that counts each Open of the content sha256 names.
 type openCounter struct {
 	dispatch.Content
 	sha256 string
@@ -906,8 +819,6 @@ func (c *openCounter) Open(ctx context.Context, sha256 string) (io.ReadCloser, e
 	return c.Content.Open(ctx, sha256)
 }
 
-// A window is opened by each attempt: with go-ai's retry policy, a 503 and then the transcript
-// are two requests, each with the window's content opened afresh, and the window is transcribed.
 func TestRunWindowOpenedPerAttempt(t *testing.T) {
 	var attempts atomic.Int64
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll, Transcriptions: func(_ context.Context, req aitest.TranscriptionRequest) aitest.Reply {

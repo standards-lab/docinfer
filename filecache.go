@@ -16,7 +16,9 @@ import (
 // temporary file beside the value's, its name beginning ".tmp-", synced, and renames it into
 // place, so a reader sees a whole value or the one it replaced, never part of one; a temporary
 // file a process that died left is never read, and is left for the host to remove, since another
-// process may be writing it. Its zero value is not ready; [NewFileCache] makes one.
+// process may be writing it. A key not of [Key]'s form is refused, matching [ErrRequest], before
+// a file is named by it, so no key names a file outside the directory. Its zero value is not
+// ready; [NewFileCache] makes one.
 type FileCache struct {
 	dir string
 }
@@ -33,9 +35,6 @@ func NewFileCache(dir string) (*FileCache, error) {
 	return &FileCache{dir: dir}, nil
 }
 
-// path returns key's file, refusing a key not of [Key]'s form, "<capability>/<hash>" with a
-// capability of lowercase letters and a hash of 64 lowercase hex digits, so no key names a file
-// outside the directory.
 func (c *FileCache) path(key string) (string, error) {
 	capability, hash, ok := strings.Cut(key, "/")
 	if !ok || !isCapability(capability) || !isHash(hash) {
@@ -44,7 +43,6 @@ func (c *FileCache) path(key string) (string, error) {
 	return filepath.Join(c.dir, capability, hash[:2], hash+".json"), nil
 }
 
-// isCapability reports whether s is one or more lowercase ASCII letters.
 func isCapability(s string) bool {
 	if s == "" {
 		return false
@@ -57,7 +55,6 @@ func isCapability(s string) bool {
 	return true
 }
 
-// isHash reports whether s is a SHA-256 as lowercase hex.
 func isHash(s string) bool {
 	if len(s) != 64 {
 		return false
@@ -126,7 +123,7 @@ func (c *FileCache) Put(ctx context.Context, key string, value []byte) error {
 		err = os.Rename(tmp.Name(), path)
 	}
 	if err != nil {
-		_ = os.Remove(tmp.Name()) // the put failed: the temporary file is all it leaves
+		_ = os.Remove(tmp.Name())
 		return fmt.Errorf("docinfer: file cache: put %s: %w", key, err)
 	}
 	return nil

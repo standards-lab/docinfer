@@ -5,7 +5,13 @@
 // A [Runner], made by [New] from a [Config], runs many jobs at once, each by [Runner.Run]: every
 // dispatch event is fed to the pipeline as one input, the depth-0 part's own event with its
 // metadata text, and each inference's text is put into the dispatcher's content store before its
-// update.
+// update. A job's ID is its host's: Run takes the job's input alone.
+//
+// A job has one content store, the dispatcher's: the dispatcher stores each output's content there
+// before its event, the pipeline opens its inputs' content from it, and Run puts each inference's
+// text into it. job keeps no output's file past its event, and no quarantined part's file. A
+// process that dies leaves its files in the dispatcher's working directory, so a host empties that
+// directory when it starts, and its work queue redelivers the job.
 //
 // The order of updates: each event comes as the pipeline echoes it, before anything derived from
 // it, and each inference, progress, and batch as made. So an output's event precedes its
@@ -21,7 +27,9 @@
 // Config.CheckpointEvery messages since the last checkpoint, or since the start, Run yields a
 // Checkpoint of its message's After, never the highest After seen. A host keeps the last
 // Checkpoint.After and resumes a redelivered job by setting dispatch.Input.After to it. An input
-// with no store yields none, and a finished job none at its end.
+// with no store yields none, and a finished job none at its end. job threads no mail: a consumer
+// threads the record outputs with docproc's email.Threader, so no threader state joins the
+// checkpoint.
 //
 // A content miss is transient: a *docinfer.MissingError stops the job, but first drops the index
 // entry of the output's part, under the part's SHA-256 and the event's stage, so a redelivery

@@ -75,14 +75,11 @@ func New(cfg Config) (*Runner, error) {
 // resumed with dispatch.Input.After set to a checkpoint's After yields only the messages after it.
 func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Options) iter.Seq2[Update, error] {
 	return func(yield func(Update, error) bool) {
-		// The job's own context, cancelled as the job stops, so a dispatch the pipeline's input
-		// side is blocked in ends rather than holds the pipeline's stop. The caller's is kept to
-		// tell a cancellation from the job's own stop.
 		caller := ctx
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		content := r.cfg.Dispatcher.Content()
-		parts := map[string]dispatch.Event{} // each part's last own event, by part ID
+		parts := map[string]dispatch.Event{}
 		mark := watermark{every: r.cfg.CheckpointEvery}
 		var counts *docinfer.Counts
 		var stop error
@@ -103,7 +100,7 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 			case res.Inference != nil:
 				if err := put(ctx, content, res.Inference); err != nil {
 					stop = err
-					cancel() // as for a loop stopped early, below
+					cancel()
 					break results
 				}
 				u.Inference = res.Inference
@@ -114,7 +111,7 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 			case res.Done != nil:
 				counts = res.Done
 				continue
-			default: // a settlement, which may move the watermark far enough for a checkpoint
+			default:
 				after, ok := mark.settle(*res.Settled)
 				if !ok {
 					continue
@@ -122,18 +119,13 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 				u.Checkpoint = &Checkpoint{After: after}
 			}
 			if !yield(u, nil) {
-				// Cancelled first, so the pipeline's stop doesn't wait on a dispatch blocked
-				// short of its next event.
 				cancel()
 				return
 			}
 		}
-		// The loop's end has stopped the pipeline, and with it the dispatch, before the error is
-		// yielded, alone and last.
 		if stop != nil {
 			switch {
 			case caller.Err() != nil:
-				// The caller's context ended: its error is the job's, however the stop surfaced.
 				stop = caller.Err()
 			default:
 				if miss, ok := errors.AsType[*docinfer.MissingError](stop); ok {
@@ -143,32 +135,23 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 			yield(Update{}, stop)
 			return
 		}
-		if counts == nil { // the pipeline always ends with its counts or an error
+		if counts == nil {
 			return
 		}
 		yield(Update{Done: done(parts, *counts)}, nil)
 	}
 }
 
-// watermark is a job's low watermark over its inputs, in pull order: the end of the last message
-// whose inputs, and every earlier input, have settled. A message is the stretch of inputs that
-// ends at an output event with a non-zero After, a store's cursor.
+// See docs/internals.md
 type watermark struct {
-	every int // messages the watermark passes between checkpoints
-	// afters holds each echoed input's After, by its position in pull order: a message's last
-	// output's cursor, or zero.
-	afters []uint64
-	// settled holds whether each input has settled, by position; an input settles after its echo.
+	every   int
+	afters  []uint64
 	settled []bool
-	// low is the position of the first input not yet settled: every input before it has.
-	low int
-	// passed counts the messages the watermark has passed since the last checkpoint, or since
-	// the start, and last is the After of the last of them.
-	passed int
-	last   uint64
+	low     int
+	passed  int
+	last    uint64
 }
 
-// echo records ev, the next input in pull order.
 func (w *watermark) echo(ev dispatch.Event) {
 	var after uint64
 	if ev.Output != nil {
@@ -178,10 +161,6 @@ func (w *watermark) echo(ev dispatch.Event) {
 	w.settled = append(w.settled, false)
 }
 
-// settle records that the input at pos has settled, returning the After of a checkpoint when
-// the watermark has now passed at least every messages since the last. One settlement that
-// passes several messages makes one checkpoint, at the last of them; an input with no store
-// passes no message, and makes none.
 func (w *watermark) settle(pos int) (uint64, bool) {
 	w.settled[pos] = true
 	for w.low < len(w.settled) && w.settled[w.low] {
@@ -198,8 +177,6 @@ func (w *watermark) settle(pos int) (uint64, bool) {
 	return w.last, true
 }
 
-// inputs dispatches in, yielding each event as the pipeline's input: the depth-0 part's own event
-// with its metadata text, every other event as it is, and the dispatch's error alone, last.
 func (r *Runner) inputs(ctx context.Context, in dispatch.Input) iter.Seq2[docinfer.Input, error] {
 	return func(yield func(docinfer.Input, error) bool) {
 		for ev, err := range r.cfg.Dispatcher.Dispatch(ctx, in) {
@@ -218,12 +195,7 @@ func (r *Runner) inputs(ctx context.Context, in dispatch.Input) iter.Seq2[docinf
 	}
 }
 
-// drop drops the index entry of the part whose content miss stopped the job, err the stop that
-// carries miss, so a redelivery prepares the part again and puts its content back rather than
-// replay the entry and miss again. miss's Event is the output's event the pipeline was fed, which
-// names its part, the part's SHA-256, and its stage: the entry's key. The dispatch has stopped,
-// so no claim of the job's records the entry again. A failed drop is joined to err, which both
-// then match.
+// See docs/internals.md
 func (r *Runner) drop(ctx context.Context, miss *docinfer.MissingError, err error) error {
 	ev := miss.Event
 	key := dispatch.Key{SHA256: ev.Part.SHA256, Stage: ev.Stage}
@@ -233,10 +205,8 @@ func (r *Runner) drop(ctx context.Context, miss *docinfer.MissingError, err erro
 	return err
 }
 
-// own reports whether ev is a part's own event: neither an output's nor a warning's.
 func own(ev dispatch.Event) bool { return ev.Output == nil && ev.Warning == nil }
 
-// put puts inf's Text into content under its TextSHA256, putting nothing when it has none.
 func put(ctx context.Context, content dispatch.Content, inf *docinfer.Inference) error {
 	if inf.TextSHA256 == "" {
 		return nil
@@ -247,7 +217,6 @@ func put(ctx context.Context, content dispatch.Content, inf *docinfer.Inference)
 	return nil
 }
 
-// done returns the attempt's Done of parts, each part's last own event, and the pipeline's counts.
 func done(parts map[string]dispatch.Event, counts docinfer.Counts) *Done {
 	d := &Done{Parts: map[dispatch.Outcome]int{}, Counts: counts}
 	for _, ev := range parts {

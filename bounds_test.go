@@ -18,11 +18,6 @@ import (
 	"github.com/standards-lab/go-ai/format/completions"
 )
 
-// The bound tests run jobs through Pipeline.Run against aitest, each capability's requests made
-// by inputs of its own kind, so each bound is proven on the requests that capability sends.
-
-// boundedRoute parks one capability's requests at its gate, counting those inside at once, the
-// most it has seen, and how many it received.
 type boundedRoute struct {
 	gate aitest.Gate
 
@@ -32,8 +27,6 @@ type boundedRoute struct {
 	sent int
 }
 
-// enter parks a request at the gate, counting it inside meanwhile. Its count drops before the
-// reply is written, so before the caller's slot is freed.
 func (b *boundedRoute) enter(ctx context.Context) error {
 	b.mu.Lock()
 	b.in++
@@ -47,19 +40,14 @@ func (b *boundedRoute) enter(ctx context.Context) error {
 	return err
 }
 
-// counts returns the most requests the route has held at once, and how many it received.
 func (b *boundedRoute) counts() (most, sent int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.most, b.sent
 }
 
-// boundEndpoint serves every capability's route: vision's and extraction's on Chat Completions,
-// unstreamed and streamed, transcription's, and embeddings'. The requests of capability enter
-// route; the rest are answered at once.
 func boundEndpoint(t *testing.T, capability docinfer.Capability, route *boundedRoute) *aitest.Endpoint {
 	t.Helper()
-	// gated returns the reply of a request of c that its context ended at the gate, or nil.
 	gated := func(c docinfer.Capability, ctx context.Context) aitest.Reply {
 		if c != capability {
 			return nil
@@ -97,8 +85,6 @@ func boundEndpoint(t *testing.T, capability docinfer.Capability, route *boundedR
 	})
 }
 
-// boundConfig returns a Config with every capability set on e, each client its own, over
-// bounds, with room for every input of a test's job at once and one text per Embed call.
 func boundConfig(t *testing.T, e *aitest.Endpoint, bounds *docinfer.Bounds) docinfer.Config {
 	t.Helper()
 	return runConfig(t, e, func(c *docinfer.Config) {
@@ -111,8 +97,6 @@ func boundConfig(t *testing.T, e *aitest.Endpoint, bounds *docinfer.Bounds) doci
 	})
 }
 
-// boundInput returns the i'th input whose request is one of capability's, its content put in
-// content: an image, a window alone in its part, or a text, which is extracted or embedded.
 func boundInput(t *testing.T, content *dispatch.MemoryContent, capability docinfer.Capability, i int) docinfer.Input {
 	t.Helper()
 	switch capability {
@@ -127,16 +111,12 @@ func boundInput(t *testing.T, content *dispatch.MemoryContent, capability docinf
 	}
 }
 
-// runJob runs p over inputs with opts on a goroutine of its own, its outcome on the channel
-// returned.
 func runJob(t *testing.T, ctx context.Context, p *docinfer.Pipeline, content dispatch.Content, inputs iter.Seq2[docinfer.Input, error], opts docinfer.Options) <-chan outcome {
 	done := make(chan outcome, 1)
 	go func() { done <- collect(t, p.Run(ctx, content, inputs, opts)) }()
 	return done
 }
 
-// slotWaits reports on the returned channel each request of capability that starts to wait for
-// one of b's slots.
 func slotWaits(b *docinfer.Bounds, capability docinfer.Capability) <-chan struct{} {
 	waits := make(chan struct{}, 64)
 	docinfer.OnSlotWait(b, func(c docinfer.Capability) {
@@ -147,10 +127,6 @@ func slotWaits(b *docinfer.Bounds, capability docinfer.Capability) <-chan struct
 	return waits
 }
 
-// Each capability's requests in flight reach its own bound and never pass it, across two
-// pipelines on one Bounds: once the bound's requests are parked at the Gate and the rest are seen
-// waiting for a slot, each one released lets exactly one more in. The four bounds differ, so a
-// capability bounded by another's bound, or by none, fails.
 func TestBoundsCapRequestsInFlight(t *testing.T) {
 	bounds := map[docinfer.Capability]int{
 		docinfer.CapabilityVision:        2,
@@ -181,7 +157,6 @@ func TestBoundsCapRequestsInFlight(t *testing.T) {
 				p := newPipeline(t, boundConfig(t, e, b))
 				jobs = append(jobs, runJob(t, t.Context(), p, content, seq(in...), opts))
 			}
-			// Every request is parked or waiting for a slot before the first is let go.
 			route.gate.Await(t, bound)
 			awaitWaiters(t, waits, total-bound)
 			for done := range total {
@@ -204,8 +179,6 @@ func TestBoundsCapRequestsInFlight(t *testing.T) {
 	}
 }
 
-// A capability's bound holds its own slots alone: with each capability's one slot held by a
-// parked request, a job's requests of the other three go on, their results yielded meanwhile.
 func TestBoundsArePerCapability(t *testing.T) {
 	capabilities := []docinfer.Capability{
 		docinfer.CapabilityVision, docinfer.CapabilityTranscription, docinfer.CapabilityExtraction, docinfer.CapabilityEmbeddings,
@@ -219,8 +192,6 @@ func TestBoundsArePerCapability(t *testing.T) {
 			inputs := seq(boundInput(t, content, docinfer.CapabilityVision, 0), boundInput(t, content, docinfer.CapabilityTranscription, 0),
 				boundInput(t, content, docinfer.CapabilityEmbeddings, 0))
 
-			// made reports each capability whose result is yielded: an inference's, or, for
-			// embeddings, a batch of the text output's chunks.
 			made := make(chan docinfer.Capability, 64)
 			results := func(yield func(docinfer.Result, error) bool) {
 				for r, err := range p.Run(t.Context(), content, inputs, extracting(false)) {
@@ -255,8 +226,6 @@ func TestBoundsArePerCapability(t *testing.T) {
 	}
 }
 
-// A job waiting for a slot another pipeline's job holds returns its context's error once it is
-// cancelled, without waiting out the holder's request, and its request is never sent.
 func TestBoundsWaitEndsWithTheContext(t *testing.T) {
 	route := &boundedRoute{}
 	e := boundEndpoint(t, docinfer.CapabilityEmbeddings, route)
@@ -284,16 +253,12 @@ func TestBoundsWaitEndsWithTheContext(t *testing.T) {
 	}
 }
 
-// panicTransport is a host's transport with a defect: every request it is given panics.
 type panicTransport struct{}
 
-// errTransportDefect is the value panicTransport panics with.
 var errTransportDefect = errors.New("round trip: a defect in the host's transport")
 
 func (panicTransport) RoundTrip(*http.Request) (*http.Response, error) { panic(errTransportDefect) }
 
-// A request that panics frees its slot: the panic reaches Run's caller, and the next job on the
-// same Bounds gets the slot and runs.
 func TestBoundsFreeTheSlotOnPanic(t *testing.T) {
 	e := boundEndpoint(t, "", nil)
 	b := newBounds(t, 1, 1, 1, 1)

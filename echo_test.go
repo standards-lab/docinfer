@@ -11,11 +11,6 @@ import (
 	"github.com/standards-lab/go-ai/aitest"
 )
 
-// The echo tests drive Pipeline.Run's Result.Input through aitest over MemoryContent: each input
-// echoed once, in pull order, before anything derived from it, which collect checks of every run.
-
-// passThrough returns inputs that are neither an output nor a metadata text: a warning, a part's
-// own event, and an unread child's.
 func passThrough() []docinfer.Input {
 	return []docinfer.Input{
 		{Event: dispatch.Event{Part: childPart, Stage: textStage, Warning: &dispatch.Warning{Tool: "office", Where: "word/document.xml", What: "a field is unreadable"}}},
@@ -24,7 +19,6 @@ func passThrough() []docinfer.Input {
 	}
 }
 
-// echoes fails the test unless o echoed exactly inputs, in order, and ended without an error.
 func echoes(t *testing.T, o outcome, inputs []docinfer.Input) {
 	t.Helper()
 	if o.err != nil {
@@ -35,10 +29,6 @@ func echoes(t *testing.T, o outcome, inputs []docinfer.Input) {
 	}
 }
 
-// Every input kind is echoed once, in pull order, before its derived results: a text, a Markdown
-// output, a metadata text, an image, an audio plan record and its windows, a video plan record, and
-// passed-through inputs, with vision, transcription, and extraction on. The passed-through inputs
-// do no work and count nothing: the run's counts are those of a run without them.
 func TestRunEchoesEveryInput(t *testing.T) {
 	e := settleEndpoint(t, saying(win0, win1, win2), nil)
 	config := func() docinfer.Config { return settleConfig(t, e, nil) }
@@ -55,12 +45,10 @@ func TestRunEchoesEveryInput(t *testing.T) {
 		metadataInput(),
 	}
 	pass := passThrough()
-	// The passed-through inputs sit among the others: one first, one in the middle, one last.
 	all := slices.Concat(pass[:1], work[:4], pass[1:2], work[4:], pass[2:])
 
 	o := collect(t, newPipeline(t, config()).Run(t.Context(), content, seq(all...), extracting(false)))
 	echoes(t, o, all)
-	// collect's checks are vacuous without derived results of each kind to check.
 	if kinds := capabilities(o); kinds[docinfer.CapabilityVision] != 1 || kinds[docinfer.CapabilityTranscription] != 1 || kinds[docinfer.CapabilityExtraction] != 4 {
 		t.Errorf("inferences by capability %v, want a description, a transcript, and 4 extractions", kinds)
 	}
@@ -87,8 +75,6 @@ func TestRunEchoesEveryInput(t *testing.T) {
 	}
 }
 
-// A run of passed-through inputs alone echoes each, asks nothing, and counts nothing: each echo
-// followed at once by its settlement, then zero counts.
 func TestRunPassesThrough(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	p := newPipeline(t, runConfig(t, e, nil))
@@ -111,8 +97,6 @@ func TestRunPassesThrough(t *testing.T) {
 	}
 }
 
-// Under -race, with Pending holding most inputs back and inputs finishing out of order, each input
-// is echoed exactly once, in pull order.
 func TestRunEchoesOnce(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	p := newPipeline(t, runConfig(t, e, func(c *docinfer.Config) {

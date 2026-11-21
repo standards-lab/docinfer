@@ -57,5 +57,6 @@
 // runes, Join's WordsPerSecond 3, vision's MaxTokens 256, and extraction's 1024, room for a
 // reasoning model to reason ahead of its answer. Each Run is bounded by five minutes.
 //
-// testdata/README.md tells where the media came from: go-ai's integration testdata at v0.4.0.
+// integration/testdata/README.md tells where the media came from: go-ai's integration testdata
+// at v0.4.0.
 package integration

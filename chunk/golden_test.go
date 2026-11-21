@@ -12,16 +12,9 @@ import (
 	"github.com/standards-lab/docinfer/chunk"
 )
 
-// update rewrites the golden corpus from the splitting as it stands:
-//
-//	go test ./chunk -run TestGoldenCorpus -update
-//
-// Do it only with a new chunk.Version, which names the corpus's file, never to make a changed cut
-// pass under the old one: docinfer's Profile reports the version, so chunks cut differently under
-// the same version would be taken for the old.
+// See docs/development.md
 var update = flag.Bool("update", false, "rewrite the golden corpus of chunks for chunk.Version")
 
-// goldenCase is one input of the golden corpus and the chunks it gives.
 type goldenCase struct {
 	Name   string        `json:"name"`
 	Bound  int           `json:"bound"`
@@ -29,9 +22,6 @@ type goldenCase struct {
 	Chunks []chunk.Chunk `json:"chunks"`
 }
 
-// goldenInputs are the corpus's inputs, each part of the splitting at least once: headings, a
-// heading in a fenced code block, paragraphs, sentences and their closers, lines, multibyte text,
-// a hard cut, and texts with nothing to cut.
 var goldenInputs = []goldenCase{
 	{Name: "empty", Bound: 10, Text: ""},
 	{Name: "white space only", Bound: 10, Text: " \n\n\t  \r\n "},
@@ -66,8 +56,6 @@ var goldenInputs = []goldenCase{
 	{Name: "bound one", Bound: 1, Text: "a b\ncd é😀"},
 }
 
-// The committed corpus pins how texts are cut under chunk.Version: a change to any chunk must come
-// with a new version, since docinfer's Profile reports it.
 func TestGoldenCorpus(t *testing.T) {
 	var got []goldenCase
 	for _, in := range goldenInputs {
