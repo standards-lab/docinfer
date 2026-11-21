@@ -30,7 +30,7 @@ import (
 
 // The transcription tests transcribe windows through Run, against aitest's transcriptions route
 // in route mode and its Chat Completions route in chat mode, then join each part's windows, and
-// take the transcription rows of design.md's failure table, one test per row.
+// take the transcription rows of the failure table in doc.go, one test per row.
 
 const (
 	transcriptionModel = "transcription-model"

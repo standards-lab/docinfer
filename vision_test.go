@@ -26,7 +26,7 @@ import (
 )
 
 // The vision tests describe images through Run, against aitest's Chat Completions route, and the
-// generation rows of design.md's failure table, one test per row.
+// generation rows of the failure table in doc.go, one test per row.
 
 const (
 	visionModel  = "vision-model"

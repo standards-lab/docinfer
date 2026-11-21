@@ -21,7 +21,7 @@ import (
 	"github.com/standards-lab/go-ai/format"
 )
 
-// The embedding rows of design.md's failure table, one test per row against aitest. Each run is
+// The embedding rows of the failure table in doc.go, one test per row against aitest. Each run is
 // one text of two chunks, sent as one call.
 
 const (

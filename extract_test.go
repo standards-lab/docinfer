@@ -26,7 +26,7 @@ import (
 )
 
 // The extraction tests extract by a caller's Extract through Run, streamed from aitest's Chat
-// Completions route, and take the generation rows of design.md's failure table for extraction,
+// Completions route, and take the generation rows of the failure table in doc.go for extraction,
 // one test per row. Progress is coalesced by a clock the tests step per text delta, so no test
 // sleeps.
 
