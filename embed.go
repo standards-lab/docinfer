@@ -11,11 +11,6 @@ import (
 	"github.com/standards-lab/go-ai"
 )
 
-// embed chunks an input's source text and completes each chunk, as complete does, then extracts
-// the text, as extract does, when the run asks for extraction and the text is one extracted: any
-// but metadata, and not empty. It runs on the input's own goroutine, and hands the coordinator the
-// count of chunks, then each completed group of them, and the extraction's progress and
-// inference.
 func (r *run) embed(st *inputState, text string) {
 	pieces, err := r.p.cfg.Chunker.Split(text)
 	if err != nil {
@@ -26,10 +21,7 @@ func (r *run) embed(st *inputState, text string) {
 	for i, c := range pieces {
 		items[i] = item{st: st, chunk: Chunk{Digest: sha256Hex([]byte(c.Text)), Chunk: c, Index: i}}
 	}
-	// An empty text has nothing to extract from, so it asks no model.
 	extract := r.opts.Extract != nil && st.source.Kind != sourceMetadata && text != ""
-	// The split reaches the coordinator before anything of the extraction does, so the input is
-	// held open for it.
 	if !r.send(splitEvent{st: st, n: len(items), extract: extract}) {
 		return
 	}
@@ -41,14 +33,8 @@ func (r *run) embed(st *inputState, text string) {
 	}
 }
 
-// key is the cache key, and the claim table's, of the embedding of the chunk digest names.
 func (r *run) key(digest string) string { return Key(r.embedID, digest) }
 
-// complete completes items, chunks of st's source text. It claims their keys in the pipeline's
-// claim table first, so a result another job is asking for is never asked again: the keys it
-// claims it reads from the cache, and asks the model for the misses Config.EmbedBatch texts per
-// call; the keys another call holds it waits for. Claiming before the cache read means a key
-// released meanwhile is held already, since a claimant puts before it releases.
 func (r *run) complete(st *inputState, items []item) {
 	keys := make([]string, len(items))
 	for i, it := range items {
@@ -83,11 +69,10 @@ func (r *run) complete(st *inputState, items []item) {
 		it := items[own[i]]
 		h, ok := decodeHeld(v)
 		switch {
-		case !ok: // a miss, or a value that doesn't decode, which the model's reply replaces
+		case !ok:
 			missed = append(missed, it)
 			continue
 		case h.Vector != "":
-			// decodeHeld decoded the vector already; its length is checked here, after the Get.
 			vector, _ := DecodeVector(h.Vector)
 			if len(vector) != r.p.cfg.Dimensions {
 				err := &dimensionsError{digest: it.chunk.Digest, got: len(vector), want: r.p.cfg.Dimensions, held: true}
@@ -99,7 +84,7 @@ func (r *run) complete(st *inputState, items []item) {
 			it.chunk.Vector = h.Vector
 		case h.Refused != "":
 			it.chunk.Error = h.Refused
-		default: // a held value of another capability's shape: a miss
+		default:
 			missed = append(missed, it)
 			continue
 		}
@@ -107,8 +92,6 @@ func (r *run) complete(st *inputState, items []item) {
 		it.held = true
 		held = append(held, it)
 	}
-	// Each call gets its keys' claims before anything is handed to the coordinator, so no waiter
-	// waits on this goroutine's send.
 	for start := 0; start < len(missed); start += r.p.cfg.EmbedBatch {
 		call := missed[start:min(start+r.p.cfg.EmbedBatch, len(missed))]
 		callKeys := make([]string, len(call))
@@ -123,17 +106,12 @@ func (r *run) complete(st *inputState, items []item) {
 	}
 }
 
-// await waits for items' embeddings, each claimed by another call, calls[i] items[i]'s, holding
-// no Bounds slot, and hands the coordinator those answered, counted held, as a cache read would
-// be. A key answered with a permanent failure stops the job with it; the keys whose claimants
-// ended without a result are completed again, so this job asks the model itself, unless another
-// has claimed them meanwhile. A cancelled job stops waiting at once.
 func (r *run) await(st *inputState, items []item, calls []*claim) {
 	var answered, again []item
 	for i, c := range calls {
 		a, err := r.p.claims.wait(r.ctx, c)
 		if err != nil {
-			return // the job has stopped; the coordinator reports why
+			return
 		}
 		it := items[i]
 		switch {
@@ -155,11 +133,6 @@ func (r *run) await(st *inputState, items []item, calls []*claim) {
 	}
 }
 
-// call asks the embeddings model for items' vectors in one request, under the embeddings bound,
-// checks each vector's length, holds each, answers its claim, and hands the items to the
-// coordinator. A refused call of more than one text is re-sent a text at a time, and only then.
-// l holds items' claims; a key call ends without answering, its job stopped or its call failed
-// on a row no other caller shares, is released unanswered, a panic included.
 func (r *run) call(st *inputState, items []item, l *lease) {
 	defer l.release()
 	texts := make([]string, len(items))
@@ -177,7 +150,7 @@ func (r *run) call(st *inputState, items []item, l *lease) {
 		return err
 	})
 	if r.ctx.Err() != nil {
-		return // the job has stopped; the coordinator reports why
+		return
 	}
 	requests := 0
 	if sent {
@@ -205,11 +178,6 @@ func (r *run) call(st *inputState, items []item, l *lease) {
 	r.send(doneEvent{st: st, items: items, requests: requests, usage: Usage{Input: reply.Usage.PromptTokens}})
 }
 
-// callFailed maps a failed embeddings call by its row: a refused call is split, each text's claim
-// handed to its own call, or its one text refused, held, and answered; a permanent failure is
-// every key's answer, and stops the job; a failed call's texts are recorded failed on the last
-// delivery; anything else stops the job. A key not answered is released unanswered, before the
-// coordinator hears, so its waiters ask the model themselves.
 func (r *run) callFailed(st *inputState, items []item, requests int, err error, l *lease) {
 	wrapped := fmt.Errorf("docinfer: run: embed %d texts of part %s: %w", len(items), st.part.ID, err)
 	switch classify(err) {
@@ -219,7 +187,6 @@ func (r *run) callFailed(st *inputState, items []item, requests int, err error, 
 			for i, it := range items {
 				subs[i] = l.take(r.key(it.chunk.Digest))
 			}
-			// The coordinator hears of the request before the texts it splits into complete.
 			if !r.send(doneEvent{st: st, requests: requests}) {
 				return
 			}
@@ -255,9 +222,6 @@ func (r *run) callFailed(st *inputState, items []item, requests int, err error, 
 	r.send(doneEvent{st: st, items: items, requests: requests})
 }
 
-// hold puts h under key, then answers key's claim in l with it, so a waiter's answer is what a
-// cache read would give. It reports false, having released l and stopped the job, when it can't
-// put h, what naming the result in the error.
 func (r *run) hold(l *lease, key, what string, h Held) bool {
 	b, err := json.Marshal(h)
 	if err == nil {
@@ -272,8 +236,6 @@ func (r *run) hold(l *lease, key, what string, h Held) bool {
 	return true
 }
 
-// encodeVector is the one writer of a [Chunk]'s and a [Held]'s vector, as [DecodeVector] reads
-// it: standard base64 of each float32's bits, little-endian, in order.
 func encodeVector(v []float32) string {
 	b := make([]byte, 4*len(v))
 	for i, f := range v {

@@ -9,8 +9,6 @@ import (
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-// Each capability's settings are one JSON encoding, its members in a fixed order, led by the
-// request's version; the embeddings' are "".
 func TestIdentity(t *testing.T) {
 	route := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
 	chat := newClient(t, "http://localhost/v1", ai.TranscribeChat)
@@ -75,8 +73,6 @@ func TestIdentity(t *testing.T) {
 	}
 }
 
-// The golden keys' identities are the ones the capabilities give, so the keys pin Key over
-// settings as Identity encodes them.
 func TestGoldenKeysAreIdentities(t *testing.T) {
 	route := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
 	ids := map[docinfer.Capability]docinfer.Identity{
@@ -97,8 +93,6 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 	}
 }
 
-// Profile reports every capability's identity, the extraction's less what an Extract gives,
-// with the dimensions and the chunker's settings.
 func TestProfile(t *testing.T) {
 	cfg := validConfig(t)
 	p, err := docinfer.New(cfg)
@@ -122,7 +116,6 @@ func TestProfile(t *testing.T) {
 		Dimensions: 2,
 		Chunker:    `{"version":"1","bound":2}`,
 	}
-	// A change to the config New was given, or to a profile it returned, changes no later profile.
 	cfg.Vision.Prompt, cfg.Transcription.Language, cfg.Extraction.MaxTokens = "changed", "de", 3
 	first := p.Profile()
 	first.Vision.Model, first.Transcription.Model, first.Extraction.Model = "x", "x", "x"
@@ -139,7 +132,6 @@ func TestProfile(t *testing.T) {
 	equalProfile(t, p.Profile(), want)
 }
 
-// equalProfile fails the test unless got and want hold the same values.
 func equalProfile(t *testing.T, got, want docinfer.Profile) {
 	t.Helper()
 	for _, c := range []struct {

@@ -105,9 +105,11 @@
 //     Options.StreamIdleTimeout included.
 //   - Failed: an *ai.APIError of 500; a 2xx reply in protocol.StatusFailed, a stream's
 //     ResponseFailed among them; a 2xx reply that doesn't decode; and any other error a call
-//     returns stop the job with the error, wrapped. On the last delivery, [Options].Final, the
-//     item's outcome is failed instead, or the chunk's Error, recorded and never held, and the
-//     job goes on.
+//     returns, a 3xx go-ai didn't follow among them, stop the job with the error, wrapped. A
+//     reply that doesn't decode takes this row even when its syntax error matches
+//     io.ErrUnexpectedEOF: the reply arrived whole, and decoded wrong. On the last delivery,
+//     [Options].Final, the item's outcome is failed instead, or the chunk's Error, recorded and
+//     never held, and the job goes on.
 //   - A cancelled context is ctx.Err(), yielded alone and last.
 //
 // docinfer refuses only the statuses that judge the content. A status that judges the caller or

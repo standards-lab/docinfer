@@ -10,14 +10,8 @@ import (
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-// sourceVision is the source kind of an image's text, its description.
 const sourceVision = "vision"
 
-// describe describes the image ev's output is, the input at pos in pull order, on the image's own
-// goroutine, as lead does, unless another call has claimed its key: then it waits for that call's
-// answer, holding no Bounds slot, and takes it as a cache read, or asks again itself when the
-// claimant ended without a result. A permanent failure the claimant answered with stops the job. A
-// cancelled job stops waiting at once.
 func (r *run) describe(ev dispatch.Event, pos int) {
 	start := time.Now()
 	key := Key(*r.p.profile.Vision, ev.Output.SHA256)
@@ -29,7 +23,7 @@ func (r *run) describe(ev dispatch.Event, pos int) {
 		}
 		a, err := r.p.claims.wait(r.ctx, waits[0].c)
 		if err != nil {
-			return // the job has stopped; the coordinator reports why
+			return
 		}
 		switch {
 		case a.err != nil:
@@ -43,13 +37,6 @@ func (r *run) describe(ev dispatch.Event, pos int) {
 	}
 }
 
-// lead describes the image ev's output is, the input at pos, its key claimed in l: it reads the
-// cache, and on a miss opens the image's content and asks the vision model under the vision bound,
-// then holds the reply before it answers the claim, so a waiter's answer is what a cache read would
-// give. A failure maps by its row: a refusal is held as the image's outcome; a permanent failure is
-// the claim's answer, and stops the job; a failed call is recorded failed on the last delivery,
-// never held, and otherwise stops the job, as a transient failure does. A key lead ends without
-// answering is released unanswered, a panic included, so its waiters ask the model themselves.
 func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *lease) {
 	defer l.release()
 	values, err := r.p.cfg.Cache.Get(r.ctx, key)
@@ -58,15 +45,12 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		r.fail(fmt.Errorf("docinfer: run: cache get for image %s of part %s: %w", ev.Output.SHA256, ev.Part.ID, err))
 		return
 	}
-	// A held value that doesn't decode, or holds another capability's vector, is a miss, which
-	// the model's reply replaces.
 	if h, ok := decodeHeld(values[0]); ok && h.Vector == "" {
 		l.answer(key, answer{held: &h})
 		r.described(ev, pos, start, h, true, 0, Usage{})
 		return
 	}
 
-	// Content is opened only on a miss.
 	data, err := r.read(ev)
 	if err != nil {
 		l.release()
@@ -95,7 +79,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		return err
 	})
 	if r.ctx.Err() != nil {
-		return // the job has stopped; the coordinator reports why
+		return
 	}
 	requests := 0
 	if sent {
@@ -105,7 +89,6 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 	if resp != nil {
 		usage = Usage{Input: resp.Usage.InputTokens, Output: resp.Usage.OutputTokens}
 		if resp.Status != protocol.StatusCompleted && resp.Status != protocol.StatusIncomplete {
-			// A 2xx reply in StatusFailed, or of any other status, takes the failed row.
 			err = &failedReplyError{status: resp.Status, reply: resp.Error}
 		}
 	}
@@ -144,8 +127,6 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 	}
 }
 
-// failedReplyError is a 2xx reply that isn't completed or incomplete: one in protocol.StatusFailed,
-// with the error it failed with, if it gave one. It takes the failure table's failed row.
 type failedReplyError struct {
 	status protocol.Status
 	reply  *protocol.ResponseError
@@ -159,10 +140,6 @@ func (e *failedReplyError) Error() string {
 	return s
 }
 
-// heldReply is a completed or incomplete reply as it is held: an incomplete reply keeps its text
-// and its reason; a completed reply with a refusal part and no output text is the refusal's
-// text; any other completed reply is its output text, as (*protocol.Response).OutputText reads
-// it.
 func heldReply(resp *protocol.Response) Held {
 	text := resp.OutputText()
 	if resp.Status == protocol.StatusIncomplete {
@@ -180,8 +157,6 @@ func heldReply(resp *protocol.Response) Held {
 	return Held{Text: text}
 }
 
-// refusalText is every Refusal part of resp's messages, in order, joined with nothing between, as
-// OutputText joins the output text.
 func refusalText(resp *protocol.Response) string {
 	var b strings.Builder
 	for _, it := range resp.Output {
@@ -198,9 +173,6 @@ func refusalText(resp *protocol.Response) string {
 	return b.String()
 }
 
-// described hands the coordinator the inference of the image at pos from h, its result, read from
-// the cache or a leader when held, or made by requests, which took usage. A refusal ends the input;
-// a text kept, described or incomplete, is then chunked and embedded as a source of kind vision.
 func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, held bool, requests int, usage Usage) {
 	var inf *Inference
 	switch {
@@ -235,15 +207,12 @@ func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, hel
 		return
 	}
 	st.partJSON = b
-	// The inference reaches the coordinator before its chunks, so it is yielded before the batches
-	// that hold them.
 	if !r.send(inferenceEvent{inf: inf, requests: requests, usage: usage}) {
 		return
 	}
 	r.embed(st, h.Text)
 }
 
-// inference returns the image's inference of outcome, its time taken since start.
 func (r *run) inference(ev dispatch.Event, start time.Time, outcome Outcome, usage Usage) *Inference {
 	return &Inference{
 		Capability:    CapabilityVision,
@@ -255,8 +224,6 @@ func (r *run) inference(ev dispatch.Event, start time.Time, outcome Outcome, usa
 	}
 }
 
-// countVision counts an image's inference under its outcome, and the requests and tokens this
-// job spent on it.
 func (r *run) countVision(e inferenceEvent) {
 	vc := r.counts.Vision
 	switch e.inf.Outcome {

@@ -28,24 +28,17 @@ import (
 	"github.com/standards-lab/go-ai/format/completions"
 )
 
-// The run tests drive New and Pipeline.Run through go-ai's client against aitest, over dispatch's
-// MemoryContent.
-
 const (
 	embeddingModel = "embedding-model"
 	dimensions     = 2
 )
 
-// embeddingID is the identity every run test's embeddings are keyed by.
 var embeddingID = docinfer.Embeddings{Model: embeddingModel}.Identity()
 
-// vectorOf is the vector the fake endpoint makes for text, dimensions long and different for
-// texts of different lengths.
 func vectorOf(text string) []float32 {
 	return []float32{float32(len(text)), float32(strings.Count(text, " "))}
 }
 
-// embedAll is an embeddings route that embeds every input by vectorOf, three prompt tokens each.
 func embedAll(_ context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 	vectors := make([][]float32, len(req.Input))
 	for i, text := range req.Input {
@@ -54,8 +47,6 @@ func embedAll(_ context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 	return aitest.EmbeddingsReply{Vectors: vectors, PromptTokens: 3 * len(req.Input)}
 }
 
-// runConfig returns a Config whose embeddings client is e's, with no vision, transcription, or
-// extraction, a cache of its own, and room for every count: edit narrows what a test needs.
 func runConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	cfg := docinfer.Config{
@@ -75,12 +66,8 @@ func runConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) do
 	return cfg
 }
 
-// failsafe bounds every wait a test makes on what a job does, as aitest's Gate.Await bounds its
-// own: a stall is a finding, so a wait that runs out fails the test rather than hang it.
 const failsafe = 10 * time.Second
 
-// receive returns the next value from ch, failing the test, naming what it waited for, if none
-// comes within failsafe. It calls t.Fatalf, so it runs on the test's goroutine.
 func receive[T any](t *testing.T, ch <-chan T, what string) T {
 	t.Helper()
 	var v T
@@ -92,7 +79,6 @@ func receive[T any](t *testing.T, ch <-chan T, what string) T {
 	return v
 }
 
-// newPipeline returns New(cfg), failing the test on an error.
 func newPipeline(t *testing.T, cfg docinfer.Config) *docinfer.Pipeline {
 	t.Helper()
 	p, err := docinfer.New(cfg)
@@ -102,7 +88,6 @@ func newPipeline(t *testing.T, cfg docinfer.Config) *docinfer.Pipeline {
 	return p
 }
 
-// encode returns v as Chunk.Vector holds it: standard base64 of little-endian float32s.
 func encode(v []float32) string {
 	b := make([]byte, 4*len(v))
 	for i, f := range v {
@@ -111,7 +96,6 @@ func encode(v []float32) string {
 	return base64.StdEncoding.EncodeToString(b)
 }
 
-// The parts the run tests' inputs come from: an input and a part found in it.
 var (
 	inputPart = dispatch.Part{ID: "/", Name: "report.docx", Size: 2048, SHA256: strings.Repeat("a", 64)}
 	childPart = dispatch.Part{ID: "/word%2Fmedia%2Fpage", Name: "page", Size: 512, SHA256: strings.Repeat("b", 64),
@@ -119,8 +103,6 @@ var (
 	textStage = dispatch.Identity{Name: "office", Version: "1", Config: "c0"}
 )
 
-// outputInput returns an input of an output of kind on part, its content text put in content,
-// unless content is nil.
 func outputInput(t *testing.T, content *dispatch.MemoryContent, part dispatch.Part, kind dispatch.OutputKind, text string) docinfer.Input {
 	t.Helper()
 	sha := sha(text)
@@ -136,12 +118,10 @@ func outputInput(t *testing.T, content *dispatch.MemoryContent, part dispatch.Pa
 	}}
 }
 
-// metadataInput returns the metadata input of the input part.
 func metadataInput() docinfer.Input {
 	return docinfer.Input{Event: dispatch.Event{Part: inputPart, Outcome: dispatch.Prepared}, Metadata: docinfer.MetadataText(inputPart)}
 }
 
-// seq returns inputs as Run's input stream.
 func seq(inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	return func(yield func(docinfer.Input, error) bool) {
 		for _, in := range inputs {
@@ -152,9 +132,6 @@ func seq(inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	}
 }
 
-// outcome is everything one Run yielded: its echoed inputs, its inferences, its progress, its
-// batches, its settlements, its counts, and its error, each in the order yielded, and whether
-// anything came after the counts or the error.
 type outcome struct {
 	inputs     []docinfer.Input
 	inferences []docinfer.Inference
@@ -163,26 +140,14 @@ type outcome struct {
 	settled    []int
 	counts     *docinfer.Counts
 	err        error
-	after      bool // something was yielded after the counts or the error, which must be last
+	after      bool
 	results    int
-	all        []docinfer.Result // every result but the error, in the order yielded
+	all        []docinfer.Result
 }
 
-// collect ranges over a Run's results. It fails the test when a batch holds a chunk of an image's
-// text whose inference wasn't yielded before it, when an extraction's progress follows its
-// inference, when a result derived from an input comes before that input's echo or after its
-// settlement, or when a settlement names no input echoed, or one settled already; and, once the
-// counts are yielded, unless every input echoed has settled.
-//
-// An input is told by its SHA-256, and inputs of the same content are told apart by none: a result
-// derived from that content is after its input's settlement only when every input of it has
-// settled. settlesAfter checks a run of inputs of distinct contents strictly.
 func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 	t.Helper()
 	var o outcome
-	// from holds the positions of the inputs each SHA-256 the echoes and inferences name derives
-	// from: each output's SHA-256, each metadata text's, and each inference's text's, which an
-	// extraction's source may be. settled holds the positions settled.
 	from := derivation{}
 	unechoed := func(what, sha string) {
 		if len(from.bySHA[sha]) == 0 {
@@ -221,7 +186,7 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 				unechoed("extraction of", r.Inference.ContentSHA256[0])
 			} else {
 				for _, c := range r.Inference.ContentSHA256 {
-					if c != "" { // a window never cut has no input
+					if c != "" {
 						unechoed("inference of", c)
 					}
 				}
@@ -277,15 +242,11 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 	return o
 }
 
-// derivation tells which inputs a result derives from, by the SHA-256s it names: an output's, a
-// metadata text's, and an inference's text's. A transcript derives from every window and audio
-// plan record of its part.
 type derivation struct {
-	bySHA  map[string][]int // the positions of the inputs each SHA-256 derives from
-	byPart map[string][]int // the positions of each part's windows and audio plan records
+	bySHA  map[string][]int
+	byPart map[string][]int
 }
 
-// echo records the echo of in, the input at position p in pull order.
 func (d *derivation) echo(p int, in docinfer.Input) {
 	if d.bySHA == nil {
 		d.bySHA, d.byPart = map[string][]int{}, map[string][]int{}
@@ -302,8 +263,6 @@ func (d *derivation) echo(p int, in docinfer.Input) {
 	}
 }
 
-// derived returns what r is and the positions of the inputs it may derive from, nil for an echo,
-// a settlement, or the counts. An inference's text is recorded as derived from the same inputs.
 func (d *derivation) derived(r docinfer.Result) (string, []int) {
 	var positions []int
 	add := func(sha string) {
@@ -335,7 +294,7 @@ func (d *derivation) derived(r docinfer.Result) (string, []int) {
 	case r.Batch != nil:
 		for _, s := range r.Batch.Sources {
 			if s.SHA256 != "" {
-				add(s.SHA256) // a metadata text's, or an inference's text's
+				add(s.SHA256)
 			} else {
 				add(s.Output.SHA256)
 			}
@@ -345,7 +304,6 @@ func (d *derivation) derived(r docinfer.Result) (string, []int) {
 	return "", nil
 }
 
-// chunks returns every chunk of o's batches, with its source and part, in the order yielded.
 func (o outcome) chunks() []placed {
 	var out []placed
 	for _, b := range o.batches {
@@ -357,14 +315,12 @@ func (o outcome) chunks() []placed {
 	return out
 }
 
-// placed is a chunk with the source and part its batch holds for it.
 type placed struct {
 	chunk  docinfer.Chunk
 	source docinfer.Source
 	part   dispatch.Part
 }
 
-// held returns the Held the cache holds for the embedding of the chunk digest names, or nil.
 func held(t *testing.T, cache docinfer.Cache, digest string) *docinfer.Held {
 	t.Helper()
 	values, err := cache.Get(t.Context(), docinfer.Key(embeddingID, digest))
@@ -381,7 +337,6 @@ func held(t *testing.T, cache docinfer.Cache, digest string) *docinfer.Held {
 	return &h
 }
 
-// vector returns the vector s holds, failing the test if DecodeVector can't read it.
 func vector(t *testing.T, s string) []float32 {
 	t.Helper()
 	v, err := docinfer.DecodeVector(s)
@@ -396,11 +351,6 @@ const (
 	markdown  = "# Heading\n\nA Markdown paragraph under it."
 )
 
-// Text and Markdown outputs are chunked as kind output, and a Metadata input as kind metadata:
-// each chunk's digest is its text's SHA-256, its vector the model's, held under the model and the
-// digest alone, and each batch holds its parts and sources once. Images, windows, and records are
-// skipped and counted. A second run reads every chunk from the cache, asks nothing, and counts
-// no tokens.
 func TestRunEmbedsTextMarkdownAndMetadata(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	cfg := runConfig(t, e, func(c *docinfer.Config) { c.EmbedBatch = 2 })
@@ -445,8 +395,6 @@ func TestRunEmbedsTextMarkdownAndMetadata(t *testing.T) {
 	if len(got) != len(wants) {
 		t.Fatalf("Run yielded %d chunks, want %d", len(got), len(wants))
 	}
-	// Chunks complete per call, so their order across sources is the calls'; each is found by its
-	// text and source kind.
 	for _, w := range wants {
 		i := slices.IndexFunc(got, func(g placed) bool { return g.chunk.Text == w.text && g.source.Kind == w.kind })
 		if i < 0 {
@@ -511,7 +459,6 @@ func TestRunEmbedsTextMarkdownAndMetadata(t *testing.T) {
 	}
 	checkCounts(t, o, want1)
 
-	// The second run reads each chunk from the cache.
 	requests := len(e.Requests())
 	o = collect(t, p.Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
 	if o.err != nil {
@@ -523,8 +470,6 @@ func TestRunEmbedsTextMarkdownAndMetadata(t *testing.T) {
 	checkCounts(t, o, docinfer.Counts{Texts: 2, Metadata: 1, Embedded: len(wants), Held: len(wants), Images: 1, Windows: 1})
 }
 
-// checkBatch fails the test unless b holds each part and source once, each index in range, and
-// its Digest is derived from its chunks.
 func checkBatch(t *testing.T, b docinfer.Batch) {
 	t.Helper()
 	parts := map[string]bool{}
@@ -561,8 +506,6 @@ func checkBatch(t *testing.T, b docinfer.Batch) {
 	}
 }
 
-// checkCounts fails the test unless o ended with want, its embedded and rejected chunks those of
-// its batches.
 func checkCounts(t *testing.T, o outcome, want docinfer.Counts) {
 	t.Helper()
 	if o.counts == nil {
@@ -581,8 +524,6 @@ func checkCounts(t *testing.T, o outcome, want docinfer.Counts) {
 	}
 }
 
-// MetadataText is a line per field of the part routing and the input gave, a field with no value
-// left out.
 func TestMetadataText(t *testing.T) {
 	p := dispatch.Part{ID: "/", Name: "notes.txt", Size: 12, SHA256: strings.Repeat("c", 64)}
 	p.ContentType.Kind, p.ContentType.Route = "text", "text"
@@ -593,8 +534,6 @@ func TestMetadataText(t *testing.T) {
 	}
 }
 
-// Each embedding is held before the batch holding it is yielded: at each yield the cache already
-// holds every chunk's vector.
 func TestRunHoldsBeforeItYields(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	cfg := runConfig(t, e, func(c *docinfer.Config) { c.EmbedBatch = 1 })
@@ -621,9 +560,6 @@ func TestRunHoldsBeforeItYields(t *testing.T) {
 	}
 }
 
-// Run pulls an input only while fewer than Pending of the job's inputs are admitted and
-// unfinished: with every request held at the Gate, it reaches Pending and never passes it, and
-// each input finished lets exactly one more in.
 func TestRunPullsWithinPending(t *testing.T) {
 	const pending, total = 2, 5
 	gate := &aitest.Gate{}
@@ -633,7 +569,6 @@ func TestRunPullsWithinPending(t *testing.T) {
 		}
 		return embedAll(ctx, req)
 	}})
-	// The embeddings bound is above Pending, so Pending alone holds the inputs back.
 	p := newPipeline(t, runConfig(t, e, func(c *docinfer.Config) {
 		c.Pending = pending
 		c.Bounds = newBounds(t, 1, 1, 1, total)
@@ -647,8 +582,6 @@ func TestRunPullsWithinPending(t *testing.T) {
 	var pulled, finished, overrun atomic.Int64
 	stream := func(yield func(docinfer.Input, error) bool) {
 		for _, in := range inputs {
-			// An input is pulled only once fewer than Pending are unfinished; each input is one
-			// chunk, so its batch's yield finishes it.
 			if pulled.Add(1) > finished.Load()+pending {
 				overrun.Add(1)
 			}
@@ -696,9 +629,6 @@ func TestRunPullsWithinPending(t *testing.T) {
 	}
 }
 
-// A batch is yielded when its next chunk would take its marshalled JSON past BatchBytes: a cap of
-// exactly two chunks' batch holds two, one byte less holds one, and a chunk alone past the cap is
-// a batch of one.
 func TestRunBatchBytes(t *testing.T) {
 	text := "Alpha alpha alpha.\n\nBravo bravo bravo.\n\nCharlie charlie.\n\nDelta delta delta."
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
@@ -730,7 +660,7 @@ func TestRunBatchBytes(t *testing.T) {
 	cases := []struct {
 		name       string
 		batchBytes int
-		first      int // chunks in the first batch
+		first      int
 	}{
 		{"exactly two chunks", size(2), 2},
 		{"a byte below two chunks", size(2) - 1, 1},
@@ -770,8 +700,6 @@ func TestRunBatchBytes(t *testing.T) {
 	}
 }
 
-// A cancelled context yields ctx.Err() alone, last, once the requests in flight have ended: only
-// the input's echo comes before it.
 func TestRunCancelled(t *testing.T) {
 	gate := &aitest.Gate{}
 	e := aitest.Serve(t, aitest.Routes{Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
@@ -788,7 +716,6 @@ func TestRunCancelled(t *testing.T) {
 		var errs []error
 		first := true
 		for r, err := range p.Run(ctx, content, seq(outputInput(t, content, childPart, dispatch.TextOutput, plainText)), docinfer.Options{}) {
-			// The first result is the input's echo, yielded at admission, before its request.
 			if first && r.Input != nil && err == nil {
 				first = false
 				continue
@@ -808,9 +735,6 @@ func TestRunCancelled(t *testing.T) {
 	}
 }
 
-// routeBoundTransport is a host's transport whose round trip, once its request's context has
-// ended, returns only when the endpoint's route function has returned, routeDone closed, or after
-// failsafe, late set: a request ended in flight is the job's until its route is done with it.
 type routeBoundTransport struct {
 	routeDone <-chan struct{}
 	late      *atomic.Bool
@@ -829,10 +753,6 @@ func (rt routeBoundTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	return resp, err
 }
 
-// Run waits for its requests in flight before it returns, stopped early or cancelled: with one
-// input's batch yielded and the other's request parked at the Gate, the job ends, the context's
-// end releases the request, and its route function has returned before Run yields the error, or
-// before Run's iterator returns.
 func TestRunWaitsForRequestsInFlight(t *testing.T) {
 	const quick, parked = "A text embedded at once.", "A text whose request parks."
 	for _, cancelled := range []bool{false, true} {
@@ -849,8 +769,6 @@ func TestRunWaitsForRequestsInFlight(t *testing.T) {
 				}
 				defer close(routeDone)
 				if err := gate.Wait(ctx); err != nil {
-					// The route lingers past the job's end, yielding rather than sleeping, so a
-					// Run that didn't wait for its request would return first.
 					for range 1000 {
 						runtime.Gosched()
 					}
@@ -882,7 +800,7 @@ func TestRunWaitsForRequestsInFlight(t *testing.T) {
 			var results []error
 			for r, err := range p.Run(ctx, content, inputs, docinfer.Options{}) {
 				if r.Input != nil {
-					continue // the inputs' echoes, at their admission
+					continue
 				}
 				results = append(results, err)
 				if err != nil {
@@ -917,7 +835,6 @@ func TestRunWaitsForRequestsInFlight(t *testing.T) {
 	}
 }
 
-// A run stopped early returns, its requests ended.
 func TestRunStoppedEarly(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	p := newPipeline(t, runConfig(t, e, func(c *docinfer.Config) { c.EmbedBatch = 1 }))
@@ -930,8 +847,6 @@ func TestRunStoppedEarly(t *testing.T) {
 	}
 }
 
-// A content miss stops the job with a *MissingError naming the input's event and wrapping
-// Content.Open's fs.ErrNotExist, which Permanent doesn't report.
 func TestRunMissingContent(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	p := newPipeline(t, runConfig(t, e, nil))
@@ -955,9 +870,6 @@ func TestRunMissingContent(t *testing.T) {
 	}
 }
 
-// A held value is read only when it is one JSON object of Held's members alone, its vector one
-// DecodeVector reads: the model is asked nothing. Anything else, a value of another capability's
-// shape included, is a miss: the model is asked again, and its Put replaces the value.
 func TestRunReadsHeldValues(t *testing.T) {
 	const text = "One short chunk."
 	digest := sha(text)
@@ -1014,8 +926,6 @@ func TestRunReadsHeldValues(t *testing.T) {
 	}
 }
 
-// A vector whose length isn't Dimensions stops the job, permanent: one the model made, before
-// it is held, and one the cache holds, before the model is asked.
 func TestRunWrongDimensions(t *testing.T) {
 	const text = "One short chunk."
 	digest := sha(text)
@@ -1052,7 +962,6 @@ func TestRunWrongDimensions(t *testing.T) {
 	})
 }
 
-// An error from the input stream stops the job, yielded alone, last.
 func TestRunInputStreamError(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
 	p := newPipeline(t, runConfig(t, e, nil))

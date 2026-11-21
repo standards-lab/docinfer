@@ -11,9 +11,6 @@ import (
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-// The request versions, each the "request" member that leads its capability's settings: a
-// version changes when the construction of the capability's request changes, so results held
-// under the old construction miss rather than replay. Embeddings has none, its settings being "".
 const (
 	visionRequest        = "1"
 	transcriptionRequest = "1"
@@ -30,7 +27,6 @@ type Vision struct {
 	Reasoning protocol.ReasoningEffort // "" sends none
 }
 
-// visionSettings is the JSON of vision's settings, its members in this order.
 type visionSettings struct {
 	Request   string                   `json:"request"`
 	Prompt    string                   `json:"prompt"`
@@ -56,7 +52,6 @@ type Transcription struct {
 	Prompt, Language string // "" sends none
 }
 
-// transcriptionSettings is the JSON of transcription's settings, its members in this order.
 type transcriptionSettings struct {
 	Request  string               `json:"request"`
 	Mode     ai.TranscriptionMode `json:"mode"`
@@ -94,8 +89,6 @@ type Extract struct {
 	Schema jsontext.Value `json:"schema"` // a JSON Schema object
 }
 
-// extractionSettings is the JSON of extraction's settings, its members in this order. The prompt
-// and schema are hashed, so a key's settings stay small whatever their size.
 type extractionSettings struct {
 	Request      string                   `json:"request"`
 	Name         string                   `json:"name"`
@@ -105,8 +98,6 @@ type extractionSettings struct {
 	Effort       protocol.ReasoningEffort `json:"effort"`
 }
 
-// extractionProfile is the JSON of extraction's settings in a [Profile], less e's name, prompt,
-// and schema, which only a run gives.
 type extractionProfile struct {
 	Request   string                   `json:"request"`
 	MaxTokens int                      `json:"max_tokens"`
@@ -127,8 +118,6 @@ func (x Extraction) Identity(e Extract) Identity {
 	}
 }
 
-// profile returns extraction's identity in a [Profile]: its settings
-// {"request","max_tokens","effort"}, less what an Extract gives.
 func (x Extraction) profile() Identity {
 	return Identity{
 		Capability: CapabilityExtraction,
@@ -149,21 +138,16 @@ func (e Embeddings) Identity() Identity {
 	return Identity{Capability: CapabilityEmbeddings, Model: e.Model}
 }
 
-// encodeSettings returns s's JSON, its members in s's field order, with nothing escaped that JSON
-// doesn't require, so a prompt's <, >, and & read as written.
 func encodeSettings(s any) string {
 	var b strings.Builder
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(s); err != nil {
-		// Each settings struct holds strings, ints, and a TranscriptionMode an ai.Client holds,
-		// which ai.New allows only by a name.
 		panic("docinfer: encode settings: " + err.Error())
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
-// sha256Hex returns b's SHA-256 as lowercase hex.
 func sha256Hex(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])

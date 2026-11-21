@@ -25,11 +25,6 @@ import (
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-// The extraction tests extract by a caller's Extract through Run, streamed from aitest's Chat
-// Completions route, and take the generation rows of the failure table in doc.go for extraction,
-// one test per row. Progress is coalesced by a clock the tests step per text delta, so no test
-// sleeps.
-
 const (
 	extractModel  = "extraction-model"
 	extractTokens = 200
@@ -39,17 +34,13 @@ const (
 )
 
 var (
-	// extractSchema is the tests' JSON schema, and theExtract their Extract of it.
 	extractSchema = jsontext.Value(`{"type":"object","properties":{"total":{"type":"number"}},"required":["total"],"additionalProperties":false}`)
 	theExtract    = docinfer.Extract{Name: extractName, Prompt: extractPrompt, Schema: extractSchema}
-	// extractPieces are the extraction's text as the stream's chunks give it, extractJSON whole.
 	extractPieces = []string{`{"total"`, `: 12`, `.5`, `}`}
 	extractJSON   = strings.Join(extractPieces, "")
-	// extractID is the identity extractConfig's extractions by theExtract are keyed by.
-	extractID = docinfer.Extraction{Model: extractModel, MaxTokens: extractTokens, Reasoning: protocol.ReasoningEffortLow}.Identity(theExtract)
+	extractID     = docinfer.Extraction{Model: extractModel, MaxTokens: extractTokens, Reasoning: protocol.ReasoningEffortLow}.Identity(theExtract)
 )
 
-// extractConfig returns runConfig's Config with Extraction set on e's Chat Completions route.
 func extractConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	return runConfig(t, e, func(c *docinfer.Config) {
@@ -63,13 +54,10 @@ func extractConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)
 	})
 }
 
-// extracting returns Options asking for theExtract, on the last delivery when final is set.
 func extracting(final bool) docinfer.Options {
 	return docinfer.Options{Extract: new(theExtract), Final: final}
 }
 
-// extractPipeline returns a pipeline of cfg whose progress clock reads each of times in turn,
-// one per text delta, and then the last, so a test fixes which deltas a progress carries.
 func extractPipeline(t *testing.T, cfg docinfer.Config, times ...time.Duration) *docinfer.Pipeline {
 	t.Helper()
 	p := newPipeline(t, cfg)
@@ -85,8 +73,6 @@ func extractPipeline(t *testing.T, cfg docinfer.Config, times ...time.Duration) 
 	return p
 }
 
-// extractRoute is a Chat Completions route that checks each request is the extraction request
-// for text, then answers it with reply.
 func extractRoute(t *testing.T, text string, reply aitest.Reply) func(context.Context, aitest.ChatRequest) aitest.Reply {
 	return func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
 		checkExtractRequest(t, req, text)
@@ -94,10 +80,6 @@ func extractRoute(t *testing.T, text string, reply aitest.Reply) func(context.Co
 	}
 }
 
-// checkExtractRequest fails the test unless req is the extraction request for text: streamed, of
-// the model, the max tokens, and the reasoning effort; its response_format a strict json_schema of
-// the Extract's name and schema; and a system message of the prompt then a user message of the
-// text.
 func checkExtractRequest(t *testing.T, req aitest.ChatRequest, text string) {
 	t.Helper()
 	if !req.Stream || req.Model != extractModel || req.MaxTokens != extractTokens || req.ReasoningEffort != "low" ||
@@ -135,8 +117,6 @@ func checkExtractRequest(t *testing.T, req aitest.ChatRequest, text string) {
 	}
 }
 
-// heldExtraction returns the Held the cache holds for the extraction of text by theExtract, or
-// nil.
 func heldExtraction(t *testing.T, cache docinfer.Cache, text string) *docinfer.Held {
 	t.Helper()
 	values, err := cache.Get(t.Context(), docinfer.Key(extractID, sha(text)))
@@ -153,7 +133,6 @@ func heldExtraction(t *testing.T, cache docinfer.Cache, text string) *docinfer.H
 	return &h
 }
 
-// extractions returns o's extraction inferences, in the order yielded.
 func extractions(o outcome) []docinfer.Inference {
 	var out []docinfer.Inference
 	for _, inf := range o.inferences {
@@ -164,8 +143,6 @@ func extractions(o outcome) []docinfer.Inference {
 	return out
 }
 
-// oneExtraction returns o's one extraction, failing the test unless there is exactly one, of
-// text on part.
 func oneExtraction(t *testing.T, o outcome, part dispatch.Part, text string) docinfer.Inference {
 	t.Helper()
 	infs := extractions(o)
@@ -179,7 +156,6 @@ func oneExtraction(t *testing.T, o outcome, part dispatch.Part, text string) doc
 	return inf
 }
 
-// deltas returns o's progress deltas, failing the test unless each is of text.
 func deltas(t *testing.T, o outcome, text string) []string {
 	t.Helper()
 	var out []string
@@ -192,7 +168,6 @@ func deltas(t *testing.T, o outcome, text string) []string {
 	return out
 }
 
-// chatRequests returns how many Chat Completions requests e received.
 func chatRequests(e *aitest.Endpoint) int {
 	n := 0
 	for _, r := range e.Requests() {
@@ -203,7 +178,6 @@ func chatRequests(e *aitest.Endpoint) int {
 	return n
 }
 
-// checkExtractionCounts fails the test unless o ended with extraction counts xc and tokens usage.
 func checkExtractionCounts(t *testing.T, o outcome, xc docinfer.ExtractionCounts, usage docinfer.Usage) {
 	t.Helper()
 	if o.counts == nil || o.counts.Extraction == nil || o.counts.Tokens.Extraction == nil {
@@ -214,27 +188,18 @@ func checkExtractionCounts(t *testing.T, o outcome, xc docinfer.ExtractionCounts
 	}
 }
 
-// runText runs p over a text output of plainText, with opts, returning what it yielded.
 func runText(t *testing.T, p *docinfer.Pipeline, opts docinfer.Options) outcome {
 	t.Helper()
 	content := dispatch.NewMemoryContent()
 	return collect(t, p.Run(t.Context(), content, seq(outputInput(t, content, childPart, dispatch.TextOutput, plainText)), opts))
 }
 
-// A text output is extracted once, streamed with a strict json_schema of the Extract: each text
-// delta is yielded as progress, at most one a second, each carrying the text since the last, and
-// the completed reply is outcome extracted, its text the reply's JSON, held under extraction's
-// identity and the text's SHA-256. The metadata text, and an empty Markdown output, are chunked
-// alone. A second run reads the extraction from the cache, with no progress, request, or tokens.
 func TestRunExtracts(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{
 		ChatCompletions: extractRoute(t, plainText, aitest.ChatReply{Chunks: extractPieces, PromptTokens: 20, CompletionTokens: 9}),
 		Embeddings:      embedAll,
 	})
 	cfg := extractConfig(t, e, nil)
-	// The first delta is yielded at once; the second, half a second on, waits; the third, a second
-	// after the first, carries the two; the fourth, within the second after it, is left to the
-	// inference.
 	p := extractPipeline(t, cfg, 0, 500*time.Millisecond, time.Second, 1200*time.Millisecond)
 	content := dispatch.NewMemoryContent()
 	inputs := func() iter.Seq2[docinfer.Input, error] {
@@ -282,8 +247,6 @@ func TestRunExtracts(t *testing.T) {
 	checkExtractionCounts(t, o, docinfer.ExtractionCounts{Extracted: 1, Held: 1}, docinfer.Usage{})
 }
 
-// An image's description and a part's joined transcript are source texts too, each extracted
-// once from its own text, the metadata text not.
 func TestRunExtractsInferredTexts(t *testing.T) {
 	var (
 		mu    sync.Mutex
@@ -341,8 +304,6 @@ func TestRunExtractsInferredTexts(t *testing.T) {
 	checkExtractionCounts(t, o, docinfer.ExtractionCounts{Extracted: 2, Requests: 2}, docinfer.Usage{})
 }
 
-// Progress is yielded as the stream makes it: the first delta reaches the caller while the rest
-// of the stream is still held, and nothing lets it go until that delta has come.
 func TestRunExtractionProgressStreams(t *testing.T) {
 	gate := &aitest.Gate{}
 	e := aitest.Serve(t, aitest.Routes{
@@ -375,7 +336,6 @@ func TestRunExtractionProgressStreams(t *testing.T) {
 	if o.err != nil {
 		t.Fatal(o.err)
 	}
-	// The clock stands still, so every later delta is left to the inference.
 	if got := deltas(t, o, plainText); !slices.Equal(got, extractPieces[:1]) {
 		t.Errorf("progress %q, want %q", got, extractPieces[:1])
 	}
@@ -384,8 +344,6 @@ func TestRunExtractionProgressStreams(t *testing.T) {
 	}
 }
 
-// A stream with a refusal and no text is outcome refused, its Reason the refusal's text, held; a
-// second run reads it back.
 func TestRunExtractionRefusal(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{
 		ChatCompletions: extractRoute(t, plainText, aitest.ChatReply{Refusal: extractRefuse, PromptTokens: 20, CompletionTokens: 4}),
@@ -414,8 +372,6 @@ func TestRunExtractionRefusal(t *testing.T) {
 	checkExtractionCounts(t, o, docinfer.ExtractionCounts{Refused: 1, Held: 1}, docinfer.Usage{})
 }
 
-// A stream the model stops at its token limit is outcome incomplete, its partial text kept, its
-// Reason why it stopped, and held.
 func TestRunExtractionIncomplete(t *testing.T) {
 	partial := strings.Join(extractPieces[:2], "")
 	e := aitest.Serve(t, aitest.Routes{
@@ -445,8 +401,6 @@ func TestRunExtractionIncomplete(t *testing.T) {
 	}
 }
 
-// extractStopped fails the test unless the run stopped with no extraction or counts, after at most
-// one extraction request, and held no extraction.
 func extractStopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Cache) {
 	t.Helper()
 	if o.counts != nil || len(extractions(o)) > 0 {
@@ -460,9 +414,6 @@ func extractStopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.
 	}
 }
 
-// A stream that breaks part way, matching io.ErrUnexpectedEOF, is a transport failure: it stops
-// the job, final or not, holding nothing, and isn't permanent; the progress already yielded
-// stands.
 func TestRunExtractionBrokenStream(t *testing.T) {
 	for _, final := range []bool{false, true} {
 		t.Run(fmt.Sprintf("final=%t", final), func(t *testing.T) {
@@ -486,8 +437,6 @@ func TestRunExtractionBrokenStream(t *testing.T) {
 	}
 }
 
-// A refused status, 400, 413, 415, or 422, is the extraction's outcome refused, its Reason the
-// error's text, held.
 func TestRunExtractionRefusedStatus(t *testing.T) {
 	for _, status := range []int{400, 413, 415, 422} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
@@ -512,8 +461,6 @@ func TestRunExtractionRefusedStatus(t *testing.T) {
 	}
 }
 
-// A permanent status, 401, 403, 404, 501, 505, or any other 4xx but 408 and 429, and a request
-// the format can't send, stop the job, final or not, holding nothing, and Permanent reports it.
 func TestRunExtractionPermanent(t *testing.T) {
 	for _, status := range []int{401, 403, 404, 405, 409, 418, 451, 501, 505} {
 		for _, final := range []bool{false, true} {
@@ -534,8 +481,6 @@ func TestRunExtractionPermanent(t *testing.T) {
 			})
 		}
 	}
-	// A deployment that refuses the extraction request's reasoning effort refuses it before
-	// anything is sent.
 	for _, final := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unsupported final=%t", final), func(t *testing.T) {
 			e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
@@ -558,8 +503,6 @@ func TestRunExtractionPermanent(t *testing.T) {
 	}
 }
 
-// A transient status, 408, 429, or any 5xx but 500, 501, and 505, stops the job, final or not,
-// its *ai.APIError's RetryAfter carried for the redelivery.
 func TestRunExtractionTransient(t *testing.T) {
 	for _, status := range []int{408, 429, 502, 503, 504, 507, 599} {
 		for _, final := range []bool{false, true} {
@@ -586,9 +529,6 @@ func TestRunExtractionTransient(t *testing.T) {
 	}
 }
 
-// A 500, a stream that ends in response.failed, and a stream event that doesn't decode stop the
-// job; on the last delivery the extraction is recorded failed instead, never held, its Reason the
-// error's text, and the job goes on to embed the text.
 func TestRunExtractionFailed(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -631,8 +571,6 @@ func TestRunExtractionFailed(t *testing.T) {
 	}
 }
 
-// Two jobs extracting the same text make one request: the waiter, waiting holding no Bounds
-// slot, takes the leader's extraction as held, with no progress, request, or tokens of its own.
 func TestRunJoinsExtraction(t *testing.T) {
 	gate := &aitest.Gate{}
 	e := aitest.Serve(t, aitest.Routes{
@@ -651,8 +589,6 @@ func TestRunJoinsExtraction(t *testing.T) {
 	content := dispatch.NewMemoryContent()
 	in := outputInput(t, content, childPart, dispatch.TextOutput, plainText)
 
-	// The leader's batch is yielded while its extraction is parked, so its chunks are held, and
-	// the waiter's one wait is its extraction's.
 	batched := make(chan struct{})
 	leader := make(chan outcome, 1)
 	go func() {
@@ -697,15 +633,12 @@ func TestRunJoinsExtraction(t *testing.T) {
 	checkExtractionCounts(t, wo, docinfer.ExtractionCounts{Extracted: 1, Held: 1}, docinfer.Usage{})
 }
 
-// unpulled returns an input stream that fails the test if Run pulls from it.
 func unpulled(t *testing.T) iter.Seq2[docinfer.Input, error] {
 	return func(func(docinfer.Input, error) bool) {
 		t.Error("Run pulled an input")
 	}
 }
 
-// An Extract whose name, prompt, or schema is empty or invalid is refused, matching ErrRequest and
-// permanent, before Run reads an input or asks a model.
 func TestRunRefusesExtract(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -735,7 +668,6 @@ func TestRunRefusesExtract(t *testing.T) {
 			}
 		})
 	}
-	// The least name, and the longest, are accepted.
 	for _, name := range []string{"n", strings.Repeat("n-_9", 16)} {
 		x := docinfer.Extract{Name: name, Prompt: extractPrompt, Schema: extractSchema}
 		e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
@@ -746,8 +678,6 @@ func TestRunRefusesExtract(t *testing.T) {
 	}
 }
 
-// A run that asks for extraction of a pipeline without Config.Extraction fails, permanent, before
-// it reads an input.
 func TestRunExtractionNotConfigured(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{})
 	p := newPipeline(t, runConfig(t, e, nil))

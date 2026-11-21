@@ -1,8 +1,8 @@
 # Development
 
 The reasoning behind docinfer's development configuration: the mise tasks, CI, the release
-workflow, the compose harness, and the lint configuration. The tasks themselves are listed in the
-[README](../README.md#development).
+workflow, the compose harness, the lint configuration, and the tests. The tasks themselves are
+listed in the [README](../README.md#development).
 
 ## mise
 
@@ -134,3 +134,20 @@ are named for their operation, keep the delimiter out of comments and literals, 
 form in a standard-tier file; a native file is exempt by its tier and carries its port note. Each
 migration holds a single statement. The migrations role has no native-forms check: the DDL is
 PostgreSQL's, the only engine's.
+
+## Tests
+
+The root package's tests never sleep. A test holds a request at aitest's `Gate`, and sees a
+waiter of the claim table, or a request waiting for a `Bounds` slot, through the hooks in
+`export_test.go`; an extraction's progress is coalesced by a clock the test steps per text delta.
+Every wait a test makes on a job is bounded by `failsafe`, as aitest's `Gate.Await` bounds its
+own: a stall is a finding, so a wait that runs out fails the test rather than hang it.
+
+`TestMain` sets `time.Local` to Asia/Kolkata, whose offset is never zero, so a time the code leaves
+unconverted to UTC reads differently from one it converts; `time/tzdata` loads the zone without
+the host's zoneinfo.
+
+The golden keys pin `Key`'s form under `docinfer.Version`, which names their file. Rewrite them
+with `go test . -run TestGoldenKeys -update` only with a new `Version`, never to make a changed
+key pass under the old one: a changed key misses every result held under the old, and a key of
+the old form over a new shape decodes wrong.

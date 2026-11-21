@@ -17,64 +17,51 @@ import (
 	"github.com/standards-lab/go-ai"
 )
 
-// sourceTranscript is the source kind of a part's joined transcript.
 const sourceTranscript = "transcript"
 
-// windowFileNames are the FileName a window is sent as, by its Output.MediaType: the extension is
-// what a chat-mode Transcribe reads the clip's encoding from, and the route's file part's name.
 var windowFileNames = map[string]string{
 	"audio/wav":  "window.wav",
 	"audio/mpeg": "window.mp3",
 }
 
-// groupKey names a window group: a part's windows from one stage.
 type groupKey struct {
 	part  string
 	stage dispatch.Identity
 }
 
-// group is one part's windows from one stage, the coordinator's alone: the windows placed by
-// index, what ends the group, and whether it has been joined.
+// See docs/internals.md
 type group struct {
 	part  dispatch.Part
 	stage dispatch.Identity
-	start time.Time // its first event's admission, from which its inference's time is taken
+	start time.Time
 
-	windows map[int]*window // placed, by MetaWindow, the first event of an index winning
-	count   int             // its audio plan record's window count; -1 until one is read
-	last    int             // the lowest index placed without MetaSeamAfter; -1 for none
-	max     int             // the highest index placed; -1 for none
-	plan    bool            // an audio plan record has been admitted for it, its count read or not
+	windows map[int]*window
+	count   int
+	last    int
+	max     int
+	plan    bool
 
-	closed  bool // its windows are all in: no window is placed after
-	n       int  // once closed, the windows it joins, indexes 0 to n-1
-	pending int  // placed windows whose transcription isn't in
+	closed  bool
+	n       int
+	pending int
 	joined  bool
 
-	// members are the positions in pull order of its windows and audio plan records, placed or
-	// not, which settle together once its transcript's derived results are out; settled is set
-	// then, and a member admitted after settles at once.
 	members []int
 	settled bool
 }
 
-// window is one placed window: its group, its event, its seams, and, once its transcription is
-// in, what it came to.
 type window struct {
 	g                   *group
 	ev                  dispatch.Event
-	before, after       float64 // the seconds of its seams, MetaSeamBefore's and MetaSeamAfter's
+	before, after       float64
 	hasBefore, hasAfter bool
 
-	outcome Outcome // transcribed, incomplete, refused, or failed
-	text    string  // a transcribed window's
-	held    bool    // read from the cache or a leader
-	usage   Usage   // this job's requests' for it
+	outcome Outcome
+	text    string
+	held    bool
+	usage   Usage
 }
 
-// windowEvent is a window's transcription: h its held result, or failed set when it failed on the
-// last delivery, never held; held when it was read from the cache or a leader; and the requests
-// this job sent for it and their usage.
 type windowEvent struct {
 	w        *window
 	h        Held
@@ -84,7 +71,6 @@ type windowEvent struct {
 	usage    Usage
 }
 
-// planEvent is an audio plan record's window count, for its group.
 type planEvent struct {
 	g     *group
 	count int
@@ -93,7 +79,6 @@ type planEvent struct {
 func (windowEvent) isEvent() {}
 func (planEvent) isEvent()   {}
 
-// groupOf returns the group of ev's part and stage, made on its first event.
 func (r *run) groupOf(ev dispatch.Event) *group {
 	k := groupKey{ev.Part.ID, ev.Stage}
 	if g, ok := r.groups[k]; ok {
@@ -111,10 +96,6 @@ func (r *run) groupOf(ev dispatch.Event) *group {
 	return g
 }
 
-// admitWindow places a window, the input at pos, in its group and starts its transcription, or
-// finishes it at once when its group has it already, by index, or has ended without it. Either
-// way it settles with its group. A window of a media type other than audio/wav or audio/mpeg, or
-// whose Meta doesn't place it, is the input's defect, an error that stops the job.
 func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 	out := ev.Output
 	if _, ok := windowFileNames[out.MediaType]; !ok {
@@ -149,8 +130,6 @@ func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 	g := r.groupOf(ev)
 	r.addMember(g, pos)
 	if g.closed || g.windows[index] != nil || index >= g.bound() {
-		// A repeated event of a placed window, or a window past the group's end: the first event
-		// of an index wins.
 		r.finish()
 		return nil
 	}
@@ -168,9 +147,6 @@ func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 	return nil
 }
 
-// admitPlan admits an audio plan record for its group's window count, read from its content on a
-// goroutine of its own; a group that has ended, or has a count already, needs none, and the
-// record is finished at once. Either way it settles with its group.
 func (r *run) admitPlan(ev dispatch.Event, pos int) {
 	g := r.groupOf(ev)
 	r.addMember(g, pos)
@@ -185,7 +161,6 @@ func (r *run) admitPlan(ev dispatch.Event, pos int) {
 			r.fail(err)
 			return
 		}
-		// The plan's windows are counted, and nothing else of it is read.
 		var plan struct {
 			Windows []json.RawMessage `json:"windows"`
 		}
@@ -200,8 +175,6 @@ func (r *run) admitPlan(ev dispatch.Event, pos int) {
 	})
 }
 
-// addMember makes the input at pos, a window or an audio plan record, a member of g, settled with
-// it: once g's transcript's derived results are out, or at once when they are already.
 func (r *run) addMember(g *group, pos int) {
 	if g.settled {
 		r.settleInput(pos)
@@ -210,7 +183,6 @@ func (r *run) addMember(g *group, pos int) {
 	g.members = append(g.members, pos)
 }
 
-// settleGroup settles g's members, its transcript's derived results all out.
 func (r *run) settleGroup(g *group) {
 	g.settled = true
 	for _, pos := range g.members {
@@ -219,8 +191,6 @@ func (r *run) settleGroup(g *group) {
 	g.members = nil
 }
 
-// seamSeconds returns the seconds of a seam's span, "<start>-<end>" in seconds, as docproc's
-// MetaSeamBefore and MetaSeamAfter give it.
 func seamSeconds(v string) (float64, error) {
 	a, b, ok := strings.Cut(v, "-")
 	if !ok {
@@ -240,8 +210,6 @@ func seamSeconds(v string) (float64, error) {
 	return end - start, nil
 }
 
-// bound is the index no window of g reaches: its plan's count, or one past its last window, as
-// far as they are known.
 func (g *group) bound() int {
 	switch {
 	case g.count >= 0:
@@ -252,9 +220,6 @@ func (g *group) bound() int {
 	return math.MaxInt
 }
 
-// complete reports whether g's windows are all in: every index below its plan's count, or, with
-// no count read, every index up to its last window. A plan's count, the windows it lists, decides
-// over a window without MetaSeamAfter.
 func (g *group) complete() bool {
 	n := g.bound()
 	if n == math.MaxInt {
@@ -268,9 +233,6 @@ func (g *group) complete() bool {
 	return true
 }
 
-// close ends g: no window is placed after, and it joins its windows below its plan's count, or up
-// to its last window, or, at the end of Run's inputs with neither known, up to the highest index
-// placed. An index not placed by then was never cut.
 func (g *group) close() {
 	g.closed = true
 	g.n = g.bound()
@@ -279,10 +241,6 @@ func (g *group) close() {
 	}
 }
 
-// transcribe transcribes w on its own goroutine, as transcribeLead does, unless another call has
-// claimed its key: then it waits for that call's answer, holding no Bounds slot, and takes it as
-// a cache read, or asks again itself when the claimant ended without a result. A permanent
-// failure the claimant answered with stops the job. A cancelled job stops waiting at once.
 func (r *run) transcribe(w *window) {
 	ev := w.ev
 	key := Key(*r.p.profile.Transcription, ev.Output.SHA256)
@@ -294,7 +252,7 @@ func (r *run) transcribe(w *window) {
 		}
 		a, err := r.p.claims.wait(r.ctx, waits[0].c)
 		if err != nil {
-			return // the job has stopped; the coordinator reports why
+			return
 		}
 		switch {
 		case a.err != nil:
@@ -308,13 +266,6 @@ func (r *run) transcribe(w *window) {
 	}
 }
 
-// transcribeLead transcribes w, its key claimed in l: it reads the cache, and on a miss asks the
-// transcription model under the transcription bound, the window's content opened by each
-// attempt, then holds the result before it answers the claim. A failure maps by its row: an
-// incomplete transcript and a refusal are held as the window's outcome; a permanent failure is
-// the claim's answer, and stops the job; a failed call is recorded failed on the last delivery,
-// never held, and otherwise stops the job, as a transient failure and a content store's do. A key
-// transcribeLead ends without answering is released unanswered, a panic included.
 func (r *run) transcribeLead(w *window, key string, l *lease) {
 	defer l.release()
 	ev := w.ev
@@ -324,8 +275,6 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 		r.fail(fmt.Errorf("docinfer: run: cache get for window %s of part %s: %w", ev.Output.SHA256, ev.Part.ID, err))
 		return
 	}
-	// A held value that doesn't decode, or holds another capability's vector, is a miss, which
-	// the model's reply replaces.
 	if h, ok := decodeHeld(values[0]); ok && h.Vector == "" {
 		l.answer(key, answer{held: &h})
 		r.send(windowEvent{w: w, h: h, held: true})
@@ -335,7 +284,6 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 	t := r.p.cfg.Transcription
 	req := &ai.TranscriptionRequest{
 		Model: t.Model,
-		// Content is opened only on a miss, once per attempt.
 		Open: func(ctx context.Context) (io.ReadCloser, error) {
 			rc, err := r.content.Open(ctx, ev.Output.SHA256)
 			if errors.Is(err, fs.ErrNotExist) {
@@ -361,7 +309,7 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 		return err
 	})
 	if r.ctx.Err() != nil {
-		return // the job has stopped; the coordinator reports why
+		return
 	}
 	requests := 0
 	if sent {
@@ -382,7 +330,6 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 	_, missing := errors.AsType[*MissingError](err)
 	_, store := errors.AsType[*contentError](err)
 	if missing || store {
-		// The content store's failure, not the model's: no row holds it.
 		l.release()
 		r.fail(wrapped)
 		return
@@ -418,16 +365,11 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 	}
 }
 
-// contentError is a content store's failure to open a window, other than its miss: it stops the
-// job, whatever the delivery.
 type contentError struct{ err error }
 
 func (e *contentError) Error() string { return "docinfer: open window content: " + e.err.Error() }
 func (e *contentError) Unwrap() error { return e.err }
 
-// incompleteReason is what an incomplete transcript is held with: its reason, or else its
-// status, or else "incomplete", so a held incomplete transcript is never read as a transcribed
-// empty one.
 func incompleteReason(e *ai.IncompleteTranscriptError) string {
 	switch {
 	case e.Reason != "":
@@ -438,9 +380,6 @@ func incompleteReason(e *ai.IncompleteTranscriptError) string {
 	return "incomplete"
 }
 
-// windowDone records a window's transcription, counting it under its outcome, and joins its
-// group once the group has ended and every window placed in it is in. It reports false, or an
-// error, as coordinate's yield does: the job then stops.
 func (r *run) windowDone(e windowEvent, yield func(Result, error) bool) (bool, error) {
 	w := e.w
 	w.held, w.usage = e.held, e.usage
@@ -469,9 +408,6 @@ func (r *run) windowDone(e windowEvent, yield func(Result, error) bool) (bool, e
 	return r.settle(w.g, true, yield)
 }
 
-// planDone takes an audio plan record's window count for its group, unless the group has ended
-// meanwhile, and joins the group when that ends it with every window in. A group the end of the
-// inputs left open for its count ends now.
 func (r *run) planDone(e planEvent, yield func(Result, error) bool) (bool, error) {
 	g := e.g
 	if !g.closed {
@@ -483,9 +419,6 @@ func (r *run) planDone(e planEvent, yield func(Result, error) bool) (bool, error
 	return r.settle(g, true, yield)
 }
 
-// endGroups ends every group still open at the end of Run's inputs, each joined once its windows
-// placed are in: an index not placed by then was never cut. A group whose plan record's count is
-// still being read ends when it is, so its windows past the last one placed are listed too.
 func (r *run) endGroups(yield func(Result, error) bool) (bool, error) {
 	r.inputsEnded = true
 	for _, g := range r.groupOrder {
@@ -502,13 +435,6 @@ func (r *run) endGroups(yield func(Result, error) bool) (bool, error) {
 	return true, nil
 }
 
-// settle joins g if it has ended with every window placed in it in. slot is whether the caller
-// holds an input's slot, a window's or a plan record's: a joined group's transcript takes it on,
-// so its chunks count against Config.Pending as their input's would, and otherwise the input is
-// finished. A group joined at the end of Run's inputs, with no input's slot, takes none: no input
-// waits on it. A window holds its slot only until its own transcription is in, never for its
-// group's later windows, so a group longer than Config.Pending can't stall the inputs it waits
-// for.
 func (r *run) settle(g *group, slot bool, yield func(Result, error) bool) (bool, error) {
 	if g.joined || !g.closed || g.pending > 0 {
 		if slot {
@@ -518,19 +444,14 @@ func (r *run) settle(g *group, slot bool, yield func(Result, error) bool) (bool,
 	}
 	g.joined = true
 	if !slot {
-		r.active++ // the transcript's own, holding no slot
+		r.active++
 	}
 	return r.joinGroup(g, !slot, yield)
 }
 
-// joinGroup joins g's window transcripts, yields its transcript's inference, and chunks and
-// embeds the transcript as a source of kind transcript. A window refused, failed, incomplete, or
-// never cut joins as "" and is listed in Failed. Each seam's seconds are the earlier window's
-// MetaSeamAfter, or else the later window's MetaSeamBefore, or else 0, the least bound.
 func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool) (bool, error) {
 	n := g.n
 	if n == 0 {
-		// A plan of no windows: nothing to join, so its members settle now.
 		r.finishState(&inputState{g: g, slotless: slotless})
 		return true, nil
 	}
@@ -543,7 +464,6 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 		anyFailed, anyRefused bool
 		usage                 Usage
 	)
-	// The transcript is held when no window of it was asked of a model, and none is missing.
 	held := true
 	for i := range n {
 		w := g.windows[i]
@@ -629,7 +549,6 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 		slotless: slotless,
 	}
 	if inf.Outcome != OutcomeTranscribed {
-		// Its chunks are cut from a transcript with windows missing: why is its outcome.
 		st.source.Incomplete = string(inf.Outcome)
 	}
 	if err := r.start(st, func() (string, error) { return text, nil }); err != nil {

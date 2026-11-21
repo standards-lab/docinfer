@@ -15,13 +15,6 @@ import (
 	"github.com/standards-lab/go-ai/aitest"
 )
 
-// The settlement tests drive Pipeline.Run's Result.Settled through aitest over MemoryContent:
-// each input settled once everything derived from it is out, which collect checks of every run
-// loosely and settlesAfter strictly.
-
-// settleEndpoint serves a description of each image, a streamed extraction of each text, each
-// clip's transcript in route mode, and embedAll. replies answers a clip, or "image" a description,
-// in place of its own.
 func settleEndpoint(t *testing.T, said map[string]string, replies map[string]aitest.Reply) *aitest.Endpoint {
 	t.Helper()
 	return aitest.Serve(t, aitest.Routes{
@@ -50,7 +43,6 @@ func settleEndpoint(t *testing.T, said map[string]string, replies map[string]ait
 	})
 }
 
-// settleConfig returns extractConfig's Config on e with Vision and route-mode Transcription set.
 func settleConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	client := newClient(t, e.URL(), ai.TranscribeRoute)
@@ -63,7 +55,6 @@ func settleConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config))
 	})
 }
 
-// saying returns what the windows say, by clip.
 func saying(windows ...win) map[string]string {
 	said := map[string]string{}
 	for _, w := range windows {
@@ -72,16 +63,12 @@ func saying(windows ...win) map[string]string {
 	return said
 }
 
-// settlesAfter fails the test unless o settled each input it echoed after every result derived
-// from it, and an input nothing derives from right after its echo. It tells inputs apart by their
-// contents, so their contents must be distinct, but for audio plan records, told by their part.
-// It returns the positions of the inputs nothing derived from.
 func settlesAfter(t *testing.T, o outcome) []int {
 	t.Helper()
 	var (
 		d                derivation
 		echoAt, settleAt = map[int]int{}, map[int]int{}
-		last             = map[int]int{} // each input's last derived result
+		last             = map[int]int{}
 		n                int
 	)
 	for i, r := range o.all {
@@ -118,11 +105,6 @@ func settlesAfter(t *testing.T, o outcome) []int {
 	return none
 }
 
-// Every input kind settles after its last derived result: a text, a Markdown output, and a
-// metadata text after their batches and extraction; an image after its inference, batches, and
-// extraction; the windows and the audio plan record after their group's transcript, its batches,
-// and its extraction. The video plan record and the passed-through inputs, needing no work, settle
-// right after their echoes.
 func TestRunSettlesEveryInput(t *testing.T) {
 	e := settleEndpoint(t, saying(win0, win1, win2), nil)
 	content := dispatch.NewMemoryContent()
@@ -143,7 +125,6 @@ func TestRunSettlesEveryInput(t *testing.T) {
 	}
 	o := collect(t, newPipeline(t, settleConfig(t, e, nil)).Run(t.Context(), content, seq(inputs...), extracting(false)))
 	echoes(t, o, inputs)
-	// The pass-throughs and the video plan record need no work; every other input has results.
 	if none, want := settlesAfter(t, o), []int{0, 5, 8, 11}; !slices.Equal(none, want) {
 		t.Errorf("inputs %v had no derived results, want %v", none, want)
 	}
@@ -152,7 +133,6 @@ func TestRunSettlesEveryInput(t *testing.T) {
 	}
 }
 
-// capabilities counts o's inferences by capability.
 func capabilities(o outcome) map[docinfer.Capability]int {
 	kinds := map[docinfer.Capability]int{}
 	for _, inf := range o.inferences {
@@ -161,20 +141,15 @@ func capabilities(o outcome) map[docinfer.Capability]int {
 	return kinds
 }
 
-// A window group's windows and audio plan record settle together, after the group's transcript,
-// its batches, and its extraction, whichever way the group ends: at its plan's window count or at
-// its last window, both while the input stream is still open, or at the end of the inputs, and
-// only then.
 func TestRunWindowGroupSettles(t *testing.T) {
 	open1 := win1
-	open1.after = "" // win1 as the last window
+	open1.after = ""
 	cases := []struct {
 		name   string
 		inputs func(content *dispatch.MemoryContent) []docinfer.Input
-		before bool // the group settles before the inputs end
+		before bool
 	}{
 		{"plan count", func(c *dispatch.MemoryContent) []docinfer.Input {
-			// Both windows have MetaSeamAfter, so only the plan's count ends the group.
 			return []docinfer.Input{windowInput(t, c, win0), planInput(t, c, dispatch.MediaAudioPlan, 2), windowInput(t, c, win1)}
 		}, true},
 		{"last window", func(c *dispatch.MemoryContent) []docinfer.Input {
@@ -211,7 +186,6 @@ func TestRunWindowGroupSettles(t *testing.T) {
 			if kinds := capabilities(o); kinds[docinfer.CapabilityTranscription] != 1 || kinds[docinfer.CapabilityExtraction] != 1 || len(o.batches) == 0 {
 				t.Errorf("inferences by capability %v and %d batches, want a transcript, its extraction, and its batches", kinds, len(o.batches))
 			}
-			// The members settle together: nothing comes between their settlements.
 			first := slices.IndexFunc(o.all, func(r docinfer.Result) bool { return r.Settled != nil })
 			if first < 0 || first+len(inputs) > len(o.all) {
 				t.Fatalf("settlements from result %d of %d, want the group's %d", first, len(o.all), len(inputs))
@@ -225,7 +199,6 @@ func TestRunWindowGroupSettles(t *testing.T) {
 	}
 }
 
-// endsFlagged returns inputs as a stream that sets ended once they are all pulled.
 func endsFlagged(ended *atomic.Bool, inputs ...docinfer.Input) iter.Seq2[docinfer.Input, error] {
 	return func(yield func(docinfer.Input, error) bool) {
 		for _, in := range inputs {
@@ -237,7 +210,6 @@ func endsFlagged(ended *atomic.Bool, inputs ...docinfer.Input) iter.Seq2[docinfe
 	}
 }
 
-// settling passes results on, calling check at each settlement and closing release at the nth.
 func settling(results iter.Seq2[docinfer.Result, error], n int, release chan struct{}, check func()) iter.Seq2[docinfer.Result, error] {
 	return func(yield func(docinfer.Result, error) bool) {
 		var once sync.Once
@@ -256,9 +228,6 @@ func settling(results iter.Seq2[docinfer.Result, error], n int, release chan str
 	}
 }
 
-// On the last delivery, a window refused, one failed, and one never cut are still their group's,
-// settling with its audio plan record and its transcribed window after the transcript, its
-// batches, and its extraction; an image recorded failed settles after its inference.
 func TestRunSettlesFailures(t *testing.T) {
 	refused := win{index: 1, clip: "clip refused", after: "18-20", before: "8-10"}
 	failed := win{index: 2, clip: "clip failed", before: "18-20", after: "28-30"}
@@ -269,7 +238,6 @@ func TestRunSettlesFailures(t *testing.T) {
 	})
 	content := dispatch.NewMemoryContent()
 	inputs := []docinfer.Input{
-		// The plan lists 4 windows; the fourth is never cut, so the group ends with the inputs.
 		planInput(t, content, dispatch.MediaAudioPlan, 4),
 		windowInput(t, content, win0),
 		imageInput(t, content, imageBytes, imageType),
@@ -299,9 +267,6 @@ func TestRunSettlesFailures(t *testing.T) {
 	}
 }
 
-// Under -race, with Pending holding most inputs back and inputs of every kind finishing out of
-// order, among them window groups of several parts, every input settles exactly once, before the
-// counts, which collect checks.
 func TestRunSettlesOnce(t *testing.T) {
 	said := map[string]string{}
 	content := dispatch.NewMemoryContent()

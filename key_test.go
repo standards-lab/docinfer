@@ -13,24 +13,15 @@ import (
 	"github.com/standards-lab/docinfer"
 )
 
-// update rewrites the golden keys from Key as it stands:
-//
-//	go test . -run TestGoldenKeys -update
-//
-// Do it only with a new docinfer.Version, which names the file, never to make a changed key pass
-// under the old one: a changed key misses every result held under the old, and a key of the old
-// form over a new shape decodes wrong.
+// See docs/development.md
 var update = flag.Bool("update", false, "rewrite the golden keys for docinfer.Version")
 
-// goldenKey is one identity and content and the key they give.
 type goldenKey struct {
 	Identity docinfer.Identity `json:"identity"`
 	Content  string            `json:"content"`
 	Key      string            `json:"key"`
 }
 
-// goldenKeys are the golden file's inputs, one per capability, each with settings of the form the
-// capability's identity gives, the embeddings' "".
 var goldenKeys = []goldenKey{
 	{
 		Identity: docinfer.Identity{
@@ -60,8 +51,6 @@ var goldenKeys = []goldenKey{
 	},
 }
 
-// The committed golden keys pin Key's form under docinfer.Version: a change to any key must come
-// with a new version, since the cache holds every result by its key.
 func TestGoldenKeys(t *testing.T) {
 	var got []goldenKey
 	for _, g := range goldenKeys {
@@ -98,8 +87,6 @@ func TestGoldenKeys(t *testing.T) {
 	}
 }
 
-// A key is its capability, a slash, and a SHA-256 as lowercase hex, and every part it hashes
-// counts, each apart from its neighbours.
 func TestKey(t *testing.T) {
 	id := docinfer.Identity{Capability: docinfer.CapabilityVision, Model: "m", Settings: "s"}
 	key := docinfer.Key(id, sha("c"))
@@ -110,11 +97,10 @@ func TestKey(t *testing.T) {
 		t.Errorf("Key twice: %q then %q", key, again)
 	}
 	others := map[string]string{
-		"another capability": docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityExtraction, Model: "m", Settings: "s"}, sha("c")),
-		"another model":      docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityVision, Model: "n", Settings: "s"}, sha("c")),
-		"other settings":     docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityVision, Model: "m", Settings: "t"}, sha("c")),
-		"other content":      docinfer.Key(id, sha("d")),
-		// The boundary between two parts moved: only the length prefixes tell these apart.
+		"another capability":           docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityExtraction, Model: "m", Settings: "s"}, sha("c")),
+		"another model":                docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityVision, Model: "n", Settings: "s"}, sha("c")),
+		"other settings":               docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityVision, Model: "m", Settings: "t"}, sha("c")),
+		"other content":                docinfer.Key(id, sha("d")),
 		"model and settings shifted":   docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityVision, Model: "ms", Settings: ""}, sha("c")),
 		"settings and content shifted": docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityVision, Model: "m", Settings: "s" + sha("c")[:1]}, sha("c")[1:]),
 	}
@@ -127,7 +113,6 @@ func TestKey(t *testing.T) {
 	}
 }
 
-// sha returns s's SHA-256 as lowercase hex.
 func sha(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])

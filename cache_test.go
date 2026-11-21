@@ -14,7 +14,6 @@ import (
 	"github.com/standards-lab/docinfer/docinfertest"
 )
 
-// TestCache runs the cache contract against the module's two caches.
 func TestCache(t *testing.T) {
 	t.Run("MemoryCache", func(t *testing.T) {
 		docinfertest.Cache(t, func(*testing.T) docinfer.Cache { return docinfer.NewMemoryCache() })
@@ -24,7 +23,6 @@ func TestCache(t *testing.T) {
 	})
 }
 
-// newFileCache returns a FileCache in dir, failing the test on an error.
 func newFileCache(t *testing.T, dir string) *docinfer.FileCache {
 	t.Helper()
 	c, err := docinfer.NewFileCache(dir)
@@ -40,8 +38,6 @@ func TestNewFileCacheRefusesNoDirectory(t *testing.T) {
 	}
 }
 
-// A FileCache holds each key's value at <dir>/<capability>/<xx>/<hash>.json, written whole with no
-// temporary file left beside it, and a new FileCache over the same directory reads it.
 func TestFileCacheLayout(t *testing.T) {
 	ctx := context.Background()
 	dir := filepath.Join(t.TempDir(), "made")
@@ -76,8 +72,6 @@ func TestFileCacheLayout(t *testing.T) {
 	}
 }
 
-// A key not of Key's form is refused before a file is named by it, so none names one outside the
-// directory.
 func TestFileCacheRefusesForeignKeys(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -104,7 +98,6 @@ func TestFileCacheRefusesForeignKeys(t *testing.T) {
 	}
 }
 
-// Held encodes each member by its name, and only when set.
 func TestHeldJSON(t *testing.T) {
 	for _, tc := range []struct {
 		held docinfer.Held

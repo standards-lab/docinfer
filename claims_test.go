@@ -15,20 +15,12 @@ import (
 	"github.com/standards-lab/go-ai/aitest"
 )
 
-// The join tests run two or three jobs on one Pipeline at once, through Run against aitest. A
-// leader's request parks at a Gate until the test has seen its waiters wait, by the claim table's
-// test hook, so each interleaving is fixed without a sleep.
-
-// The join tests' texts: a one-chunk text, and a text of three chunks whose first is joined's
-// whole.
 const (
 	joined   = "Alpha bravo charlie delta."
 	overlaps = joined + "\n\nEcho foxtrot golf hotel.\n\nIndia juliet kilo lima."
 	unshared = "Mike november oscar papa."
 )
 
-// joinEndpoint is an embeddings endpoint that records each request's texts and parks it at gate,
-// then answers it by reply.
 type joinEndpoint struct {
 	*aitest.Endpoint
 	gate *aitest.Gate
@@ -37,7 +29,6 @@ type joinEndpoint struct {
 	requests [][]string
 }
 
-// serveJoin serves a joinEndpoint whose route answers by reply, embedAll when reply is nil.
 func serveJoin(t *testing.T, reply func(context.Context, aitest.EmbeddingRequest) aitest.Reply) *joinEndpoint {
 	t.Helper()
 	if reply == nil {
@@ -56,15 +47,12 @@ func serveJoin(t *testing.T, reply func(context.Context, aitest.EmbeddingRequest
 	return e
 }
 
-// asked returns the texts of each request the endpoint has received, in arrival order.
 func (e *joinEndpoint) asked() [][]string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return slices.Clone(e.requests)
 }
 
-// joinPipeline returns a pipeline on e with an embeddings bound of bound, whose claim table
-// reports each waiter on the returned channel as it starts to wait.
 func joinPipeline(t *testing.T, e *joinEndpoint, bound int, edit func(*docinfer.Config)) (*docinfer.Pipeline, <-chan struct{}) {
 	t.Helper()
 	p := newPipeline(t, runConfig(t, e.Endpoint, func(c *docinfer.Config) {
@@ -78,8 +66,6 @@ func joinPipeline(t *testing.T, e *joinEndpoint, bound int, edit func(*docinfer.
 	return p, waits
 }
 
-// awaitWaiters blocks until n more waiters have started to wait, failing the test if they don't
-// within failsafe rather than hang.
 func awaitWaiters(t *testing.T, waits <-chan struct{}, n int) {
 	t.Helper()
 	timeout := time.After(failsafe)
@@ -92,22 +78,17 @@ func awaitWaiters(t *testing.T, waits <-chan struct{}, n int) {
 	}
 }
 
-// job is one Run in flight on a goroutine of its own: its outcome arrives on done, and a panic
-// out of Run on panicked.
 type job struct {
 	cancel   context.CancelFunc
 	done     chan outcome
 	panicked chan any
 }
 
-// startJob runs p over one text output of text, from content, until the job's outcome.
 func startJob(t *testing.T, p *docinfer.Pipeline, content *dispatch.MemoryContent, text string) *job {
 	t.Helper()
 	return startRun(t, p, content, outputInput(t, content, childPart, dispatch.TextOutput, text), docinfer.Options{})
 }
 
-// startRun runs p over in, from content, with opts, on a goroutine of its own, until the job's
-// outcome or its panic.
 func startRun(t *testing.T, p *docinfer.Pipeline, content *dispatch.MemoryContent, in docinfer.Input, opts docinfer.Options) *job {
 	t.Helper()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -124,13 +105,11 @@ func startRun(t *testing.T, p *docinfer.Pipeline, content *dispatch.MemoryConten
 	return j
 }
 
-// outcome returns j's outcome, failing the test if it doesn't come within failsafe.
 func (j *job) outcome(t *testing.T) outcome {
 	t.Helper()
 	return receive(t, j.done, "outcome of a job")
 }
 
-// vectors returns o's chunks' vectors, or their errors, by their texts.
 func vectors(o outcome) map[string]string {
 	m := map[string]string{}
 	for _, c := range o.chunks() {
@@ -139,10 +118,6 @@ func vectors(o outcome) map[string]string {
 	return m
 }
 
-// Two concurrent jobs over the same content make one request per key: the waiter gets the
-// leader's vectors and counts them held, with no request and no tokens of its own. It holds no
-// Bounds slot: with a bound of 2, the leader holding one and the waiter waiting, a third job's
-// request takes the other.
 func TestJoinOneRequestPerKey(t *testing.T) {
 	e := serveJoin(t, nil)
 	p, waits := joinPipeline(t, e, 2, nil)
@@ -151,7 +126,6 @@ func TestJoinOneRequestPerKey(t *testing.T) {
 	leader := startJob(t, p, content, plainText)
 	e.gate.Await(t, 1)
 	waiter := startJob(t, p, content, plainText)
-	// Both of plainText's three chunks are claimed at once, and the waiter waits for them in turn.
 	awaitWaiters(t, waits, 1)
 	other := startJob(t, p, content, unshared)
 	e.gate.Await(t, 2)
@@ -185,7 +159,6 @@ func TestJoinOneRequestPerKey(t *testing.T) {
 	}
 }
 
-// mapsEqual reports whether a and b hold the same entries.
 func mapsEqual(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
@@ -198,7 +171,6 @@ func mapsEqual(a, b map[string]string) bool {
 	return true
 }
 
-// A waiter whose leader is cancelled asks the model itself.
 func TestJoinLeaderCancelled(t *testing.T) {
 	e := serveJoin(t, nil)
 	p, waits := joinPipeline(t, e, 2, nil)
@@ -224,8 +196,6 @@ func TestJoinLeaderCancelled(t *testing.T) {
 	}
 }
 
-// A waiter whose leader fails transiently asks the model itself; the leader's job stops with the
-// failure, which isn't shared.
 func TestJoinLeaderTransientFailure(t *testing.T) {
 	e := serveJoin(t, func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 		if req.Arrival == 1 {
@@ -255,7 +225,6 @@ func TestJoinLeaderTransientFailure(t *testing.T) {
 	}
 }
 
-// A cancelled waiter returns at once, its leader's request still parked, and the leader goes on.
 func TestJoinWaiterCancelled(t *testing.T) {
 	e := serveJoin(t, nil)
 	p, waits := joinPipeline(t, e, 2, nil)
@@ -283,14 +252,11 @@ func TestJoinWaiterCancelled(t *testing.T) {
 	checkCounts(t, lo, docinfer.Counts{Texts: 1, Embedded: 1, Requests: 1, Tokens: docinfer.Tokens{Embeddings: docinfer.Usage{Input: 3}}})
 }
 
-// panicPut is a Cache whose first Put panics, as a host's store with a defect might: the leader's
-// path panics after its request, while it holds its claim.
 type panicPut struct {
 	*docinfer.MemoryCache
 	once atomic.Bool
 }
 
-// errPutDefect is the value panicPut panics with.
 var errPutDefect = errors.New("put: a defect in the host's store")
 
 func (c *panicPut) Put(ctx context.Context, key string, value []byte) error {
@@ -300,8 +266,6 @@ func (c *panicPut) Put(ctx context.Context, key string, value []byte) error {
 	return c.MemoryCache.Put(ctx, key, value)
 }
 
-// A leader that panics strands no waiter: its claim is released as the panic unwinds, and the
-// waiter asks the model itself. The panic reaches the leader's Run's caller, on its goroutine.
 func TestJoinLeaderPanics(t *testing.T) {
 	e := serveJoin(t, nil)
 	cache := &panicPut{MemoryCache: docinfer.NewMemoryCache()}
@@ -327,8 +291,6 @@ func TestJoinLeaderPanics(t *testing.T) {
 	}
 }
 
-// A batch partly in flight asks only for the keys no other call holds, and waits for the rest:
-// one job leads the first chunk, and another's batch of three asks for the other two.
 func TestJoinBatchPartlyInFlight(t *testing.T) {
 	e := serveJoin(t, nil)
 	p, waits := joinPipeline(t, e, 2, nil)
@@ -356,8 +318,6 @@ func TestJoinBatchPartlyInFlight(t *testing.T) {
 	}
 }
 
-// A refusal is a result, shared with the waiter as its chunk's Error and counted held; a permanent
-// failure is final, and the waiter's job fails with it too. Either way the model is asked once.
 func TestJoinSharesRefusalAndPermanentFailure(t *testing.T) {
 	cases := []struct {
 		name   string

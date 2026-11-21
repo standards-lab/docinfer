@@ -21,7 +21,13 @@ docinfer's own claim table: a mutex, a map of calls, and a done channel per call
 returns which keys are the caller's and which are waited for; the wait selects on the caller's
 context; a call that ends without a result wakes its waiters to claim again. It is one mechanism
 for single keys and batches. Release is deferred, so a panicking leader doesn't strand its
-waiters, and the key is deleted before they wake.
+waiters, and the key is deleted before they wake, so a waiter that claims it again finds it free.
+
+A caller claims its keys before it reads the cache, so a key released meanwhile is held already,
+since a claimant puts before it releases. A key repeated in one claim is waited for, like one
+another caller holds. An embeddings call takes its keys' claims before it hands anything to the
+coordinator, so no waiter waits on that goroutine's send, and a lease is used by one goroutine at
+a time, handed on by `take`.
 
 Its tests run through `Run`, under `-race`: a leader cancelled, a leader's transient failure, a
 waiter cancelled, a leader that panics, and a batch partly in flight. The base module requires

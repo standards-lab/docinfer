@@ -25,9 +25,6 @@ import (
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-// The vision tests describe images through Run, against aitest's Chat Completions route, and the
-// generation rows of the failure table in doc.go, one test per row.
-
 const (
 	visionModel  = "vision-model"
 	visionPrompt = "Describe the image."
@@ -36,14 +33,11 @@ const (
 	refusal      = "I can't describe this image."
 )
 
-// imageBytes is the test image's content, and imageType its media type.
 var (
 	imageBytes = []byte("\x89PNG\r\n\x1a\n not really a png")
 	imageType  = "image/png"
 )
 
-// visionConfig returns runConfig's Config with Vision set on e's Chat Completions route, its
-// client built in wireFormat, completions' spec form when nil.
 func visionConfig(t *testing.T, e *aitest.Endpoint, wireFormat format.Format, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	if wireFormat == nil {
@@ -64,13 +58,10 @@ func visionConfig(t *testing.T, e *aitest.Endpoint, wireFormat format.Format, ed
 	})
 }
 
-// visionID is the identity visionConfig's descriptions are keyed by.
 var visionID = docinfer.Vision{
 	Model: visionModel, Prompt: visionPrompt, MaxTokens: visionTokens, Reasoning: protocol.ReasoningEffortLow,
 }.Identity()
 
-// imageInput returns an input of an image output of data, of mediaType, on part, its content put
-// in content, unless content is nil.
 func imageInput(t *testing.T, content *dispatch.MemoryContent, data []byte, mediaType string) docinfer.Input {
 	t.Helper()
 	sum := sha(string(data))
@@ -86,8 +77,6 @@ func imageInput(t *testing.T, content *dispatch.MemoryContent, data []byte, medi
 	}}
 }
 
-// chatRoute is a Chat Completions route that checks each request is the vision request for the
-// test image, then answers it with reply.
 func chatRoute(t *testing.T, reply aitest.Reply) func(context.Context, aitest.ChatRequest) aitest.Reply {
 	return func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
 		checkVisionRequest(t, req)
@@ -95,9 +84,6 @@ func chatRoute(t *testing.T, reply aitest.Reply) func(context.Context, aitest.Ch
 	}
 }
 
-// checkVisionRequest fails the test unless req is the vision request for the test image: the
-// model, the max tokens, the reasoning effort, and one user message of the prompt and the image
-// as a data URL of its media type and bytes.
 func checkVisionRequest(t *testing.T, req aitest.ChatRequest) {
 	t.Helper()
 	if req.Model != visionModel || req.MaxTokens != visionTokens || req.ReasoningEffort != "low" || req.Stream {
@@ -117,7 +103,6 @@ func checkVisionRequest(t *testing.T, req aitest.ChatRequest) {
 	}
 }
 
-// heldImage returns the Held the cache holds for the test image's description, or nil.
 func heldImage(t *testing.T, cache docinfer.Cache) *docinfer.Held {
 	t.Helper()
 	values, err := cache.Get(t.Context(), docinfer.Key(visionID, sha(string(imageBytes))))
@@ -134,8 +119,6 @@ func heldImage(t *testing.T, cache docinfer.Cache) *docinfer.Held {
 	return &h
 }
 
-// oneInference returns o's one inference, failing the test unless there is exactly one, of the
-// test image.
 func oneInference(t *testing.T, o outcome) docinfer.Inference {
 	t.Helper()
 	if len(o.inferences) != 1 {
@@ -149,9 +132,6 @@ func oneInference(t *testing.T, o outcome) docinfer.Inference {
 	return inf
 }
 
-// visionCounts is the Counts of a job of one image and its embedded chunks: vc and vision its
-// image's, held of the chunks read from the cache, and the rest embedded by one request, at
-// embedAll's three tokens each.
 func visionCounts(vc docinfer.VisionCounts, vision docinfer.Usage, embedded, held int) docinfer.Counts {
 	c := docinfer.Counts{
 		Images: 1, Vision: &vc, Embedded: embedded, Held: held,
@@ -163,10 +143,6 @@ func visionCounts(vc docinfer.VisionCounts, vision docinfer.Usage, embedded, hel
 	return c
 }
 
-// An image is described from its content as a data URL of its media type, held under vision's
-// identity and the image's SHA-256, and its text chunked as kind vision and embedded, its
-// inference yielded before its batches. A second run reads the description and its chunks from
-// the cache, asks nothing, opens no content, and counts no tokens.
 func TestRunDescribesImage(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{
 		ChatCompletions: chatRoute(t, aitest.ChatReply{Text: description, PromptTokens: 11, CompletionTokens: 7}),
@@ -224,8 +200,6 @@ func TestRunDescribesImage(t *testing.T) {
 	checkCounts(t, o, visionCounts(docinfer.VisionCounts{Described: 1, Held: 1}, docinfer.Usage{}, 2, 2))
 }
 
-// Two jobs describing one image at once send one request: the second waits for the first's
-// description, holding no vision slot, and counts it held, with no tokens.
 func TestRunJoinsImage(t *testing.T) {
 	gate := &aitest.Gate{}
 	e := aitest.Serve(t, aitest.Routes{
@@ -280,8 +254,6 @@ func TestRunJoinsImage(t *testing.T) {
 	}
 }
 
-// A reply that completes with a refusal and no text is outcome refused, held with the refusal's
-// text, which is the inference's Reason; nothing is chunked, and a second run reads it back.
 func TestRunImageRefusal(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{
 		ChatCompletions: chatRoute(t, aitest.ChatReply{Refusal: refusal, PromptTokens: 11, CompletionTokens: 3}),
@@ -318,8 +290,6 @@ func TestRunImageRefusal(t *testing.T) {
 	checkCounts(t, o, visionCounts(docinfer.VisionCounts{Refused: 1, Held: 1}, docinfer.Usage{}, 0, 0))
 }
 
-// An incomplete reply keeps its text, held with its reason, which is the inference's Reason and
-// its chunks' Source.Incomplete; one with no text is counted Empty too, and chunks nothing.
 func TestRunImageIncomplete(t *testing.T) {
 	cases := []struct {
 		finish, reason, text string
@@ -362,8 +332,6 @@ func TestRunImageIncomplete(t *testing.T) {
 	}
 }
 
-// An image output without a MediaType is the input's defect: it stops the job, permanent, before
-// anything is asked. With vision skipped, it is counted and skipped.
 func TestRunImageWithoutMediaType(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{ChatCompletions: chatRoute(t, aitest.ChatReply{Text: description}), Embeddings: embedAll})
 	content := dispatch.NewMemoryContent()
@@ -384,7 +352,6 @@ func TestRunImageWithoutMediaType(t *testing.T) {
 	checkCounts(t, o, docinfer.Counts{Images: 1})
 }
 
-// noMediaTypeError returns the error Run stops with over an image output without a MediaType.
 func noMediaTypeError(t *testing.T) error {
 	t.Helper()
 	e := aitest.Serve(t, aitest.Routes{})
@@ -396,15 +363,12 @@ func noMediaTypeError(t *testing.T) error {
 	return o.err
 }
 
-// runImage runs a pipeline of cfg over the test image, with opts, returning what it yielded.
 func runImage(t *testing.T, cfg docinfer.Config, opts docinfer.Options) outcome {
 	t.Helper()
 	content := dispatch.NewMemoryContent()
 	return collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(imageInput(t, content, imageBytes, imageType)), opts))
 }
 
-// imageStopped fails the test unless the run stopped yielding nothing but its error, after at
-// most one vision request, and held no description.
 func imageStopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Cache) {
 	t.Helper()
 	if o.counts != nil || len(o.batches) > 0 || len(o.inferences) > 0 {
@@ -418,8 +382,6 @@ func imageStopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Ca
 	}
 }
 
-// A refused status, 400, 413, 415, or 422, is the image's outcome refused, its Reason the
-// error's text, held.
 func TestRunImageRefusedStatus(t *testing.T) {
 	for _, status := range []int{400, 413, 415, 422} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
@@ -441,8 +403,6 @@ func TestRunImageRefusedStatus(t *testing.T) {
 	}
 }
 
-// A permanent status, 401, 403, 404, 501, 505, or any other 4xx but 408 and 429, and a request
-// the format can't send, stop the job, final or not, holding nothing, and Permanent reports it.
 func TestRunImagePermanent(t *testing.T) {
 	for _, status := range []int{401, 403, 404, 405, 409, 418, 451, 501, 505} {
 		for _, final := range []bool{false, true} {
@@ -460,8 +420,6 @@ func TestRunImagePermanent(t *testing.T) {
 			})
 		}
 	}
-	// A deployment that refuses the vision request's reasoning effort refuses it before anything
-	// is sent.
 	for _, final := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unsupported final=%t", final), func(t *testing.T) {
 			e := aitest.Serve(t, aitest.Routes{ChatCompletions: chatRoute(t, aitest.ChatReply{Text: description})})
@@ -482,8 +440,6 @@ func TestRunImagePermanent(t *testing.T) {
 	}
 }
 
-// A transient status, 408, 429, or any 5xx but 500, 501, and 505, stops the job, final or not,
-// its *ai.APIError's RetryAfter carried for the redelivery.
 func TestRunImageTransient(t *testing.T) {
 	for _, status := range []int{408, 429, 502, 503, 504, 507, 599} {
 		for _, final := range []bool{false, true} {
@@ -507,8 +463,6 @@ func TestRunImageTransient(t *testing.T) {
 	}
 }
 
-// A transport failure, a *url.Error with no reply, or a reply whose body breaks off, matching
-// io.ErrUnexpectedEOF, stops the job, final or not, and isn't permanent.
 func TestRunImageTransportFailure(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -534,8 +488,6 @@ func TestRunImageTransportFailure(t *testing.T) {
 			imageStopped(t, o, e, cfg.Cache)
 		})
 		t.Run(fmt.Sprintf("broken final=%t", final), func(t *testing.T) {
-			// The reply declares more body than it sends, so the server closes the connection
-			// part way through it.
 			broken := aitest.RawReply{Header: http.Header{"Content-Length": {"4096"}}, Body: []byte(`{"id":"chatcmpl-1","choices":[`)}
 			e := aitest.Serve(t, aitest.Routes{ChatCompletions: chatRoute(t, broken)})
 			cfg := visionConfig(t, e, nil, nil)
@@ -551,9 +503,6 @@ func TestRunImageTransportFailure(t *testing.T) {
 	}
 }
 
-// A 500, a 2xx reply in protocol.StatusFailed, or a 2xx reply that doesn't decode stops the job;
-// on the last delivery the image is recorded failed instead, never held, its Reason the error's
-// text, and the job goes on to its other inputs.
 func TestRunImageFailed(t *testing.T) {
 	failed := []byte(`{"id":"resp-1","object":"response","model":"vision-model","status":"failed",` +
 		`"error":{"code":"server_error","message":"the model broke"},"output":[]}`)

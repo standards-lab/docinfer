@@ -21,16 +21,11 @@ import (
 	"github.com/standards-lab/go-ai/format"
 )
 
-// The embedding rows of the failure table in doc.go, one test per row against aitest. Each run is
-// one text of two chunks, sent as one call.
-
 const (
 	refusedChunk = "This chunk is refused."
 	twoChunks    = refusedChunk + "\n\nThis chunk is embedded."
 )
 
-// runTwoChunks runs a pipeline over e on twoChunks, with opts, returning what it yielded and the
-// pipeline's cache.
 func runTwoChunks(t *testing.T, e *aitest.Endpoint, opts docinfer.Options) (outcome, docinfer.Cache) {
 	t.Helper()
 	cfg := runConfig(t, e, nil)
@@ -42,8 +37,6 @@ func runTwoChunks(t *testing.T, e *aitest.Endpoint, opts docinfer.Options) (outc
 	return o, cfg.Cache
 }
 
-// A refused status, 400, 413, 415, or 422, re-sends the call a text at a time: the text the
-// endpoint refuses alone is its chunk's Error, held as a refusal, and the other is embedded.
 func TestRunEmbeddingRefused(t *testing.T) {
 	for _, status := range []int{400, 413, 415, 422} {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
@@ -85,8 +78,6 @@ func TestRunEmbeddingRefused(t *testing.T) {
 	}
 }
 
-// A held refusal is read back as its chunk's Error, counted rejected and held, and nothing is
-// asked.
 func TestRunHeldRefusal(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 		if slices.Contains(req.Input, refusedChunk) {
@@ -117,8 +108,6 @@ func TestRunHeldRefusal(t *testing.T) {
 	checkCounts(t, o, docinfer.Counts{Texts: 1, Embedded: 1, Rejected: 1, Held: 2})
 }
 
-// A permanent status, 401, 403, 404, 501, 505, or any other 4xx but 408 and 429, stops the job,
-// final or not: the call isn't split, nothing is held, and Permanent reports the error.
 func TestRunEmbeddingPermanent(t *testing.T) {
 	for _, status := range []int{401, 403, 404, 405, 409, 418, 451, 501, 505} {
 		for _, final := range []bool{false, true} {
@@ -140,8 +129,6 @@ func TestRunEmbeddingPermanent(t *testing.T) {
 	}
 }
 
-// A transient status, 408, 429, or any 5xx but 500, 501, and 505, stops the job, final or not,
-// its *ai.APIError's RetryAfter carried for the redelivery.
 func TestRunEmbeddingTransient(t *testing.T) {
 	for _, status := range []int{408, 429, 502, 503, 504, 507, 599} {
 		for _, final := range []bool{false, true} {
@@ -166,8 +153,6 @@ func TestRunEmbeddingTransient(t *testing.T) {
 	}
 }
 
-// A transport failure, a *url.Error with no reply, stops the job, final or not, and isn't
-// permanent.
 func TestRunEmbeddingTransportFailure(t *testing.T) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -197,8 +182,6 @@ func TestRunEmbeddingTransportFailure(t *testing.T) {
 	}
 }
 
-// A 500, or a 2xx reply that doesn't decode, stops the job; on the last delivery the call's
-// chunks are recorded failed instead, never held, and the job goes on.
 func TestRunEmbeddingFailed(t *testing.T) {
 	replies := map[string]aitest.Reply{
 		"500":         aitest.ErrorReply{Status: http.StatusInternalServerError, Message: "broke"},
@@ -233,8 +216,6 @@ func TestRunEmbeddingFailed(t *testing.T) {
 	}
 }
 
-// stopped fails the test unless the run stopped after the endpoint's one request, unsplit,
-// yielding nothing but its error and holding nothing.
 func stopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Cache) {
 	t.Helper()
 	if o.counts != nil || len(o.batches) > 0 {
@@ -250,13 +231,6 @@ func stopped(t *testing.T, o outcome, e *aitest.Endpoint, cache docinfer.Cache) 
 	}
 }
 
-// Permanent reports exactly the permanent rows and the input's defects: a permanent status, a
-// request the format can't send, which Embed never makes but generation does, a mismatched input,
-// a dispatch's refused request, made by a real dispatch: an input of neither or both of Path and
-// Reader, an input SHA-256 that isn't lowercase hex, or a resume cursor that names no message; an
-// image output without a MediaType, a window of another media type, and a refused request, and
-// nothing else: not a refused, transient, or failed status, nor a failed reply, a transport
-// failure, or a content miss.
 func TestPermanent(t *testing.T) {
 	cases := []struct {
 		name string
@@ -294,14 +268,8 @@ func TestPermanent(t *testing.T) {
 	}
 }
 
-// twoMessages is a store of two messages, 1 and 2, to the fixture stage, which a part named
-// store.txt routes to.
 const twoMessages = "message 1\nmessage 2"
 
-// dispatchError dispatches in through a dispatcher of docproc's fixture stage over memory stores,
-// first dispatching twoMessages whole when prepared, so in may resume it, and returns the error that
-// ended the dispatch of in, failing the test unless it matches dispatch.ErrRequest or if the first
-// dispatch failed.
 func dispatchError(t *testing.T, prepared bool, in dispatch.Input) error {
 	t.Helper()
 	d, err := dispatch.New(dispatch.Config{
