@@ -173,10 +173,12 @@ part's own event.
 
 ## Development
 
-Tasks run through [mise](https://mise.jdx.dev), from the repository root:
+Tasks run through [mise](https://mise.jdx.dev), from the repository root, after `mise install`;
+[`docs/development.md`](docs/development.md) holds the reasoning behind the tasks, CI, and the
+harness:
 
 ```sh
-mise run check                 # build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL; writes nothing
+mise run check                 # build, vet, format, fix, tidy, test, and lint every module, sqlint the postgres module's SQL, then run lint-context and lint-references; writes nothing
 mise run currency              # report requirements, Go, tools, action pins, and compose image pins behind their latest
 mise run upgrade               # upgrade every module's go directive and requirements, and the tools, to their latest
 mise run test:integration      # run the base module's integration tier against the AI_*_BASE_URL endpoints

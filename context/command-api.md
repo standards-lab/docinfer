@@ -29,7 +29,7 @@ endpoint (C7); and a node for `run.Config`, holding
 `docinfer.Vision`, `Transcription`, and `Embeddings`; `run.Commands(n.RunConfig)` takes it. A
 configuration error fails the Build, labelled with its node, before the docproc run is read.
 
-The configuration ships the operator's starting values, which the library leaves none (L24):
+The configuration ships the operator's starting values, which the library leaves none (`docs/no-defaults.md`):
 
 ```text
 endpoints.<name>     base_url; format: completions, messages, or responses; profile, the format's
@@ -78,7 +78,7 @@ error "unreachable". The states, the table, and the 30 s bound stay (C5).
 `run` opens docproc's directory with `rundir.Open` and feeds `Pipeline.Run` from `Dir.Record` and
 `Dir.Content()`, each output line's event as an `Input` and each input's part line with
 `MetadataText`'s text and the record's `File` lines after it (C4); its count line and progress lines
-are in `output.go`, printed from `Result` values alone (L4).
+are in `output.go`, printed from `Result` values alone (`docs/library-evaluation.md`, Composition).
 
 The directory is schema "2":
 
@@ -107,7 +107,7 @@ Every name of the command's that layers' docinfer sections write, against this A
 | layers | verdict | reason |
 | --- | --- | --- |
 | module `github.com/standards-lab/docinfer/cmd/docinfer` | carried | go-cli-sdk v0.4.0, go-core v0.12.0 (C2) |
-| `apptest.Serve` | dropped | go-ai's `aitest` (G3, C22) |
+| `apptest.Serve` | dropped | go-ai's `aitest` (C22; `docs/library-evaluation.md`, Rejected) |
 | the manifest's `Attempt` | dropped | Cerebro's manifest, outside docinfer's API |
 | `outdir.Line` | renamed | `docinfer.Chunk` in the library; `outdir.Line` stays the command's |
 | `outdir.Part` | dropped | its outcome is the part's own event |
@@ -118,7 +118,7 @@ Every name of the command's that layers' docinfer sections write, against this A
 | `Docproc` | carried | its `dir` relative, recorded once (C17) |
 | `Capability` (the command's) | carried | holds `docinfer.Identity` and typed bounds (C14) |
 | `Skipped` | carried | |
-| `Space` | carried | the measured norms (L11) |
+| `Space` | carried | the spike's measured embedding space and its norms |
 | `Line` (the command's) | carried | its part and source inline; grouped by C18's key |
 | `Recorder` | carried | `internal/apptest`'s own (C22) |
 | `results/` | carried | a `FileCache` |
@@ -130,7 +130,7 @@ Every name of the command's that layers' docinfer sections write, against this A
 | `config` | dropped | the node constructors (C1) |
 | `infer` | renamed | `internal/run` (C3) |
 | `commands.go` | carried | `run`'s |
-| `progress.go` | renamed | `run`'s `output.go` (C3, L4) |
+| `progress.go` | renamed | `run`'s `output.go` (C3; no progress in the library, `docs/library-evaluation.md`) |
 | `models` | dropped | folded into `run`, over `(*ai.Client).Models` (C5) |
 | `source` | dropped | `rundir` (C4) |
 | `outdir` | carried | `internal/outdir` (C3) |

@@ -1,0 +1,136 @@
+# Development
+
+The reasoning behind docinfer's development configuration: the mise tasks, CI, the release
+workflow, the compose harness, and the lint configuration. The tasks themselves are listed in the
+[README](../README.md#development).
+
+## mise
+
+`mise.toml` pins every tool a task runs, marathon's `lint-context` and `lint-references` among
+them, and turns off mise's automatic install, so a task never fetches a tool mid-run: a missing
+tool is a `mise install` away.
+
+- **Modules.** `GO_MODULES` is the space-separated list of module directories, kept in sync with
+  `go.work`'s use list: `.` is the base module, `postgres` the PostgreSQL cache's, and
+  `cmd/docinfer` the command's, added as the task that builds it lands.
+- **The live tier's DSN.** `DOCINFER_DSN` names the compose harness's PostgreSQL, whose port
+  follows `DOCINFER_POSTGRES_PORT` as `compose/postgres.yml`'s does. Each test creates and drops
+  its own database on it.
+- **The check** runs every module with `GOWORK=off`, as a consumer resolves it, and vets and lints
+  each module twice, the second time with the `integration` build tag, so the integration tiers
+  are checked without running. sqlint is the postgres module's tool, so it runs from that
+  directory and resolves the engine `sqlint.toml` names through the module's own requirements.
+  The module steps and sqlint stop at the first failure; `lint-context` and `lint-references` then
+  both run before the check fails on either, and a lint missing from PATH fails it naming
+  `mise install`.
+- **`test:integration`** runs each module's `integration/` package, where one exists, against the
+  endpoints go-ai's tier's variables name, which pass through from the caller's environment:
+  `AI_EMBEDDING_BASE_URL`, which every scenario needs, `AI_VISION_BASE_URL`,
+  `AI_TRANSCRIPTION_BASE_URL` (route mode), `AI_AUDIO_BASE_URL` (chat mode), and
+  `AI_AGENT_BASE_URL` (extraction), each an API root including `/v1`. Each role may add
+  `AI_<ROLE>_TOKEN`, a bearer token, and `AI_<ROLE>_HEADER`, one or more `Name: value` lines;
+  unset, none is sent, and no failing scenario prints a token or header value. `AI_<ROLE>_MODEL`
+  names the model of an endpoint that lists more than one. A scenario whose variable is unset
+  skips, naming it, so with none set the run skips whole and passes. It runs verbose, so the log
+  lists each scenario passed or skipped, and it never starts a server.
+  [`integration/doc.go`](../integration/doc.go) tells each scenario in full.
+- **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
+  module's integration suite, and stops the service whether the suite passes or fails, printing
+  its log on a failure. **`integration`** runs every provider's live tier one module at a time,
+  continuing past a failure; today that is the postgres module's alone.
+- **`upgrade`** moves each go directive to the current Go minor with no toolchain line, skips
+  `go get` for a module with no direct requirement, and passes `--no-global` so it writes this
+  `mise.toml` alone, never the global configuration.
+
+## Currency
+
+`scripts/currency.sh` scans each module's direct requirements and go directive, the mise tools,
+the workflows' action pins, and the compose harness's image pins. crane lists an image's tags for
+the image scan; it is development-time, as jq is, and no CI job installs either.
+
+- Each scan captures its command's output in a variable before reading it, so under `set -e` a
+  scan command that fails, such as a `go list` missing a `go.sum` entry, fails currency instead
+  of reporting nothing.
+- The workflows scanned are the project root's and the git top-level's, de-duplicated: one
+  directory when the project is the repository, two when a repository nests the project in a
+  subdirectory, as the template repository does. A project not yet in git has only its own.
+- An image's latest tag is the highest semver tag carrying the pin's variant suffix
+  (`19.0-alpine` → `-alpine`). A tag needs at least one dot to count, so a bare build number
+  never sorts above every release.
+- A compose service builds from `compose/<service>/Dockerfile`, whose `FROM` line is its one pin.
+  With no Dockerfiles, the glob stays unexpanded and is skipped.
+
+`.claude/marathon.toml` names `mise run currency` as marathon's currency command; it reads the
+network, so CI never runs it.
+
+## CI and releases
+
+CI's check job runs on every pull request into main, every push to main, and on demand. It
+installs only what the check runs: Go, golangci-lint, and marathon's lints. The integration job
+runs `mise run integration` on a push to main and on demand, never on a pull request, below the
+per-PR rate by design; it installs only Go, docker being the runner's. No job runs the base
+module's AI tier, `test:integration`, whose models are on the organization's own machines.
+
+The release workflow runs on a pushed tag; nothing in CI tags. A tag is the base module's,
+`vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z`, and `cmd/docinfer/vX.Y.Z`
+once that module lands. The tag's prefix, empty for the base module, picks the module's own
+changelog, `CHANGELOG.md` at the root or `<module>/CHANGELOG.md`, and the release notes are the
+version's section, headed `## [vX.Y.Z] - <date>`. A release has no assets: the module proxy
+serves the module from the tag, and docinfer builds no system tool.
+
+## The compose harness
+
+`compose.yml` is test-only: PostgreSQL for the postgres module's live tier. Each service builds
+from `compose/<service>/Dockerfile`, which pins its image and carries its configuration and health
+check, and keeps its data in tmpfs, so every start begins empty.
+
+- **Port.** 5437 by default, so the harness coexists with sqlate's on 5433, blobfs's on 5434,
+  go-messaging's on 5435, docproc's on 5436, and a service on 5432. `DOCINFER_POSTGRES_PORT`
+  moves it.
+- **Credentials.** The user, password, and database are the ones `DOCINFER_DSN` names:
+  development values, not secrets.
+- **Health.** The service is healthy once the server accepts TCP connections to the app
+  database. The probe goes over TCP, not the socket, because the first start's initialization
+  runs a temporary server on the socket alone, which would report ready before the real server
+  starts.
+
+## Workspace
+
+`go.work` spans the modules in `GO_MODULES`, so a change to the base module is seen by the
+postgres module, which requires it, before it is tagged. `go.work` and `go.work.sum` are
+committed: the repository is multi-module by design, and the committed sum keeps the check's tree
+clean.
+
+## Lint configuration
+
+Each module's `.golangci.yml` enables the standard set (errcheck, govet, ineffassign, staticcheck,
+unused) plus depguard, which holds the module to its allowed imports, testpackage, which keeps
+tests black-box, and nolintlint, which requires each suppression to name its linter and give its
+reason. golangci-lint reads the configuration nearest the directory it runs in, so the root's
+serves the base module and the postgres module carries its own, the root's but for depguard's
+lists.
+
+- Test files are linted with the code they test, so the depguard rules hold them too.
+- testpackage's skip regexp is narrowed to `export_test.go`, the one white-box file allowed.
+  `allow-packages` is narrowed from its default, `main`, so a command's tests are black-box too,
+  in `main_test`: it names only the empty package name, which no package has, because an empty
+  list leaves the default in force.
+- depguard's allow entries match by prefix unless they end in `$`, so each module's entries are
+  anchored: the module as itself or a package under it, not a sibling such as `docinfer-extra`.
+  The longest match wins, so a deny entry overrides an allow entry's prefix.
+- The base module depends on nothing but the standard library, docproc, and go-ai, in every Go
+  file, tests included; its deny entry keeps the postgres module, which requires the base, out of
+  it.
+- The postgres module's production files may import the standard library, docinfer's base
+  packages, whose `Cache` it implements, sqlate's packages and its PostgreSQL engine, and pgx v5.
+  Its tests add sqlate/postgres's `pgtest`. The deny entries keep the `cmd/docinfer` module out
+  despite docinfer's prefix, and the test-support packages, `docinfertest`, `sqltest`, and
+  `pgtest`, which import `testing`, out of the production files despite their modules' prefixes.
+
+`postgres/sqlint.toml` holds the postgres module's SQL conventions; the base module holds no SQL.
+The engine names the native forms a standard-tier file may not use, and the sources name the
+pattern catalogs the statements' includes resolve against: sqlate's own. The cache's statements
+are named for their operation, keep the delimiter out of comments and literals, and use no native
+form in a standard-tier file; a native file is exempt by its tier and carries its port note. Each
+migration holds a single statement. The migrations role has no native-forms check: the DDL is
+PostgreSQL's, the only engine's.

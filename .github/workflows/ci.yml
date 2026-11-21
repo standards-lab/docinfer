@@ -1,6 +1,7 @@
-# CI runs the check on every pull request into main, every push to main, and on demand. The
-# integration job runs the provider modules' live tiers against the compose harness, on a push to
-# main and on demand, never on a pull request.
+# CI: the check on every pull request and push to main, and the provider modules' live tiers on a
+# push to main and on demand.
+# See architecture/standards/go-elemental/principles/release-and-ci.md
+# See docs/development.md
 name: CI
 
 on:
@@ -16,26 +17,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
 
-      # The check needs only the root's Go toolchain and golangci-lint; currency's jq and crane are
-      # development-time.
       - uses: jdx/mise-action@v5.2.10
         with:
-          install_args: go golangci-lint
+          install_args: go golangci-lint github:standards-lab/claude-plugins
 
       - name: mise run check
         run: mise run check
 
-  # The provider modules' live tiers, each against its compose service, the same task a developer
-  # runs; never the base module's AI tier, test:integration, whose models are on the
-  # organization's own machines. Skipped on a pull request, below the per-PR rate by design. The
-  # task starts its service, prints its log on a failure, and stops it.
   integration:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
 
-      # The task needs only the root's Go toolchain; docker is the runner's.
       - uses: jdx/mise-action@v5.2.10
         with:
           install_args: go

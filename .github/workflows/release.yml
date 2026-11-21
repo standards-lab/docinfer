@@ -1,8 +1,7 @@
-# Release runs on a pushed tag; nothing here tags. A tag is the base module's, vX.Y.Z, or a nested
-# module's, <module>/vX.Y.Z: postgres/vX.Y.Z and cmd/docinfer/vX.Y.Z once those modules land. The
-# job publishes the GitHub release from the tag's section of that module's own changelog,
-# CHANGELOG.md at the root or <module>/CHANGELOG.md, with no assets: the module proxy serves the
-# module from the tag itself, and docinfer builds no system tool.
+# Release: publishes the GitHub release of the module a pushed tag names, from that module's
+# changelog.
+# See architecture/standards/go-elemental/principles/release-and-ci.md
+# See docs/development.md
 name: Release
 
 on:
@@ -39,8 +38,6 @@ jobs:
             echo "changelog=CHANGELOG.md" >> "$GITHUB_OUTPUT"
           fi
 
-      # The prefix is the tag's part before its vX.Y.Z, empty for the base module, so the action
-      # finds the version's section, headed "## [vX.Y.Z] - <date>", in the module's own changelog.
       - name: Create GitHub Release
         uses: taiki-e/create-gh-release-action@v1.12.0
         with:

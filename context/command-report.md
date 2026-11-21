@@ -132,7 +132,7 @@ type Capability struct { // C14
     ChunkSize   int    `json:"chunk_size,omitzero"` // embeddings
 }
 type Skipped struct { Name, Reason string } // "name", "reason": not configured
-type Space struct { … } // the measured embedding space and its norms, as the spike's (L11)
+type Space struct { … } // the measured embedding space and its norms, as the spike's
 // Line is a batch's chunk with what its indexes name inline, since chunks.jsonl holds no batches.
 type Line struct {
     Digest      string          `json:"digest"`

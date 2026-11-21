@@ -1,9 +1,9 @@
+# The harness's PostgreSQL service, built from compose/postgres/Dockerfile.
+# See docs/development.md
 services:
   postgres:
     build:
       context: postgres
     ports:
-      # 5437 by default so the harness coexists with sqlate on 5433, blobfs on 5434, go-messaging
-      # on 5435, docproc on 5436, and a service on 5432.
       - "127.0.0.1:${DOCINFER_POSTGRES_PORT:-5437}:5432"
     tmpfs: /var/lib/postgresql

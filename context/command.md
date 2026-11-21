@@ -70,7 +70,7 @@ any other error "unreachable". The states, the table, and the 30 s bound stay.
 v0.3.0's `Options` and `baseline-standards.md` (the command ships the starting values).
 **accepted**, docinfer: the transcription mode (`route`, `chat`) is set on the transcription
 capability's own client in the configuration, the load refusing chat without the completions
-format, and docinfer reads it from that client through `(*Client).TranscriptionMode()` (G2); an
+format, and docinfer reads it from that client through `(*Client).TranscriptionMode()` (`docs/library-evaluation.md`, Rejected); an
 endpoint gains `retry`, with the command's starting policy, `headers`, in the secrets file, and an
 optional format profile decoded as `tools/infer`'s `formatOptions` is. Each is a manifest setting
 where it changes a result.
@@ -92,8 +92,8 @@ go, each override name is composed where it is read, and the test asserts the ov
 `DOCPROC_UNIT_TIMEOUT` and `DOCPROC_STREAM_IDLE`. **accepted**, docinfer: each endpoint's transport
 ships a `ResponseHeaderTimeout`, its starting value sized by vision's slowest observed image, 38.9
 s under mixed load (data-intelligence, line 239), and its client an `Options.StreamIdleTimeout` for
-extraction's stream; the library adds no deadline (L12). Rejected: a deadline the command sets
-around each call; the host bounds a request at the transport, where L12 puts it.
+extraction's stream; the library adds no deadline (`docs/no-defaults.md`, A request's time). Rejected: a deadline the command sets
+around each call; the host bounds a request at the transport, where `docs/no-defaults.md` puts it.
 
 ### The run directories
 
@@ -163,7 +163,7 @@ when unset; the check vets and lints it without running it.
 `apptest/apptest.go:24`, `apptest/apptest.go:47-81`, `apptest/apptest.go:210-223`,
 `app/testdata/README.md:3-7`. Against layers "The nested modules" and `tests-and-docs.md`.
 **accepted**, docinfer: `apptest` holds its own `Recorder`, `Builds`, `Halt`, and a fixture per
-node C1 adds; the fake endpoint, model list included, is go-ai's `aitest` (G3), not an
+node C1 adds; the fake endpoint, model list included, is go-ai's `aitest` (`docs/library-evaluation.md`, Rejected), not an
 `endpointtest` of docinfer's; a test helper writes each docproc run directory with `rundir.Create`
 and `Begin`, in place of the hand-written schema "1" one.
 
