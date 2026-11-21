@@ -19,7 +19,7 @@ jobs:
 
       - uses: jdx/mise-action@v5.3.0
         with:
-          install_args: go golangci-lint github:standards-lab/claude-plugins
+          install_args: go golangci-lint jq yq github:standards-lab/claude-plugins
 
       - name: mise run check
         run: mise run check
