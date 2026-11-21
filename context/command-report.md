@@ -11,10 +11,10 @@ at 1,000 runes, then linked under `texts/`; a text or Markdown output is a link 
 directory; a chunk is counted, never shown; an image is an `img` and a window a link into docproc's
 directory, by a path computed at render time from the manifest's absolute `docproc.dir` (C17).
 docproc's report is `runs/<run>/report/index.html` and a `<sha256>.html` per distinct content, the
-index listing every input linked to its content's page and each page holding the content's part
-tree with every output inline and whole; it reads its own directory alone, links relatively, and
-reads no clock. Cerebro asks for docinfer's pages "linked to docproc's by the input's SHA-256 and
-holding the full vision texts, transcripts, and chunks" (data-intelligence, lines 38-45).
+index listing every input linked to its content's page and each page holding the content's part tree
+with every output inline and whole; it reads its own directory alone, links relatively, and reads no
+clock. Cerebro asks for docinfer's pages "linked to docproc's by the input's SHA-256 and holding the
+full vision texts, transcripts, and chunks" (data-intelligence, "The input reports").
 
 **Decision.** Per run, one page per input content: `runs/<run>/report/index.html` and a
 `<sha256>.html` per content, the file name docproc's page for the same content has, so the cross
@@ -43,13 +43,14 @@ pages remove its reason.
 
 **Rejected: link-only images and windows.** It loses the image beside its text, which is the page's
 use.
+
 ## Findings
 
 **C16. issue: one page a run, texts cut at 1,000 runes, no chunk text.**
 `report/report.go:22-31`, `report/report.go:296-309`, `report/report.html.tmpl:132`,
 `report/report.html.tmpl:175-177`, `report/doc.go:19-20`, `docs/findings/docinfer.md:72`.
-Against data-intelligence, lines 42-43. **accepted**, docinfer: pages per input content, every
-text whole, as "The report's shape" settles.
+Against data-intelligence, "The input reports". **accepted**, docinfer: pages per input content,
+every text whole, as "The report's shape" settles.
 
 **C17. issue: the page's links depend on where docproc's run directory is.**
 `report/report.go:65-90`, `report/doc.go:25-31`, `app/report_test.go:118-126`. Against the
@@ -153,9 +154,9 @@ one whose SHA-256 isn't its name as damaged: `ReadText`'s digest check is kept, 
 (C10, C23). The manifest's capabilities tie it to its held results by the same `Identity` (C14),
 and its inputs list each input's SHA-256, since a chunk line's part is the part it was cut from,
 not the input. A refused or failed image or window is found in `inferences.jsonl`, by its part's
-## The report
-
 ID and content SHA-256 (C15).
+
+## The report
 
 The report follows "The report's shape": per run, `report/index.html` and a `<sha256>.html` per
 input content, the name docproc's page for the same content has, so the cross link is one relative

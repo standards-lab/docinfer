@@ -54,9 +54,7 @@ the image scan; it is development-time, as jq is, and no CI job installs either.
 - The workflows scanned are the project root's and the git top-level's, de-duplicated: one
   directory when the project is the repository, two when a repository nests the project in a
   subdirectory, as the template repository does. A project not yet in git has only its own.
-- An image's latest tag is the highest semver tag carrying the pin's variant suffix
-  (`19.0-alpine` → `-alpine`). A tag needs at least one dot to count, so a bare build number
-  never sorts above every release.
+- An image's latest tag follows `architecture/principles/rolling-currency.md`.
 - A compose service builds from `compose/<service>/Dockerfile`, whose `FROM` line is its one pin.
   With no Dockerfiles, the glob stays unexpanded and is skipped.
 

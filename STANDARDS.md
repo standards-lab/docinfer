@@ -1,10 +1,9 @@
 # docinfer standards
 
 The judgement calls the standards-reviewer applies to docinfer, beyond what `mise run check`
-enforces: each one line, with a pointer to the architecture page that applies. They come from
-docinfer's design review, now in its package docs, `docs/`, and the command notes
-`context/command.md`, `context/command-api.md`, and `context/command-report.md`, and apply to the
-base module, `postgres`, and `cmd/docinfer`.
+enforces: each one line, with a pointer to the architecture page that applies. They are settled
+in its package docs, `docs/`, and the command notes `context/command.md`, `context/command-api.md`,
+and `context/command-report.md`, and apply to the base module, `postgres`, and `cmd/docinfer`.
 
 - `architecture/principles/repository-topology.md`: docinfer is an adjacent library whose base
   module, over go-ai, sits above go-ai's tier, so only the layers above it use docinfer; `postgres`
@@ -22,8 +21,8 @@ base module, `postgres`, and `cmd/docinfer`.
   no helper restating go-ai, no `/models` request of its own, and no re-validation of what go-ai
   validates (`context/command.md`, C5, C7).
 - `architecture/principles/rolling-currency.md`: every module's requirements and the root's mise
-  pins are current; `cmd/docinfer` starts from go-cli-sdk-template's template/v0.3.0
-  (`context/command.md`, C2).
+  pins are current; `cmd/docinfer` starts from go-cli-sdk-template's latest `template/v*`
+  release (`context/command.md`, C2).
 - `architecture/principles/minimal-footprint.md`: the base module requires docproc and go-ai
   alone; the join of work in flight is docinfer's own, `golang.org/x/sync` rejected
   (`docs/join-of-work-in-flight.md`).
@@ -32,8 +31,8 @@ base module, `postgres`, and `cmd/docinfer`.
   sqlate, each an adapter behind the one interface.
 - `architecture/principles/downward-dependencies.md`: nothing at or below go-ai's tier imports
   docinfer; `postgres` and `cmd/docinfer` depend down on the base module.
-- `architecture/standards/go-elemental/principles/dependencies.md`: the bottom-up line across the
-  base, `postgres`, and `cmd/docinfer` `go.mod` files, none required by a module beneath it.
+- `architecture/standards/go-elemental/principles/dependencies.md`: the base, `postgres`, and
+  `cmd/docinfer` `go.mod` files.
 - `architecture/principles/independent-releases.md`: each module tags on its own, the base module
   before any that requires it, and no tagged module carries a replace directive.
 - `architecture/standards/go-elemental/principles/construction-and-execution.md`: `docinfer.New`
@@ -55,13 +54,9 @@ base module, `postgres`, and `cmd/docinfer`.
   runs against the endpoints go-ai's `AI_<ROLE>_*` variables name and no CI job runs, and the
   command's in `cmd/docinfer/integration` over `processtest`; every `Cache` passes
   `docinfertest`'s one suite; golden keys and a chunk corpus pin the cache's formats.
-- `architecture/principles/comments.md`: every comment is one of the five kinds, in source,
-  tests, scripts, SQL, and every configuration file (TOML, YAML, `.gitignore`, Dockerfiles,
-  compose); a configuration file's header is a short description plus `See` lines, and its
-  reasoning lives in `docs/` or the README. A doc comment on an unexported identifier or a test
-  function is not package documentation. A SQL file's header is its package documentation, and
-  in sqlate's format also its template metadata. Released migrations in `postgres/migrations` are
-  frozen, byte-identical, comments included.
+- `architecture/principles/comments.md`: every comment. Released migrations in
+  `postgres/migrations` are frozen, byte-identical, comments included
+  (`standards-lab/context/migration-sets.md`).
 - `architecture/standards/go-elemental/principles/release-and-ci.md`: the check, currency, the
   root `go.work`, a changelog per module, and per-module tags, with CI as the gate.
 - `architecture/standards/go-elemental/principles/dsl-driven-services.md`: `postgres`'s cache,
@@ -80,4 +75,4 @@ base module, `postgres`, and `cmd/docinfer`.
   `report`, and `outdir`, which they share. `cli-applications.md` has `cmd/<name>/main.go`
   instead, and `topology-and-naming.md` has domain packages at the module's root level. The
   module's one package outside `internal/` is `integration`, the built-binary tier's harness, at
-  the module's root, where go-cli-sdk-template's template/v0.3.0 places it.
+  the module's root, where go-cli-sdk-template's latest `template/v*` release places it.
