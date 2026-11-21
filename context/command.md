@@ -69,11 +69,11 @@ any other error "unreachable". The states, the table, and the 30 s bound stay.
 `config/config.go:83-88`, `config/config.go:121-125`, `config/config.go:484-503`. Against go-ai
 v0.3.0's `Options` and `baseline-standards.md` (the command ships the starting values).
 **accepted**, docinfer: the transcription mode (`route`, `chat`) is set on the transcription
-capability's own client in the configuration, the load refusing chat without the completions
-format, and docinfer reads it from that client through `(*Client).TranscriptionMode()` (`docs/library-evaluation.md`, Rejected); an
-endpoint gains `retry`, with the command's starting policy, `headers`, in the secrets file, and an
-optional format profile decoded as `tools/infer`'s `formatOptions` is. Each is a manifest setting
-where it changes a result.
+capability's own client in the configuration, the load refusing chat without the completions format,
+and docinfer reads it from that client through `(*Client).TranscriptionMode()`
+(`docs/library-evaluation.md`, Rejected); an endpoint gains `retry`, with the command's starting
+policy, `headers`, in the secrets file, and an optional format profile decoded as `tools/infer`'s
+`formatOptions` is. Each is a manifest setting where it changes a result.
 
 **C7. simplification: `config` re-validates what go-ai validates, and its copy has drifted.**
 `config/config.go:58-61`, `config/config.go:418-420`, `config/config.go:454-469`. Against
@@ -90,10 +90,11 @@ go, each override name is composed where it is read, and the test asserts the ov
 **C9. issue: no inference request has a deadline.** `app/infrastructure.go:28-33`,
 `models/models.go:39`. Against `baseline-standards.md`, `timeouts.md`, and `cmd/docproc`'s
 `DOCPROC_UNIT_TIMEOUT` and `DOCPROC_STREAM_IDLE`. **accepted**, docinfer: each endpoint's transport
-ships a `ResponseHeaderTimeout`, its starting value sized by vision's slowest observed image, 38.9
-s under mixed load (data-intelligence, line 239), and its client an `Options.StreamIdleTimeout` for
-extraction's stream; the library adds no deadline (`docs/no-defaults.md`, A request's time). Rejected: a deadline the command sets
-around each call; the host bounds a request at the transport, where `docs/no-defaults.md` puts it.
+ships a `ResponseHeaderTimeout`, its starting value sized by vision's slowest observed image, 38.9 s
+under mixed load (data-intelligence, line 239), and its client an `Options.StreamIdleTimeout` for
+extraction's stream; the library adds no deadline (`docs/no-defaults.md`, A request's time).
+Rejected: a deadline the command sets around each call; the host bounds a request at the transport,
+where `docs/no-defaults.md` puts it.
 
 ### The run directories
 
@@ -159,13 +160,13 @@ go-core's `processtest`), with go-ai's `tools/infer/integration` as precedent. *
 docinfer: `cmd/docinfer/integration`, tagged, against a real endpoint a variable names, skipped
 when unset; the check vets and lints it without running it.
 
-**C22. issue: the fixtures depend on what the nested module can't have.**
-`apptest/apptest.go:24`, `apptest/apptest.go:47-81`, `apptest/apptest.go:210-223`,
-`app/testdata/README.md:3-7`. Against layers "The nested modules" and `tests-and-docs.md`.
-**accepted**, docinfer: `apptest` holds its own `Recorder`, `Builds`, `Halt`, and a fixture per
-node C1 adds; the fake endpoint, model list included, is go-ai's `aitest` (`docs/library-evaluation.md`, Rejected), not an
-`endpointtest` of docinfer's; a test helper writes each docproc run directory with `rundir.Create`
-and `Begin`, in place of the hand-written schema "1" one.
+**C22. issue: the fixtures depend on what the nested module can't have.** `apptest/apptest.go:24`,
+`apptest/apptest.go:47-81`, `apptest/apptest.go:210-223`, `app/testdata/README.md:3-7`. Against
+layers "The nested modules" and `tests-and-docs.md`. **accepted**, docinfer: `apptest` holds its own
+`Recorder`, `Builds`, `Halt`, and a fixture per node C1 adds; the fake endpoint, model list
+included, is go-ai's `aitest` (`docs/library-evaluation.md`, Rejected), not an `endpointtest` of
+docinfer's; a test helper writes each docproc run directory with `rundir.Create` and `Begin`, in
+place of the hand-written schema "1" one.
 
 **C23. issue: tests that can't fail, pin the wrong thing, or reach no branch.**
 `report/report.go:80-84`, `report/report.go:182-184`, `report/report.go:296-309`,

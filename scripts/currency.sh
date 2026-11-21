@@ -86,11 +86,10 @@ report_outdated_actions() {
 }
 
 latest_tag() {
-	local image=$1 pin=$2 suffix pattern tags latest
+	local image=$1 pin=$2 suffix pattern latest
 	suffix=${pin#"${pin%%[!0-9.]*}"}
 	pattern="^[0-9]+(\.[0-9]+)+${suffix//./\\.}\$"
-	tags=$(crane ls "$image")
-	latest=$(grep -E "$pattern" <<<"$tags" | sed "s/${suffix}\$//" | sort -V | tail -n1)
+	latest=$(crane ls "$image" | grep -E "$pattern" | sed "s/${suffix}\$//" | sort -V | tail -n1) || return
 	echo "$latest$suffix"
 }
 

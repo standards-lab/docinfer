@@ -1,8 +1,7 @@
 # Internals
 
-The reasoning behind the root package's unexported machinery, and `job`'s, for a reader changing
-it. What
-`Pipeline.Run` promises its consumer is in its documentation, [`run.go`](../run.go), and the
+The reasoning behind the root package's unexported machinery, and `job`'s, for a reader changing it.
+What `Pipeline.Run` promises its consumer is in its documentation, [`run.go`](../run.go), and the
 failure table in [`doc.go`](../doc.go); the join of work in flight has
 [its own page](join-of-work-in-flight.md).
 

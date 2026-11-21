@@ -89,14 +89,13 @@ module as docproc's `dispatchtest` is.
 ## Modules
 
 The base module requires docproc and go-ai alone and calls go-ai directly, with no adapter module
-between them. It is an adjacent library above go-ai's tier: whatever may not depend on go-ai's
-tier may not depend on docinfer either. The imports run one way: `chunk` and `join` import the
-standard library alone; the root imports them, docproc's `dispatch`, and go-ai's `ai`,
-`protocol`, and `format`; `job` imports `dispatch` and the root, which never imports `job`; and
-`docinfertest` imports the root. A
-committed `go.work` spans the modules, kept in step with `mise.toml`'s `GO_MODULES`, so a change
-to the base is seen by every module before it is tagged; the check runs each module with
-`GOWORK=off`.
+between them. It is an adjacent library above go-ai's tier: whatever may not depend on go-ai's tier
+may not depend on docinfer either. The imports run one way: `chunk` and `join` import the standard
+library alone; the root imports them, docproc's `dispatch`, and go-ai's `ai`, `protocol`, and
+`format`; `job` imports `dispatch` and the root, which never imports `job`; and `docinfertest`
+imports the root. A committed `go.work` spans the modules, kept in step with `mise.toml`'s
+`GO_MODULES`, so a change to the base is seen by every module before it is tagged; the check runs
+each module with `GOWORK=off`.
 
 ## The go-ai surface docinfer leaves alone
 

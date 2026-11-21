@@ -29,7 +29,8 @@ endpoint (C7); and a node for `run.Config`, holding
 `docinfer.Vision`, `Transcription`, and `Embeddings`; `run.Commands(n.RunConfig)` takes it. A
 configuration error fails the Build, labelled with its node, before the docproc run is read.
 
-The configuration ships the operator's starting values, which the library leaves none (`docs/no-defaults.md`):
+The configuration ships the operator's starting values, which the library leaves none
+(`docs/no-defaults.md`):
 
 ```text
 endpoints.<name>     base_url; format: completions, messages, or responses; profile, the format's
