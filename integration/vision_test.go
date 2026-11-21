@@ -11,14 +11,9 @@ import (
 	"github.com/standards-lab/go-ai"
 )
 
-// imagePart is the part shapes.png is an image output of.
 var imagePart = dispatch.Part{ID: "/shapes.png", Name: "shapes.png", Size: 5384, SHA256: strings.Repeat("a", 64),
 	Parent: "/", Depth: 1, Where: "shapes.png"}
 
-// TestVision runs shapes.png through Run as an image output, on the vision role's endpoint, and
-// wants it described: one inference of outcome described with non-empty text, asked of the
-// model, and its text chunked as kind vision and embedded at the configured dimensions. A second
-// run over the same content is held whole, from the FileCache, asking no model.
 func TestVision(t *testing.T) {
 	client, model := endpoint(t, vision, ai.Options{})
 	emb, dims := embeddings(t)

@@ -11,16 +11,9 @@ import (
 	"github.com/standards-lab/go-ai"
 )
 
-// audioPart is the part phrase.wav is a window of.
 var audioPart = dispatch.Part{ID: "/phrase.wav", Name: "phrase.wav", Size: 193678, SHA256: strings.Repeat("b", 64),
 	Parent: "/", Depth: 1, Where: "phrase.wav"}
 
-// TestTranscription runs phrase.wav through Run as an audio window, the one window of its group,
-// placed at index 0 and without MetaSeamAfter, so it is its group's last: in route mode on the
-// transcription role's endpoint, and in chat mode, through Chat Completions, on the audio role's.
-// Each wants one transcript of outcome transcribed, no window failed, its text non-empty, asked
-// of the model, and chunked as kind transcript and embedded at the configured dimensions. A
-// second run over the same content is held whole, from the FileCache, asking no model.
 func TestTranscription(t *testing.T) {
 	for _, tc := range []struct {
 		name string

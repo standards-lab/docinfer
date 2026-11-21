@@ -14,34 +14,27 @@ import (
 	"github.com/standards-lab/docinfer/join"
 )
 
-// matched is a matched seam's report.
 func matched(matches, overlap, position int) join.Seam {
 	return join.Seam{Matched: true, Matches: matches, Overlap: overlap, Position: position}
 }
 
-// unmatched is an unmatched seam's report, the later window's words from position on.
 func unmatched(position int) join.Seam { return join.Seam{Position: position} }
 
-// repeated is a nine-word phrase of the fixture's, its words distinct, which the repeated-phrase
-// cases say twice and more.
 const repeated = "he would have to pay her the money which"
 
 func TestJoin(t *testing.T) {
 	tests := []struct {
 		name        string
 		transcripts []string
-		// seconds is each seam's span, at 8 words a second; zero means 2 s, a bound of 16 words.
-		seconds float64
-		text    string
-		seams   []join.Seam
+		seconds     float64
+		text        string
+		seams       []join.Seam
 	}{
 		{
 			name:        "exact overlap",
 			transcripts: []string{"he was in a fevered state of mind", "state of mind owing to the blight"},
-			// The three words overlap at the third offset; the splice keeps "state" of the left and
-			// "of mind" of the right.
-			text:  "he was in a fevered state of mind owing to the blight",
-			seams: []join.Seam{matched(3, 3, 6)},
+			text:        "he was in a fevered state of mind owing to the blight",
+			seams:       []join.Seam{matched(3, 3, 6)},
 		},
 		{
 			name: "partial overlap with differences at the edges",
@@ -49,8 +42,6 @@ func TestJoin(t *testing.T) {
 				"hurstwood walked the floor mentally arranging the chief point",
 				"ranging the chief points of his situation",
 			},
-			// Each window heard a word cut at its edge differently: 2 of the 4 overlapped words
-			// match, and the splice at their middle drops both cut forms.
 			text:  "hurstwood walked the floor mentally arranging the chief points of his situation",
 			seams: []join.Seam{matched(2, 4, 7)},
 		},
@@ -96,10 +87,8 @@ func TestJoin(t *testing.T) {
 		{
 			name:        "an empty window between two is unmatched on both sides",
 			transcripts: []string{"a b c", "", "c d e"},
-			// The windows either side don't share a seam, so their words are concatenated, the
-			// "c" each heard kept twice.
-			text:  "a b c c d e",
-			seams: []join.Seam{unmatched(3), unmatched(3)},
+			text:        "a b c c d e",
+			seams:       []join.Seam{unmatched(3), unmatched(3)},
 		},
 		{
 			name: "three windows chain on what each kept",
@@ -117,9 +106,6 @@ func TestJoin(t *testing.T) {
 				repeated + " " + repeated,
 				repeated + " " + repeated + " or there",
 			},
-			// A bound of 16 can't align the two windows' whole 18-word repeats, so the
-			// splice is the nine-word overlap and the left's second repeat and the right's two are
-			// all kept.
 			text:  strings.Repeat(repeated+" ", 3) + "or there",
 			seams: []join.Seam{matched(9, 9, 13)},
 		},
@@ -130,10 +116,8 @@ func TestJoin(t *testing.T) {
 				repeated + " " + repeated + " or there",
 			},
 			seconds: 5,
-			// A bound of 40 is as good as unbounded: transformers' score prefers the 18-word
-			// perfect match, a repeat dropped.
-			text:  strings.Repeat(repeated+" ", 2) + "or there",
-			seams: []join.Seam{matched(18, 18, 9)},
+			text:    strings.Repeat(repeated+" ", 2) + "or there",
+			seams:   []join.Seam{matched(18, 18, 9)},
 		},
 	}
 	for _, tc := range tests {
@@ -156,7 +140,6 @@ func TestJoin(t *testing.T) {
 	}
 }
 
-// evenSeams is n-1 seams of seconds each, for n transcripts.
 func evenSeams(n int, seconds float64) []float64 {
 	seams := make([]float64, max(0, n-1))
 	for i := range seams {
@@ -165,9 +148,6 @@ func evenSeams(n int, seconds float64) []float64 {
 	return seams
 }
 
-// TestJoinBound measures each seam's bound with windows of one repeated word, which match
-// wherever they overlap: the best offset is the widest whole overlap, so a seam's Matches is its
-// bound. The bound is the seam's seconds times WordsPerSecond, rounded up, and at least 2.
 func TestJoinBound(t *testing.T) {
 	window := strings.TrimSpace(strings.Repeat("so ", 50))
 	tests := []struct {
@@ -195,8 +175,6 @@ func TestJoinBound(t *testing.T) {
 	}
 }
 
-// TestJoinBoundPerSeam gives each seam its own seconds: the same windows match on the first
-// seam's bound and the second's.
 func TestJoinBoundPerSeam(t *testing.T) {
 	window := strings.TrimSpace(strings.Repeat("so ", 50))
 	got, err := join.Join([]string{window, window, window}, []float64{0.5, 1.5}, join.Request{WordsPerSecond: 6})
@@ -208,8 +186,6 @@ func TestJoinBoundPerSeam(t *testing.T) {
 	}
 }
 
-// A WordsPerSecond below 1 is refused with ErrRequest: it has no default. So are seams that
-// don't fit the transcripts.
 func TestJoinRefuses(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -236,7 +212,6 @@ func TestJoinRefuses(t *testing.T) {
 	}
 }
 
-// Seam's JSON names its members.
 func TestSeamJSON(t *testing.T) {
 	got, err := json.Marshal(matched(3, 4, 7))
 	if err != nil {
@@ -270,9 +245,6 @@ func TestJoinDeterministic(t *testing.T) {
 	}
 }
 
-// TestJoinReconstructs cuts random runs of distinct words into windows that overlap by 2 to 8
-// words, each keeping words of its own, and joins them back: the run comes back whole, every seam
-// matched on its overlap, the splice where the later window's kept words begin.
 func TestJoinReconstructs(t *testing.T) {
 	rng := rand.New(rand.NewPCG(4, 2))
 	for trial := range 200 {
@@ -312,9 +284,6 @@ func TestJoinReconstructs(t *testing.T) {
 	}
 }
 
-// checkSettled joins every prefix of transcripts, the first k, and checks Join's settled prefix
-// against the join of them all: the words before the prefix's latest seam, and its seams, are the
-// whole join's.
 func checkSettled(t *testing.T, transcripts []string, seams []float64, req join.Request) {
 	t.Helper()
 	full, err := join.Join(transcripts, seams, req)
@@ -340,11 +309,6 @@ func checkSettled(t *testing.T, transcripts []string, seams []float64, req join.
 	}
 }
 
-// TestJoinSettledPrefix joins random window transcripts, from a fixed seed, as they would arrive,
-// each prefix of them in turn: the words before the latest seam never change as more arrive. The
-// transcripts are drawn from a small vocabulary, so words repeat across seams, and each window's
-// edges are perturbed as a cut word is heard differently, some windows empty as a failed one is,
-// so seams match, splice short, and fail to match.
 func TestJoinSettledPrefix(t *testing.T) {
 	vocabulary := strings.Fields("the a of to he she was in it his her and money state mind future, Future. — would")
 	rng := rand.New(rand.NewPCG(8, 9))
@@ -377,10 +341,6 @@ func TestJoinSettledPrefix(t *testing.T) {
 	}
 }
 
-// TestJoinSettledPrefixReal joins the levels fixture's transcript cut into windows as a plan of it
-// would be, each window's last few words heard again at the next one's start, one cut word heard
-// differently and one window failed: the words before the latest seam never change as more
-// arrive.
 func TestJoinSettledPrefixReal(t *testing.T) {
 	var f levelsFixture
 	readTruth(t, levelsTruth, &f)

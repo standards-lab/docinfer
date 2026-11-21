@@ -13,8 +13,6 @@ import (
 	"github.com/standards-lab/go-ai"
 )
 
-// capital is the scenario's Extract: a strict schema of two required string members, and no
-// other.
 var capital = docinfer.Extract{
 	Name:   "capital",
 	Prompt: "Extract the country the text names and its capital city.",
@@ -29,11 +27,6 @@ var capital = docinfer.Extract{
 	}`),
 }
 
-// TestExtraction runs a text output through Run with capital's Extract on the agent role's
-// endpoint, and wants one extraction of outcome extracted, asked of the model, whose text is
-// JSON valid against the schema: an object of exactly its two members, each a string. Its text is
-// chunked and embedded at the configured dimensions too. A second run over the same content is
-// held whole, from the FileCache, asking no model and yielding no progress.
 func TestExtraction(t *testing.T) {
 	client, model := endpoint(t, agent, ai.Options{})
 	emb, dims := embeddings(t)

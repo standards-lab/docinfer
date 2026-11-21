@@ -36,7 +36,6 @@ type Splitter struct {
 	Bound int
 }
 
-// settings is the JSON of a Splitter's Settings, its members in this order.
 type settings struct {
 	Version string `json:"version"`
 	Bound   int    `json:"bound"`
@@ -48,12 +47,11 @@ type settings struct {
 func (s Splitter) Settings() string {
 	b, err := json.Marshal(settings{Version: Version, Bound: s.Bound})
 	if err != nil {
-		panic(err) // a string and an int always marshal
+		panic(err)
 	}
 	return string(b)
 }
 
-// The levels a text is cut at, coarsest first.
 const (
 	headings = iota
 	paragraphs
@@ -73,7 +71,6 @@ func (s Splitter) Split(text string) ([]Chunk, error) {
 	return out, nil
 }
 
-// split appends the chunks of text's [s, e) bytes, cut at level and finer, to out.
 func split(text string, s, e, bound, level int, out *[]Chunk) {
 	s, e = trim(text, s, e)
 	if s == e {
@@ -87,8 +84,6 @@ func split(text string, s, e, bound, level int, out *[]Chunk) {
 		cut(text, s, e, bound, out)
 		return
 	}
-	// The units tile [s, e) between the level's cuts; runs of whole units that fit the bound are
-	// packed into one chunk, and a unit that doesn't fit alone is cut at the next level.
 	cuts := append(boundaries(text, s, e, level), e)
 	start, end, runes := -1, -1, 0
 	from := s
@@ -115,7 +110,6 @@ func split(text string, s, e, bound, level int, out *[]Chunk) {
 	}
 }
 
-// boundaries returns the offsets inside (s, e) where level cuts text, in order.
 func boundaries(text string, s, e, level int) []int {
 	switch level {
 	case headings:
@@ -127,7 +121,6 @@ func boundaries(text string, s, e, level int) []int {
 	}
 }
 
-// lines calls f with the start and end, its line break excluded, of each line of text's [s, e).
 func lines(text string, s, e int, f func(ls, le int)) {
 	for ls := s; ls < e; {
 		le := strings.IndexByte(text[ls:e], '\n')
@@ -140,14 +133,13 @@ func lines(text string, s, e int, f func(ls, le int)) {
 	}
 }
 
-// headingCuts returns the start of each ATX heading line in (s, e) outside a fenced code block.
 func headingCuts(text string, s, e int) []int {
 	var cuts []int
 	fenced := false
 	lines(text, s, e, func(ls, le int) {
 		line := strings.TrimLeft(text[ls:le], " ")
-		if le-ls-len(line) > 3 {
-			return // indented four or more: code, not a heading or fence
+		if indentedCode := le-ls-len(line) > 3; indentedCode {
+			return
 		}
 		if strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
 			fenced = !fenced
@@ -160,8 +152,6 @@ func headingCuts(text string, s, e int) []int {
 	return cuts
 }
 
-// heading reports whether line, its indentation removed, opens an ATX heading: one to six "#"
-// and then white space or the line's end.
 func heading(line string) bool {
 	n := len(line) - len(strings.TrimLeft(line, "#"))
 	if n < 1 || n > 6 {
@@ -170,8 +160,6 @@ func heading(line string) bool {
 	return n == len(line) || line[n] == ' ' || line[n] == '\t' || line[n] == '\r'
 }
 
-// paragraphCuts returns the start of each line in (s, e) that follows one or more blank lines
-// after a line that isn't blank: the start of each paragraph but the first.
 func paragraphCuts(text string, s, e int) []int {
 	var cuts []int
 	seen, gap := false, false
@@ -188,12 +176,8 @@ func paragraphCuts(text string, s, e int) []int {
 	return cuts
 }
 
-// closers may follow a sentence's terminal punctuation before the white space that ends it.
 const closers = `"')]}’”»`
 
-// sentenceCuts returns the offsets in (s, e) where a sentence or a line ends: after ".", "!", or
-// "?" and any closers, where white space follows; after "。", "！", or "？"; and after each line
-// break.
 func sentenceCuts(text string, s, e int) []int {
 	var cuts []int
 	add := func(at int) {
@@ -224,8 +208,6 @@ func sentenceCuts(text string, s, e int) []int {
 	return cuts
 }
 
-// cut appends text's [s, e) bytes to out as chunks of bound runes, the last the rest, each
-// trimmed, none empty.
 func cut(text string, s, e, bound int, out *[]Chunk) {
 	for s < e {
 		end, n := s, 0
@@ -241,7 +223,6 @@ func cut(text string, s, e, bound int, out *[]Chunk) {
 	}
 }
 
-// trim returns [s, e) narrowed past the white space at both its ends.
 func trim(text string, s, e int) (int, int) {
 	for s < e {
 		r, w := utf8.DecodeRuneInString(text[s:e])

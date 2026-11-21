@@ -122,9 +122,6 @@ func Join(transcripts []string, seams []float64, req Request) (Transcript, error
 	return t, nil
 }
 
-// seamBound is the words a seam of seconds is searched over at wordsPerSecond: their product,
-// rounded up, and at least 2. A product too large for an int is clamped to math.MaxInt, which no
-// transcript reaches.
 func seamBound(seconds float64, wordsPerSecond int) int {
 	words := math.Ceil(seconds * float64(wordsPerSecond))
 	if words >= math.MaxInt {
@@ -133,19 +130,11 @@ func seamBound(seconds float64, wordsPerSecond int) int {
 	return max(2, int(words))
 }
 
-// alignment is the chosen offset of a seam: the aligned words, left[leftStart:leftStop] with
-// right[rightStart:rightStop], and how many of them match.
 type alignment struct {
 	leftStart, leftStop, rightStart, rightStop int
 	matches                                    int
 }
 
-// bestAlignment returns transformers' best offset of right's head over left's tail, both folded:
-// the loop of _find_longest_common_sequence in models/whisper/tokenization_whisper.py, offsets
-// from 1 to len(left)+len(right)-1, each scored matches/i + i/10000 in float64 as numpy does, kept
-// when it matches more than 1 word and scores strictly more than the best before it. With no such
-// offset it returns transformers' initial alignment, empty at left's end and right's start, which
-// splices left whole before right whole.
 func bestAlignment(left, right []string) alignment {
 	best := alignment{leftStart: len(left), leftStop: len(left)}
 	score := 0.0
@@ -168,8 +157,6 @@ func bestAlignment(left, right []string) alignment {
 	return best
 }
 
-// fold returns each word's folded form, lowercased with every rune but a letter, digit, or mark
-// dropped.
 func fold(words []string) []string {
 	out := make([]string, len(words))
 	for i, w := range words {

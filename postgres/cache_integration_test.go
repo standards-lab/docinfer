@@ -12,7 +12,6 @@ import (
 	"github.com/standards-lab/sqlate/postgres/pgtest"
 )
 
-// migrated returns a throwaway database with the docinfer set applied, as a host applies it.
 func migrated(t *testing.T) *pgtest.Database {
 	t.Helper()
 	set, err := postgres.Migrations()
@@ -22,8 +21,6 @@ func migrated(t *testing.T) *pgtest.Database {
 	return pgtest.Migrated(t, dsnEnv, prefix, set)
 }
 
-// Verify prepares every statement: it fails on a database without the set and passes once the
-// set is applied.
 func TestLive_VerifyNeedsTheMigratedSchema(t *testing.T) {
 	if err := postgres.Verify(t.Context(), pgtest.Create(t, dsnEnv, prefix).Session()); err == nil {
 		t.Fatal("Verify passed on a database without the docinfer set")
@@ -33,7 +30,6 @@ func TestLive_VerifyNeedsTheMigratedSchema(t *testing.T) {
 	}
 }
 
-// writtenAt returns key's written_at and the database's clock as it was read.
 func writtenAt(t *testing.T, db *pgtest.Database, key string) (written, now time.Time) {
 	t.Helper()
 	err := db.Pool.QueryRowContext(t.Context(), "SELECT written_at, now() FROM docinfer_cache WHERE key = $1", key).Scan(&written, &now)
@@ -43,7 +39,6 @@ func writtenAt(t *testing.T, db *pgtest.Database, key string) (written, now time
 	return written, now
 }
 
-// dbNow returns the database's clock.
 func dbNow(t *testing.T, db *pgtest.Database) time.Time {
 	t.Helper()
 	var now time.Time
@@ -53,8 +48,6 @@ func dbNow(t *testing.T, db *pgtest.Database) time.Time {
 	return now
 }
 
-// A Put is read back by a Get, a replacement replaces it, and written_at is the database's
-// clock at the put that inserted the row, moved by the put that replaced it.
 func TestLive_PutGetRoundtrip(t *testing.T) {
 	db := migrated(t)
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)

@@ -7,7 +7,6 @@ import (
 	"github.com/standards-lab/docinfer/postgres"
 )
 
-// The set is named for the module and recorded in its own history table, apart from a host's.
 func TestMigrationsName(t *testing.T) {
 	set, err := postgres.Migrations()
 	if err != nil {
@@ -21,8 +20,6 @@ func TestMigrationsName(t *testing.T) {
 	}
 }
 
-// Every object the set creates carries the docinfer_ prefix, so it sits beside a host's own
-// schema without a clash.
 func TestMigrationsPrefixTheirObjects(t *testing.T) {
 	set, err := postgres.Migrations()
 	if err != nil {

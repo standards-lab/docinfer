@@ -141,13 +141,25 @@ The root package's tests never sleep. A test holds a request at aitest's `Gate`,
 waiter of the claim table, or a request waiting for a `Bounds` slot, through the hooks in
 `export_test.go`; an extraction's progress is coalesced by a clock the test steps per text delta.
 Every wait a test makes on a job is bounded by `failsafe`, as aitest's `Gate.Await` bounds its
-own: a stall is a finding, so a wait that runs out fails the test rather than hang it.
+own: a stall is a finding, so a wait that runs out fails the test rather than hang it. `job`'s
+tests order a job's steps the same way, holding its index record, a content put, or an embedding
+until the test lets it go, each hold bounded by `failsafe`.
 
-`TestMain` sets `time.Local` to Asia/Kolkata, whose offset is never zero, so a time the code leaves
-unconverted to UTC reads differently from one it converts; `time/tzdata` loads the zone without
-the host's zoneinfo.
+Every package's `TestMain` sets `time.Local` to Asia/Kolkata, whose offset is never zero, so a
+time the code leaves unconverted to UTC reads differently from one it converts; `time/tzdata`
+loads the zone without the host's zoneinfo.
 
 The golden keys pin `Key`'s form under `docinfer.Version`, which names their file. Rewrite them
 with `go test . -run TestGoldenKeys -update` only with a new `Version`, never to make a changed
 key pass under the old one: a changed key misses every result held under the old, and a key of
 the old form over a new shape decodes wrong.
+
+The golden corpus of chunks, `chunk/testdata/chunks-v<Version>.json`, pins how texts are cut under
+`chunk.Version`. Rewrite it with `go test ./chunk -run TestGoldenCorpus -update` only with a new
+`chunk.Version`, never to make a changed cut pass under the old one: docinfer's Profile reports the
+version, so chunks cut differently under the same version would be taken for the old.
+
+`postgres`'s golden test pins every released migration as `Migrations` returns it: its name, the
+SHA-256 of its up and down texts, the files' bodies without their `--|` header, and whether it runs
+in a transaction, which that header carries. A released migration never changes: a new migration
+adds a row, and a changed row is a breaking change to the schema's version line.

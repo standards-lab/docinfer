@@ -1,6 +1,7 @@
 # Internals
 
-The reasoning behind the root package's unexported machinery, for a reader changing it. What
+The reasoning behind the root package's unexported machinery, and `job`'s, for a reader changing
+it. What
 `Pipeline.Run` promises its consumer is in its documentation, [`run.go`](../run.go), and the
 failure table in [`doc.go`](../doc.go); the join of work in flight has
 [its own page](join-of-work-in-flight.md).
@@ -69,3 +70,23 @@ replay. Settings are encoded with nothing escaped that JSON doesn't require, so 
 stay small whatever their size. `checkExtract` validates the extraction request's own construction,
 with stand-ins for its model and text, so the rules for an Extract's name and schema are go-ai's
 alone.
+
+## The job
+
+`Runner.Run` runs the pipeline under a context of the job's own, cancelled as the job stops, so a
+dispatch the pipeline's input side is blocked in ends rather than holds the pipeline's stop; the
+job's context is cancelled before the pipeline is stopped, whether by a failed put or by a loop
+stopped early. The caller's context is kept beside it to tell a cancellation from the job's own
+stop: once the caller's context has ended, its error is the job's, however the stop surfaced. The
+pipeline always ends with its counts or an error, so a run without counts yields no `Done`.
+
+The `watermark` tracks, by position in pull order, each echoed input's After (a message's last
+output's cursor, or zero) and whether it has settled; an input settles after its echo. Its low
+mark is the first input not yet settled. A settlement that moves the low mark past at least
+`CheckpointEvery` messages since the last checkpoint makes one checkpoint, at the last of them;
+an input with no store passes no message, and makes none.
+
+`drop` removes the index entry of the part whose content miss stopped the job. The miss's event
+is the output's event the pipeline was fed, which names its part, the part's SHA-256, and its
+stage: the entry's key. The dispatch has stopped by then, so no claim of the job's records the
+entry again. A failed drop is joined to the stop, which both then match.

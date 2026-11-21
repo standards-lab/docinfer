@@ -32,38 +32,26 @@ import (
 	"github.com/standards-lab/go-ai/format/completions"
 )
 
-// The run tests drive New and Runner.Run over a dispatcher of docproc's fixture stage, its
-// MemoryIndex and MemoryContent, and a pipeline against go-ai's aitest. Each job's input is
-// lines of the fixture stage's directives.
-
 const (
 	embeddingModel = "embedding-model"
 	extractModel   = "extraction-model"
-	// refusedText is the one source text the extraction route refuses.
-	refusedText = "message 2"
-	// failsafe bounds every wait a test makes on what a job does: a stall is a finding.
-	failsafe = 10 * time.Second
+	refusedText    = "message 2"
+	failsafe       = 10 * time.Second
 )
 
-// theExtract is the tests' Extract, which the extraction route answers.
 var theExtract = docinfer.Extract{
 	Name:   "echo",
 	Prompt: "Echo the text.",
 	Schema: jsontext.Value(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`),
 }
 
-// sum returns s's SHA-256, lowercase hex.
 func sum(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
 }
 
-// extraction is the extraction route's text for a source text.
 func extraction(text string) string { return `{"text":` + strconv.Quote(text) + `}` }
 
-// serve returns an endpoint that embeds every text as a vector of its length and word count, and
-// extracts each source text as extraction's JSON of it, streamed in two pieces, but refuses
-// refusedText.
 func serve(t *testing.T) *aitest.Endpoint {
 	return aitest.Serve(t, aitest.Routes{
 		Embeddings: func(_ context.Context, req aitest.EmbeddingRequest) aitest.Reply {
@@ -84,8 +72,6 @@ func serve(t *testing.T) *aitest.Endpoint {
 	})
 }
 
-// newPipeline returns a pipeline of embeddings and extraction on e's routes, a batch per embedded
-// chunk, and a chunk per source text.
 func newPipeline(t *testing.T, e *aitest.Endpoint) *docinfer.Pipeline {
 	t.Helper()
 	c, err := ai.New(e.URL(), http.DefaultClient, completions.New(completions.Options{}), ai.Options{})
@@ -114,8 +100,6 @@ func newPipeline(t *testing.T, e *aitest.Endpoint) *docinfer.Pipeline {
 	return p
 }
 
-// hookIndex is an index that calls its hooks, when set, as a claim or a record of key begins, and
-// fails each method fail names, "claim", "append", or "drop", with its error.
 type hookIndex struct {
 	dispatch.Index
 	onClaim  func(dispatch.Key)
@@ -154,9 +138,6 @@ func (h *hookIndex) Drop(ctx context.Context, key dispatch.Key) error {
 	return h.Index.Drop(ctx, key)
 }
 
-// putContent is a content store that keeps the SHA-256 of each put, in order, fails a put of a
-// SHA-256 fail names with its error, and calls onPut, when set, as each put begins. A content
-// lost, by lose, misses on Open until it is put again.
 type putContent struct {
 	dispatch.Content
 	fail  map[string]error
@@ -191,7 +172,6 @@ func (c *putContent) Open(ctx context.Context, sha string) (io.ReadCloser, error
 	return c.Content.Open(ctx, sha)
 }
 
-// lose makes the content sha names miss until it is put again, as a store that has lost it.
 func (c *putContent) lose(sha string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -201,31 +181,25 @@ func (c *putContent) lose(sha string) {
 	c.lost[sha] = true
 }
 
-// Puts returns the SHA-256 of each put so far.
 func (c *putContent) Puts() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return slices.Clone(c.puts)
 }
 
-// fixture is a job's runner, over a dispatcher of the fixture stage on route.Text, and the stores
-// it shares with the dispatcher.
 type fixture struct {
 	runner  *job.Runner
 	stage   *dispatchtest.Stage
 	index   *hookIndex
 	content *putContent
-	dir     string // the dispatcher's working directory
+	dir     string
 }
 
-// newFixture returns a fixture over world, the content the stage's "file" directives find, and
-// a pipeline on e's routes, checkpointing every message.
 func newFixture(t *testing.T, world map[string]string, e *aitest.Endpoint) *fixture {
 	t.Helper()
 	return newFixtureEvery(t, world, e, 1)
 }
 
-// newFixtureEvery returns newFixture's fixture, checkpointing every every messages.
 func newFixtureEvery(t *testing.T, world map[string]string, e *aitest.Endpoint, every int) *fixture {
 	t.Helper()
 	f := &fixture{
@@ -247,7 +221,6 @@ func newFixtureEvery(t *testing.T, world map[string]string, e *aitest.Endpoint, 
 	return f
 }
 
-// input writes text as a file named name, returning the dispatch input of it.
 func input(t *testing.T, name, text string) dispatch.Input {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), name)
@@ -257,20 +230,16 @@ func input(t *testing.T, name, text string) dispatch.Input {
 	return dispatch.Input{Path: path}
 }
 
-// fixtureKey returns the fixture stage's index key of content.
 func fixtureKey(content string) dispatch.Key {
 	return dispatch.Key{SHA256: sum(content), Stage: dispatchtest.NewStage(nil).Identity()}
 }
 
-// run is what one Run yielded: its updates, in order, and its errors.
 type run struct {
 	updates []job.Update
 	errs    []error
-	// last is whether an error, if any, came alone and last.
-	last bool
+	last    bool
 }
 
-// collect ranges over updates, calling each, when set, with each update as it is yielded.
 func collect(updates func(func(job.Update, error) bool), each func(job.Update)) run {
 	var r run
 	r.last = true
@@ -293,7 +262,6 @@ func collect(updates func(func(job.Update, error) bool), each func(job.Update)) 
 	return r
 }
 
-// done returns r's Done, failing the test unless r ended with it, its one Done, and no error.
 func (r run) done(t *testing.T) job.Done {
 	t.Helper()
 	if len(r.errs) != 0 {
@@ -310,7 +278,6 @@ func (r run) done(t *testing.T) job.Done {
 	return *r.updates[len(r.updates)-1].Done
 }
 
-// events returns r's events, in order.
 func (r run) events() []dispatch.Event {
 	var out []dispatch.Event
 	for _, u := range r.updates {
@@ -321,7 +288,6 @@ func (r run) events() []dispatch.Event {
 	return out
 }
 
-// sourceSHA returns s's text's SHA-256: an output's is its Output's.
 func sourceSHA(s docinfer.Source) string {
 	if s.Output != nil {
 		return s.Output.SHA256
@@ -329,32 +295,17 @@ func sourceSHA(s docinfer.Source) string {
 	return s.SHA256
 }
 
-// own reports whether ev is a part's own event.
 func own(ev dispatch.Event) bool { return ev.Output == nil && ev.Warning == nil }
 
-// The job's input: messages, a warning, a found part, an unread child, and a record, which the
-// pipeline passes through.
 const (
 	inputText = "message 1\nwarn a line read badly\nfile x.txt\nunread locked.bin\nrecord {\"k\":1}\nmessage 2"
 	childText = "leaf x"
 )
 
-// Run yields every dispatch event as an Update.Event, in the pipeline's order: an output's event
-// before its inference and the batches holding its chunks, a part's own event after its outputs',
-// warnings', and children's. The input's message 1 is extracted and embedded before the input's
-// own event, which the index holds back until both are out, so no output waits on its part's
-// event. An extraction's streamed text is yielded as Update.Progress, after its source output's
-// event and before that source's extraction inference. The depth-0 part's own event carries its metadata text, chunked as kind metadata; every
-// other event is fed as it is, the warning, the unread child, and the record among them. Each
-// inference's text is in the content store as its update is yielded; the refused extraction puts
-// nothing. Done comes last: each part by its outcome, their outputs summed, and the pipeline's
-// counts.
 func TestRunOrder(t *testing.T) {
 	f := newFixture(t, map[string]string{"x.txt": childText}, serve(t))
 	message1 := sum("message 1")
 	release := make(chan struct{})
-	// The input's record, and so its own event, waits until message 1 is inferred and batched: a
-	// job that held an output's results until its part's event stalls here, a finding.
 	f.index.onRecord = func(ctx context.Context, key dispatch.Key) {
 		if key == fixtureKey(inputText) {
 			select {
@@ -372,7 +323,6 @@ func TestRunOrder(t *testing.T) {
 		switch {
 		case u.Inference != nil:
 			inferred = inferred || u.Inference.ContentSHA256[0] == message1
-			// The text is in the content store as its update is yielded.
 			if sha := u.Inference.TextSHA256; sha != "" {
 				rc, err := f.content.Open(ctx, sha)
 				if err != nil {
@@ -396,7 +346,6 @@ func TestRunOrder(t *testing.T) {
 	})
 	d := r.done(t)
 
-	// Every event, fed as it is: the outputs, the warning, the unread child's, and the record's.
 	type step struct {
 		name    string
 		output  string
@@ -426,9 +375,6 @@ func TestRunOrder(t *testing.T) {
 		t.Errorf("events:\n got %+v\nwant %+v", steps, want)
 	}
 
-	// The order: each progress, inference, and batch after the events it derives from, each
-	// progress before its source's extraction inference, each part's own event after its outputs',
-	// warnings', and children's.
 	echoed := map[string]bool{}
 	extracted := map[string]bool{}
 	ownAt := map[string]int{}
@@ -477,7 +423,6 @@ func TestRunOrder(t *testing.T) {
 			}
 		}
 	}
-	// Message 1's inference and batch come before the input's own event.
 	inputAt := ownAt[input.ID]
 	inferredAt := slices.IndexFunc(r.updates, func(u job.Update) bool {
 		return u.Inference != nil && u.Inference.ContentSHA256[0] == message1
@@ -489,7 +434,6 @@ func TestRunOrder(t *testing.T) {
 		t.Fatalf("message 1 inferred at update %d, batched at %d: want both before the input's own event at %d", inferredAt, batchedAt, inputAt)
 	}
 
-	// The metadata text, chunked as kind metadata, is the depth-0 part's.
 	var metadata []string
 	for _, u := range r.updates {
 		if u.Batch == nil {
@@ -501,12 +445,10 @@ func TestRunOrder(t *testing.T) {
 			}
 		}
 	}
-	// The chunker trims the text's trailing line feed.
 	if wantText := strings.TrimSpace(docinfer.MetadataText(input)); !slices.Equal(metadata, []string{wantText}) {
 		t.Errorf("metadata chunks %q, want the input's text %q", metadata, wantText)
 	}
 
-	// Each inference's text put once, under its TextSHA256; the refused one puts nothing.
 	outputs := map[string]bool{}
 	for _, ev := range r.events() {
 		if ev.Output != nil {
@@ -539,8 +481,6 @@ func TestRunOrder(t *testing.T) {
 		t.Errorf("refused extractions of %v, want message 2's alone", refused)
 	}
 
-	// Done: the input and x.txt prepared, the unread child encrypted; their outputs summed, the
-	// input's lines, two messages, and record, and x.txt's lines; the pipeline's counts.
 	wantParts := map[dispatch.Outcome]int{dispatch.Prepared: 2, dispatch.Encrypted: 1}
 	if !maps.Equal(d.Parts, wantParts) || d.Outputs != 5 {
 		t.Errorf("Done parts %v, outputs %d; want %v, 5", d.Parts, d.Outputs, wantParts)
@@ -550,8 +490,6 @@ func TestRunOrder(t *testing.T) {
 	}
 }
 
-// Options pass through to the pipeline: a run without Extract asks for no extraction and counts
-// none, and one with it extracts.
 func TestRunPassesOptions(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -579,8 +517,6 @@ func TestRunPassesOptions(t *testing.T) {
 	}
 }
 
-// A refused Extract fails before the dispatch starts: the error alone, matching ErrRequest and
-// permanent, and the stage never called.
 func TestRunRefusedExtract(t *testing.T) {
 	e := serve(t)
 	f := newFixture(t, nil, e)
@@ -600,8 +536,6 @@ func TestRunRefusedExtract(t *testing.T) {
 	}
 }
 
-// A failed put of an inference's text stops the job with the put's error, alone and last, not
-// permanent; the inference's update is never yielded.
 func TestRunPutFails(t *testing.T) {
 	f := newFixture(t, nil, serve(t))
 	failed := sum(extraction("message 1"))
@@ -624,9 +558,6 @@ func TestRunPutFails(t *testing.T) {
 	}
 }
 
-// Done counts each part ID once, by its last own event. A replay misses a dropped entry under
-// b.txt after x.txt's events have replayed; the input, prepared again, finds x.txt's entry gone
-// too, so x.txt's own event repeats, seen then prepared, and is counted once, prepared.
 func TestRunDoneByLastEvent(t *testing.T) {
 	f := newFixture(t, map[string]string{"x.txt": childText, "b.txt": "file c.txt", "c.txt": "leaf c"}, serve(t))
 	const text = "file x.txt\nfile b.txt"

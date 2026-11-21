@@ -17,8 +17,6 @@ import (
 	"github.com/standards-lab/go-ai/format/completions"
 )
 
-// validConfig returns a Config New accepts: a dispatcher over memory stores, a pipeline of
-// embeddings alone, and a CheckpointEvery of 2, 1 more than the least New accepts.
 func validConfig(t *testing.T) job.Config {
 	t.Helper()
 	d, err := dispatch.New(dispatch.Config{
@@ -64,7 +62,6 @@ func TestNewAcceptsLeastValues(t *testing.T) {
 	}
 }
 
-// New panics naming a nil Dispatcher or Pipeline, a wiring the caller left out.
 func TestNewPanicsNamingTheField(t *testing.T) {
 	for _, tc := range []struct {
 		field string
@@ -90,8 +87,6 @@ func TestNewPanicsNamingTheField(t *testing.T) {
 	}
 }
 
-// New refuses a CheckpointEvery below 1, 0 and -1 alike, matching docinfer.ErrRequest and naming
-// the field: there is no default.
 func TestNewRefusesCheckpointEveryBelowOne(t *testing.T) {
 	for _, n := range []int{0, -1} {
 		t.Run(fmt.Sprint(n), func(t *testing.T) {
@@ -111,8 +106,6 @@ func TestNewRefusesCheckpointEveryBelowOne(t *testing.T) {
 	}
 }
 
-// Checkpoint and Done encode under docinfer.Version "1": these strings are pinned, since a host
-// stores and forwards them, and may only ever be added to.
 func TestJSON(t *testing.T) {
 	for _, tc := range []struct {
 		name string

@@ -21,11 +21,8 @@ import (
 	"github.com/standards-lab/go-ai/format/completions"
 )
 
-// role is an endpoint a scenario runs on, named by the environment variable that holds its API
-// root: go-ai's tier's roles, by the same variables.
 type role string
 
-// The roles, each its variable.
 const (
 	agent         role = "AI_AGENT_BASE_URL"
 	vision        role = "AI_VISION_BASE_URL"
@@ -34,13 +31,8 @@ const (
 	transcription role = "AI_TRANSCRIPTION_BASE_URL"
 )
 
-// The tier's own small values for what docinfer gives no default: each MaxTokens, the chunker's
-// bound, the counts, the bounds, and the join's words a second.
 const (
-	// visionTokens is the vision request's MaxTokens: room for a sentence.
-	visionTokens = 256
-	// extractionTokens is the extraction request's MaxTokens: a reasoning model, as the agent is,
-	// reasons ahead of its answer within the same bound.
+	visionTokens     = 256
 	extractionTokens = 1024
 	chunkBound       = 400
 	pending          = 2
@@ -49,16 +41,8 @@ const (
 	wordsPerSecond   = 3
 )
 
-// runTimeout bounds one Run: its few requests, each of which, on a reasoning model, takes tens
-// of seconds. The endpoints have their models loaded, so this covers generation only.
 const runTimeout = 5 * time.Minute
 
-// endpoint returns a Client of r's endpoint, speaking Chat Completions, adjusted by opts and by
-// r's credentials, AI_<ROLE>_TOKEN and AI_<ROLE>_HEADER, as newClient reads them, and the model to
-// send to: the one AI_<ROLE>_MODEL names when set, else the one model the endpoint lists. It skips
-// t when r's variable is unset, naming it, and fails t when a credential doesn't parse, New
-// refuses the URL or the credentials, or, with no model named, the list can't be had or names
-// other than exactly one model; no failure prints a token or header value.
 func endpoint(t *testing.T, r role, opts ai.Options) (*ai.Client, string) {
 	t.Helper()
 	base := os.Getenv(string(r))
@@ -84,10 +68,6 @@ func endpoint(t *testing.T, r role, opts ai.Options) (*ai.Client, string) {
 	return c, models[0].ID
 }
 
-// embeddings returns the pipeline's Embeddings on the embedding role's endpoint, which every
-// pipeline requires, and the dimensions of its model's vectors, taken from the vector of one
-// probe text as go-ai's TestEmbed takes them, so no variable states them. It skips t, naming
-// AI_EMBEDDING_BASE_URL, when that is unset.
 func embeddings(t *testing.T) (docinfer.Embeddings, int) {
 	t.Helper()
 	c, model := endpoint(t, embedding, ai.Options{})
@@ -103,8 +83,6 @@ func embeddings(t *testing.T) (docinfer.Embeddings, int) {
 	return docinfer.Embeddings{Client: c, Model: model}, len(probe.Vectors[0])
 }
 
-// newPipeline returns the Pipeline of emb, of dims dimensions, over a FileCache in a directory of
-// t's own, with the tier's small values, and edit's capabilities.
 func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*docinfer.Config)) *docinfer.Pipeline {
 	t.Helper()
 	cache, err := docinfer.NewFileCache(t.TempDir())
@@ -136,10 +114,8 @@ func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*doc
 	return p
 }
 
-// stage is the stage every input's output comes from.
 var stage = dispatch.Identity{Name: "integration", Version: "1", Config: "c0"}
 
-// put holds data in content as the content its SHA-256 names, and returns that SHA-256.
 func put(t *testing.T, content *dispatch.MemoryContent, data []byte) string {
 	t.Helper()
 	sum := sha256.Sum256(data)
@@ -150,7 +126,6 @@ func put(t *testing.T, content *dispatch.MemoryContent, data []byte) string {
 	return sha
 }
 
-// readTestdata returns the bytes of testdata's file name.
 func readTestdata(t *testing.T, name string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("testdata", name))
@@ -160,8 +135,6 @@ func readTestdata(t *testing.T, name string) []byte {
 	return b
 }
 
-// outcome is what one Run yielded: its inferences, progress, and batches, in order, and its
-// counts.
 type outcome struct {
 	inferences []docinfer.Inference
 	progress   []docinfer.Progress
@@ -169,8 +142,6 @@ type outcome struct {
 	counts     docinfer.Counts
 }
 
-// run runs one job of inputs on p over content with opts, bounded by runTimeout, and returns what
-// it yielded, failing t on the job's error or a job that ends without its counts.
 func run(t *testing.T, p *docinfer.Pipeline, content dispatch.Content, opts docinfer.Options, inputs ...docinfer.Input) outcome {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), runTimeout)
@@ -204,7 +175,6 @@ func run(t *testing.T, p *docinfer.Pipeline, content dispatch.Content, opts doci
 	return o
 }
 
-// inference returns o's one inference, failing t unless o yielded exactly one, of capability c.
 func (o outcome) inference(t *testing.T, c docinfer.Capability) docinfer.Inference {
 	t.Helper()
 	if len(o.inferences) != 1 || o.inferences[0].Capability != c {
@@ -213,9 +183,6 @@ func (o outcome) inference(t *testing.T, c docinfer.Capability) docinfer.Inferen
 	return o.inferences[0]
 }
 
-// checkChunks fails t unless o's batches hold a chunk of a source of each of kinds, and every
-// chunk has a vector of dims dimensions, as DecodeVector reads it, and no error. It returns the
-// chunks' number.
 func checkChunks(t *testing.T, o outcome, dims int, kinds ...string) int {
 	t.Helper()
 	n := 0
@@ -249,9 +216,6 @@ func checkChunks(t *testing.T, o outcome, dims int, kinds ...string) int {
 	return n
 }
 
-// checkHeld fails t unless second, a second run over first's content, is held whole: its
-// inferences are first's, each Held, with the same text; it has no progress; its chunks are
-// first's number, each held; and it asks no model.
 func checkHeld(t *testing.T, first, second outcome) {
 	t.Helper()
 	if len(second.inferences) != len(first.inferences) {

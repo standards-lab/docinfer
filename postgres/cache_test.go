@@ -15,20 +15,16 @@ import (
 	"github.com/standards-lab/sqlate/sqltest"
 )
 
-// key returns a key of docinfer.Key's form for capability, its hash n's digit repeated.
 func key(capability string, n int) string {
 	return capability + "/" + strings.Repeat(string(rune('0'+n)), 64)
 }
 
-// scripted returns a session over sqltest's scripted driver, which answers responses in order,
-// and its recorder.
 func scripted(t *testing.T, responses ...sqltest.Response) (*sqlate.DB, *sqltest.Recorder) {
 	t.Helper()
 	pool, rec := sqltest.Open(t, responses...)
 	return sqlate.Wrap(pool, pgdialect.Dialect{}), rec
 }
 
-// Statements lists the compiled statements in name order.
 func TestStatementsList(t *testing.T) {
 	var names []string
 	for _, st := range postgres.Statements() {
@@ -39,8 +35,6 @@ func TestStatementsList(t *testing.T) {
 	}
 }
 
-// New refuses a pool on any driver but pgx's, naming the driver connection it found: here
-// sqltest's.
 func TestNewRefusesAnotherDriver(t *testing.T) {
 	db, _ := scripted(t)
 	_, err := postgres.New(t.Context(), db)
@@ -49,7 +43,6 @@ func TestNewRefusesAnotherDriver(t *testing.T) {
 	}
 }
 
-// New panics on a nil db, naming it.
 func TestNewPanicsOnANilDB(t *testing.T) {
 	defer func() {
 		if p := recover(); p != "postgres: New: db is nil" {
@@ -59,9 +52,6 @@ func TestNewPanicsOnANilDB(t *testing.T) {
 	_, _ = postgres.New(t.Context(), nil)
 }
 
-// A Get of several keys is one query binding the keys asked, each once, as one slice; the rows
-// map back to the keys, values[i] keys[i]'s, nil for a miss, and a key asked twice is answered
-// twice, each answer its own slice.
 func TestGetIsOneQuery(t *testing.T) {
 	a, b, miss := key("vision", 1), key("embeddings", 2), key("vision", 3)
 	db, rec := scripted(t, sqltest.Response{
@@ -93,7 +83,6 @@ func TestGetIsOneQuery(t *testing.T) {
 	}
 }
 
-// A Get of no keys answers an empty, non-nil slice and asks nothing.
 func TestGetOfNoKeysAsksNothing(t *testing.T) {
 	db, rec := scripted(t)
 	got, err := postgres.NewUnchecked(db).Get(t.Context())
@@ -105,7 +94,6 @@ func TestGetOfNoKeysAsksNothing(t *testing.T) {
 	}
 }
 
-// A Put is one statement binding the key and the value.
 func TestPutIsOneStatement(t *testing.T) {
 	db, rec := scripted(t, sqltest.Response{Affected: 1})
 	k := key("transcription", 4)
@@ -120,7 +108,6 @@ func TestPutIsOneStatement(t *testing.T) {
 	}
 }
 
-// A database error surfaces from Get and Put, naming the operation.
 func TestDatabaseErrorsSurface(t *testing.T) {
 	boom := errors.New("boom")
 	db, _ := scripted(t, sqltest.Response{Err: boom}, sqltest.Response{Err: boom})
@@ -133,10 +120,6 @@ func TestDatabaseErrorsSurface(t *testing.T) {
 	}
 }
 
-// Every guard refuses before any query: a key not of Key's form in a Get or a Put, and an empty
-// value, matching ErrRequest; an ended context with its own error, unwrapped, which tells the
-// guard's refusal from database/sql's, since database/sql also refuses an ended context without
-// reaching the driver.
 func TestGuardsRefuseBeforeAnyQuery(t *testing.T) {
 	ended, cancel := context.WithCancel(t.Context())
 	cancel()

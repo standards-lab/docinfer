@@ -63,12 +63,12 @@ func Cache(t *testing.T, newCache func(t *testing.T) docinfer.Cache) {
 			k := key(fmt.Sprint("whole ", i))
 			in := slices.Clone(v)
 			put(t, c, k, in)
-			in[0]++ // the caller's slice is its own once Put returns
+			in[0]++
 			got := get(t, c, k)
 			if !equal(got, [][]byte{v}) {
 				t.Fatalf("value %d: got %d bytes back, want its %d bytes", i, len(got[0]), len(v))
 			}
-			got[0][0]++ // as is the slice Get returns
+			got[0][0]++
 			if again := get(t, c, k); !equal(again, [][]byte{v}) {
 				t.Errorf("value %d: changed by a change to a slice put or got", i)
 			}
@@ -128,7 +128,6 @@ func Cache(t *testing.T, newCache func(t *testing.T) docinfer.Cache) {
 		shared := key("shared")
 		values := make([][]byte, 8)
 		for i := range values {
-			// Each value a different length, so a torn or interleaved write shows.
 			values[i] = bytes.Repeat([]byte{byte('a' + i)}, 1024*(i+1))
 		}
 		var wg sync.WaitGroup
@@ -163,18 +162,15 @@ func Cache(t *testing.T, newCache func(t *testing.T) docinfer.Cache) {
 	})
 }
 
-// key returns the embeddings key of name's SHA-256 under a fixed model.
 func key(name string) string {
 	return docinfer.Key(docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "docinfertest"}, hash(name))
 }
 
-// hash returns s's SHA-256 as lowercase hex.
 func hash(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
 }
 
-// put holds value under k in c, failing the test on an error.
 func put(t *testing.T, c docinfer.Cache, k string, value []byte) {
 	t.Helper()
 	if err := c.Put(context.Background(), k, value); err != nil {
@@ -182,7 +178,6 @@ func put(t *testing.T, c docinfer.Cache, k string, value []byte) {
 	}
 }
 
-// get reads keys from c, failing the test on an error or a reply of another length.
 func get(t *testing.T, c docinfer.Cache, keys ...string) [][]byte {
 	t.Helper()
 	got, err := c.Get(context.Background(), keys...)
@@ -195,14 +190,12 @@ func get(t *testing.T, c docinfer.Cache, keys ...string) [][]byte {
 	return got
 }
 
-// equal reports whether got and want hold the same values, a nil one only where the other is nil.
 func equal(got, want [][]byte) bool {
 	return slices.EqualFunc(got, want, func(g, w []byte) bool {
 		return (g == nil) == (w == nil) && bytes.Equal(g, w)
 	})
 }
 
-// whole reports whether v is nil, not yet put, or one of values whole.
 func whole(v []byte, values [][]byte) bool {
 	return v == nil || slices.ContainsFunc(values, func(w []byte) bool { return bytes.Equal(v, w) })
 }
