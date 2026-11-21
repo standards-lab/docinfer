@@ -6,15 +6,15 @@ and C16–C20.
 
 ## Evaluation
 
-Fable 5.2 evaluated the spike's command, and the session reviewed it against the workspace,
-one finding per issue or simplification, each settled with the architect in a review round. Each names the spike's file and lines, what it is measured against, and a verdict.
+One finding per issue or simplification in the spike's command. Each names the spike's file and
+lines, what it is measured against, and a verdict.
 Where a finding changes a name, the API states the name.
 
 Citations are relative to spike-ai-pipeline's `internal/docinfer/` at 6a631f1. A bare page name,
 such as `timeouts.md`, is a Go Elemental principle under the architecture repository's
 `standards/go-elemental/principles/`; `principles/<page>` is an architecture principle; a quoted
 name is the page's section. "layers" is docproc's `context/layers.md` at 673ed3d.
-"data-intelligence" is standards-lab's `context/data-intelligence.md`, which states what Cerebro
+"data-intelligence" is standards-lab's `docs/data-intelligence.md`, which states what Cerebro
 asks of v1.ai.inference.
 
 ## The command
@@ -42,9 +42,9 @@ its node, before the docproc run is read.
 **C2. issue: `App.Run` is go-cli-sdk v0.2.0's functional-option call.** `app/app.go:45`,
 `apptest/apptest.go:31`, `go.mod`. Against `construction-and-execution.md`, `cli-applications.md`,
 and `principles/rolling-currency.md`. **accepted**, docinfer: `internal/app` and
-`internal/apptest` start from go-cli-sdk-template `template/v0.3.0`, as `cmd/docproc` did, on
-go-cli-sdk v0.4.0's `cli.Program` and go-core v0.12.0's `Graph.Observe(func(graph.Ref))`; the
-spike's files are not ported.
+`internal/apptest` start from go-cli-sdk-template's latest `template/v*` release, as `cmd/docproc`
+did, on go-cli-sdk's `cli.Program` and go-core's `Graph.Observe(func(graph.Ref))`; the spike's
+files are not ported.
 
 **C3. issue: the layout and packages are the spike root's, not a nested command module's.**
 `cmd/docinfer/main.go:1`, `infer/progress.go:1`, `models/models.go:181`, `report/report.go:1`.
@@ -65,9 +65,9 @@ once per capability's client, so it lists through the same query, token, headers
 run calls with, and reads `status.value` from `Model.Native`; an `*ai.APIError` is "no listing",
 any other error "unreachable". The states, the table, and the 30 s bound stay.
 
-**C6. issue: the configuration has no place for four of go-ai v0.3.0's options.**
-`config/config.go:83-88`, `config/config.go:121-125`, `config/config.go:484-503`. Against go-ai
-v0.3.0's `Options` and `baseline-standards.md` (the command ships the starting values).
+**C6. issue: the configuration has no place for four of go-ai's options.**
+`config/config.go:83-88`, `config/config.go:121-125`, `config/config.go:484-503`. Against go-ai's
+`Options` and `baseline-standards.md` (the command ships the starting values).
 **accepted**, docinfer: the transcription mode (`route`, `chat`) is set on the transcription
 capability's own client in the configuration, the load refusing chat without the completions format,
 and docinfer reads it from that client through `(*Client).TranscriptionMode()`
@@ -91,8 +91,8 @@ go, each override name is composed where it is read, and the test asserts the ov
 `models/models.go:39`. Against `baseline-standards.md`, `timeouts.md`, and `cmd/docproc`'s
 `DOCPROC_UNIT_TIMEOUT` and `DOCPROC_STREAM_IDLE`. **accepted**, docinfer: each endpoint's transport
 ships a `ResponseHeaderTimeout`, its starting value sized by vision's slowest observed image, 38.9 s
-under mixed load (data-intelligence, line 239), and its client an `Options.StreamIdleTimeout` for
-extraction's stream; the library adds no deadline (`docs/no-defaults.md`, A request's time).
+under mixed load (data-intelligence, "Gateway load"), and its client an `Options.StreamIdleTimeout`
+for extraction's stream; the library adds no deadline (`docs/no-defaults.md`, A request's time).
 Rejected: a deadline the command sets around each call; the host bounds a request at the transport,
 where `docs/no-defaults.md` puts it.
 
@@ -100,7 +100,7 @@ where `docs/no-defaults.md` puts it.
 
 **C4. simplification: `source` restates what docproc's `rundir` now does.**
 `source/source.go:17`, `source/source.go:36-91`, `infer/commands.go:39`, `report/commands.go:30`.
-Against docproc v0.3.0 (`rundir.Open`, `Dir.Latest`, `Dir.Record`) and
+Against docproc's `rundir` (`rundir.Open`, `Dir.Latest`, `Dir.Record`) and
 `principles/validation-first.md`. **accepted**, docinfer: no `source` package; `run` opens
 `rundir`, feeds `Pipeline.Run` from `Dir.Record` and `Dir.Content()`, and keeps its count line in
 `output.go`. The latest run is `Dir.Latest`'s, the latest that ended, and `--run` names any other,
@@ -108,7 +108,7 @@ validated as docproc's is. Rejected: the spike's greatest id, which can name a r
 
 **C10. issue: `outdir` writes through spike `rundir` helpers docproc doesn't export.**
 `outdir/outdir.go:108`, `outdir/outdir.go:125`, `outdir/outdir.go:151`, `outdir/outdir.go:162`,
-`report/report.go:51`, `report/report.go:70`. Against docproc v0.3.0's `rundir` exports.
+`report/report.go:51`, `report/report.go:70`. Against docproc's `rundir` exports.
 **accepted**, docinfer: `outdir` owns its whole-file write, its run list, and its id check, each
 `Dir` method refusing an id that isn't one of its runs; `texts/` is a `dispatch.FileContent`, laid
 out `<xx>/<sha256>` with no `.txt` as the schema "2" page states, replacing `WriteText`,
@@ -149,7 +149,7 @@ text or none. Rejected: the inferences in the manifest, which stays small.
 
 **C24. issue: times are converted as schema "2" no longer allows, and no test runs under a non-UTC
 zone.** `infer/execute.go:68`, `infer/execute.go:113`, `report/report.go:164`. Against
-`utc-times.md` and docproc v0.3.0's `schema.Time`. **accepted**, docinfer: `schema.TimeOf` at the
+`utc-times.md` and docproc's `schema.Time`. **accepted**, docinfer: `schema.TimeOf` at the
 two stamps, `Time()` in the report, and a `main_test.go` per test package setting Asia/Kolkata.
 
 ### Tests

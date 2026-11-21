@@ -6,7 +6,7 @@ describes images, transcribes audio windows, extracts by a caller's prompt and J
 chunks and embeds text. It yields each result in batches as it is made, and holds every model
 result behind a cache, so content seen before is replayed rather than asked again.
 
-The base module requires docproc v0.4.0 and go-ai v0.4.0 alone, and calls go-ai directly. Only
+The base module requires docproc v0.4.1 and go-ai v0.4.0 alone, and calls go-ai directly. Only
 the layers above go-ai's tier use it.
 
 ## Install
@@ -164,6 +164,7 @@ No bound, cap, or setting has a library default. `New` refuses a value below 1, 
 `Join.WordsPerSecond`, and each `MaxTokens`, and an empty model; `NewBounds` refuses any of its
 four bounds below 1. A request's time is the host's too: its transport's `ResponseHeaderTimeout`,
 and go-ai's `Options.StreamIdleTimeout` for extraction's stream. docinfer adds no deadline.
+[`docs/no-defaults.md`](docs/no-defaults.md) holds the reasoning.
 
 ## The consumer's contract
 
@@ -207,6 +208,19 @@ The compose harness, [`compose.yml`](compose.yml), is test-only. It runs Postgre
 built from `compose/postgres/Dockerfile`, which pins the image, with its data in tmpfs, so every
 start is empty. `DOCINFER_POSTGRES_PORT` moves the port. `mise.toml` sets `DOCINFER_DSN`, the
 admin DSN the postgres tests create and drop their databases on, to follow it.
+
+## Documentation
+
+- [`docs/development.md`](docs/development.md): the reasoning behind the tasks, CI, the release
+  workflow, the compose harness, the lint configuration, and the tests.
+- [`docs/internals.md`](docs/internals.md): the reasoning behind the root package's and `job`'s
+  unexported machinery.
+- [`docs/join-of-work-in-flight.md`](docs/join-of-work-in-flight.md): why the pipeline joins work
+  in flight with its own claim table.
+- [`docs/no-defaults.md`](docs/no-defaults.md): why no bound, cap, setting, or request time has a
+  library default.
+- [`docs/library-evaluation.md`](docs/library-evaluation.md): the reasoning behind the review the
+  library was built from.
 
 ## License
 

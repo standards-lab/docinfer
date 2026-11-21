@@ -1,17 +1,18 @@
 # cmd/docinfer's API
 
-This note states cmd/docinfer's planned API: layers' docinfer sections at 673ed3d, restated in go-ai's and docproc's
-released names, with [command.md](command.md)'s findings applied. A finding's id marks where it
-changes layers. The directory's `outdir` and the report are [command-report.md](command-report.md).
+This note states cmd/docinfer's planned API: layers' docinfer sections at 673ed3d, restated in
+go-ai's and docproc's released names, with [command.md](command.md)'s findings applied. A finding's
+id marks where it changes layers. The directory's `outdir` and the report are
+[command-report.md](command-report.md).
 
 ## The module
 
 ```text
 github.com/standards-lab/docinfer/cmd/docinfer  the docinfer command; requires the library,
-                                                docproc, go-ai, go-cli-sdk v0.4.0, and go-core
-                                                v0.12.0 (C2)
+                                                docproc, go-ai, go-cli-sdk, and go-core (C2)
 cmd/docinfer     (module) main.go at the module's root, so go install installs the command
-  internal/app       the composition root, started from go-cli-sdk-template template/v0.3.0 (C1, C2)
+  internal/app       the composition root, started from go-cli-sdk-template's latest template/v*
+                     release (C1, C2)
   internal/apptest   its fixtures: Recorder, Builds, Halt, and a fixture per node (C22)
   internal/run       the run command: docproc's rundir in, Pipeline.Run, outdir out (C3, C4, C5)
   internal/report    the report command and run --report's render (C16–C19)
@@ -107,7 +108,7 @@ Every name of the command's that layers' docinfer sections write, against this A
 
 | layers | verdict | reason |
 | --- | --- | --- |
-| module `github.com/standards-lab/docinfer/cmd/docinfer` | carried | go-cli-sdk v0.4.0, go-core v0.12.0 (C2) |
+| module `github.com/standards-lab/docinfer/cmd/docinfer` | carried | go-cli-sdk and go-core at their latest (C2) |
 | `apptest.Serve` | dropped | go-ai's `aitest` (C22; `docs/library-evaluation.md`, Rejected) |
 | the manifest's `Attempt` | dropped | Cerebro's manifest, outside docinfer's API |
 | `outdir.Line` | renamed | `docinfer.Chunk` in the library; `outdir.Line` stays the command's |
@@ -127,7 +128,7 @@ Every name of the command's that layers' docinfer sections write, against this A
 | `chunks.jsonl` | carried | appended per batch (C12) |
 | the manifest | carried | `manifest.json`, gaining `docinfer`, `inputs`, and the relative `docproc.dir` (C13, C17) |
 | `cmd/docinfer` (the spike's `main.go`) | carried | at the module's root (C3) |
-| `app`, `apptest` | carried | `internal/app`, `internal/apptest`, from template/v0.3.0 (C2, C3) |
+| `app`, `apptest` | carried | `internal/app`, `internal/apptest`, from the latest `template/v*` release (C2, C3) |
 | `config` | dropped | the node constructors (C1) |
 | `infer` | renamed | `internal/run` (C3) |
 | `commands.go` | carried | `run`'s |
@@ -146,11 +147,6 @@ The tag, the module it versions, and the task of v1.ai.inference that releases i
 
 | Tag | Module | Task | Requires |
 | --- | --- | --- | --- |
-| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module, docproc v0.4.0, go-ai v0.4.0, go-cli-sdk v0.4.0, go-core v0.12.0 |
+| `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module and docproc, go-ai, go-cli-sdk, and go-core at their latest |
 
-- A module is tagged only after every module it requires: go-ai v0.4.0 before the base module's
-  v0.1.0, and the base module's tag before `postgres`'s or `cmd/docinfer`'s that requires it.
-- No tagged module carries a replace directive; the committed `go.work` serves development.
-- Each module's first CHANGELOG entry links the spike commit it is promoted from: spike-ai-pipeline
-  6a631f1 for the base module and `cmd/docinfer`, spike-ai-pipeline-processing v0.9.0 for `join`.
-  `postgres` and `docinfertest` have no spike source, and their entries say "new".
+`cmd/docinfer`'s first CHANGELOG entry links spike-ai-pipeline 6a631f1.

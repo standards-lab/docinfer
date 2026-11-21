@@ -12,7 +12,7 @@ The spike ran whole-record phases over in-memory maps, so none of its control fl
 rules do. An image or window is asked once per content and settings; a rejected embedding batch
 is retried a text at a time, only on a refused status; a refused window joins as empty; an
 incomplete reply keeps its text; and a result is held as it completes, before anything derived
-from it is yielded. Its held results were not carried over, so every cache starts empty.
+from it is yielded.
 
 ## Composition
 
@@ -37,16 +37,12 @@ from it is yielded. Its held results were not carried over, so every cache start
 
 ## The go-ai mapping
 
-The spike held every `*APIError` as a rejection, held any 4xx, re-sent a rejected embedding batch
-a text at a time on any status, and had no row for failures that aren't an `*APIError`. The
-failure table in [`doc.go`](../doc.go) replaces it, one test per row against go-ai's `aitest`;
-the spike's two tests of the old mapping were rewritten, not ported. The spike held a model's
-refusal as an empty description and checked a vector's length after holding it; a refusal is now
-its own outcome, and a vector is checked against `Config.Dimensions` before `Put` and again on
-`Get`.
-
-go-ai kept a response's output text unexported, so every caller restated it; resolving that at
-its root, go-ai exports `(*protocol.Response).OutputText`, and docinfer keeps no helper.
+The spike held every `*APIError` as a rejection, held any 4xx, re-sent a rejected embedding batch a
+text at a time on any status, and had no row for failures that aren't an `*APIError`. The failure
+table in [`doc.go`](../doc.go) replaces it, one test per row against go-ai's `aitest`. The spike
+held a model's refusal as an empty description and checked a vector's length after holding it; a
+refusal is now its own outcome, and a vector is checked against `Config.Dimensions` before `Put` and
+again on `Get`.
 
 ## The cache and its key
 
@@ -64,13 +60,11 @@ its root, go-ai exports `(*protocol.Response).OutputText`, and docinfer keeps no
 
 ## Transcription and the join
 
-The spike read a part's window count from a Meta key docproc v0.3.0 never sets, so nothing told
-a streaming pipeline the windows were all in; a group now ends at its audio plan record's count,
-at its last window, or at the end of the inputs. Windows are grouped by `Part.ID` and the event's
-stage, and kinds and Meta are read by `dispatch`'s constants, not literals. The join moved from
-processing with no build tag and its own `ErrRequest`, validated at `docinfer.New`, and its
-table and settled-prefix tests moved as they were. The spike's `mediaType` fallbacks were dead
-against docproc v0.3.0, which gives every image output a `MediaType`, so an image output without
+The spike read a part's window count from a Meta key docproc never sets, so nothing told a streaming
+pipeline the windows were all in; a group now ends at its audio plan record's count, at its last
+window, or at the end of the inputs. Windows are grouped by `Part.ID` and the event's stage, and
+kinds and Meta are read by `dispatch`'s constants, not literals. The spike's `mediaType` fallbacks
+were dead against docproc, which gives every image output a `MediaType`, so an image output without
 one is the input's defect.
 
 ## Chunking
@@ -80,11 +74,10 @@ output directory, since a type is introduced only when it is needed.
 
 ## Tests
 
-The spike had tests that couldn't fail. `Bounds`' test holds requests at the fake endpoint until
-the bound is reached and asserts it is reached and never passed, with no sleep, and the spike's
-two determinism tests were dropped. The cache's behavior was tested per implementation, through
-one; `docinfertest` is the one cache suite every implementation passes, exported in the base
-module as docproc's `dispatchtest` is.
+The spike had tests that couldn't fail. `Bounds`' test holds requests at the fake endpoint until the
+bound is reached and asserts it is reached and never passed, with no sleep. The cache's behavior was
+tested per implementation, through one; `docinfertest` is the one cache suite every implementation
+passes, exported in the base module as docproc's `dispatchtest` is.
 
 ## Modules
 
@@ -113,9 +106,6 @@ folds them into the `Refusal` part docinfer reads), and `ai.TranscriptionInstruc
   mode from the client, through go-ai's `(*Client).TranscriptionMode()`.
 - **docinfer's own fake endpoint.** go-ai exported no fake endpoint, and an internal
   `endpointtest` in docinfer was rejected: the library, the command, go-ai's `tools/infer`, and
-  Cerebro all need the same fake, so go-ai's public `aitest` serves them.
-- **go-ai's changes as slices of the library task.** The library task was already the goal's
-  largest, so go-ai's additions shipped in a task of their own, released as go-ai v0.4.0 before
-  docinfer's v0.1.0.
+  every host need the same fake, so go-ai's public `aitest` serves them.
 - **Holding a part's outputs until its event.** It would cost the order as made, so a consumer
   drops a quarantined or failed part's results by that part's own event instead.
