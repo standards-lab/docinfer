@@ -69,8 +69,8 @@ network, so CI never runs it.
 `fnox.toml` holds docinfer's development-time secrets, encrypted with
 [age](https://age-encryption.org) by [fnox](https://fnox.jdx.dev) to the maintainer's recipients,
 `laptop` and `backup`. The ciphertext is safe to read, but only those recipients can decrypt it.
-The workspace's principle for development-time secrets, `architecture/principles/development-secrets.md`,
-arrives with the architecture slice. Each secret says what it is, what reads it, and how to get
+The workspace's principle for development-time secrets is
+`architecture/principles/development-secrets.md`. Each secret says what it is, what reads it, and how to get
 your own; list them, and the tasks they are granted to, with no key:
 
 ```sh

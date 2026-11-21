@@ -54,9 +54,8 @@ and `context/command-report.md`, and apply to the base module, `postgres`, and `
   runs against the endpoints go-ai's `AI_<ROLE>_*` variables name and no CI job runs, and the
   command's in `cmd/docinfer/integration` over `processtest`; every `Cache` passes
   `docinfertest`'s one suite; golden keys and a chunk corpus pin the cache's formats.
-- Development-time secrets live in the repository's own committed, age-encrypted `fnox.toml`, each
-  with a description; the principle page, `architecture/principles/development-secrets.md`,
-  arrives with the architecture slice.
+- `architecture/principles/development-secrets.md`: development-time secrets live in the
+  repository's own committed, age-encrypted `fnox.toml`, each with a description.
 - `architecture/principles/comments.md`: every comment. Released migrations in
   `postgres/migrations` are frozen, byte-identical, comments included
   (`standards-lab/context/migration-sets.md`).
