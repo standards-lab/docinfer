@@ -20,9 +20,10 @@ tool is a `mise install` away.
   each module twice, the second time with the `integration` build tag, so the integration tiers
   are checked without running. sqlint is the postgres module's tool, so it runs from that
   directory and resolves the engine `sqlint.toml` names through the module's own requirements.
-  The module steps and sqlint stop at the first failure; `lint-context` and `lint-references` then
-  both run before the check fails on either, and a lint missing from PATH fails it naming
-  `mise install`.
+  The module steps and sqlint stop at the first failure; `lint-context`, `lint-references`, and
+  `scripts/lint-secrets.sh` then all run before the check fails on any, and a lint missing from
+  PATH fails it naming `mise install`. `lint-secrets` checks `fnox.toml` with no key
+  ([Secrets](#secrets)).
 - **`test:integration`** runs each module's `integration/` package, where one exists, against the
   endpoints go-ai's tier's variables name, which pass through from the caller's environment:
   `AI_EMBEDDING_BASE_URL`, which every scenario needs, `AI_VISION_BASE_URL`,
@@ -32,7 +33,8 @@ tool is a `mise install` away.
   unset, none is sent, and no failing scenario prints a token or header value. `AI_<ROLE>_MODEL`
   names the model of an endpoint that lists more than one. A scenario whose variable is unset
   skips, naming it, so with none set the run skips whole and passes. It runs verbose, so the log
-  lists each scenario passed or skipped, and it never starts a server.
+  lists each scenario passed or skipped, and it never starts a server. It fills an unset
+  `AI_<ROLE>_TOKEN` from the committed `fnox.toml` ([Secrets](#secrets)).
   [`integration/doc.go`](../integration/doc.go) tells each scenario in full.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
@@ -61,13 +63,26 @@ the image scan; it is development-time, as jq is, and no CI job installs either.
 `.claude/marathon.toml` names `mise run currency` as marathon's currency command; it reads the
 network, so CI never runs it.
 
+## Secrets
+
+`fnox.toml` holds docinfer's one development-time secret, `AI_GATEWAY_TOKEN`, the model gateway's
+key for the integration tier, encrypted to two recipients: `laptop` and the offline `backup`.
+Only `test:integration` is granted it, and the task copies it into `AI_<ROLE>_TOKEN` for each role
+whose `AI_<ROLE>_BASE_URL` is set and whose `AI_<ROLE>_TOKEN` is unset. Any OpenAI-compatible
+endpoint's API key works in its place, or leave it unset to send no credential.
+
+The [development-secrets
+principle](https://github.com/standards-lab/architecture/blob/main/principles/development-secrets.md)
+gives the convention and every step, including supplying your own value.
+
 ## CI and releases
 
 CI's check job runs on every pull request into main, every push to main, and on demand. It
-installs only what the check runs: Go, golangci-lint, and marathon's lints. The integration job
-runs `mise run integration` on a push to main and on demand, never on a pull request, below the
-per-PR rate by design; it installs only Go, docker being the runner's. No job runs the base
-module's AI tier, `test:integration`, whose models are on the organization's own machines.
+installs only what the check runs: Go, golangci-lint, marathon's lints, and the jq and yq
+`lint-secrets` reads. The integration job runs `mise run integration` on a push to main and on
+demand, never on a pull request, below the per-PR rate by design; it installs only Go, docker
+being the runner's. No job runs the base module's AI tier, `test:integration`, whose models are on
+the organization's own machines.
 
 The release workflow runs on a pushed tag; nothing in CI tags. A tag is the base module's,
 `vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z`, and, once the planned command

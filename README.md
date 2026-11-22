@@ -179,7 +179,7 @@ Tasks run through [mise](https://mise.jdx.dev), from the repository root, after 
 harness:
 
 ```sh
-mise run check                 # build, vet, format, fix, tidy, test, and lint every module, sqlint the postgres module's SQL, then run lint-context and lint-references; writes nothing
+mise run check                 # build, vet, format, fix, tidy, test, and lint every module, sqlint the postgres module's SQL, then run the lints; writes nothing
 mise run currency              # report requirements, Go, tools, action pins, and compose image pins behind their latest
 mise run upgrade               # upgrade every module's go directive and requirements, and the tools, to their latest
 mise run test:integration      # run the base module's integration tier against the AI_*_BASE_URL endpoints
@@ -194,9 +194,10 @@ fake endpoint, and the postgres module's cache against sqlate's scripted driver.
 go-ai's tier's variables, so one environment drives both: `AI_<ROLE>_BASE_URL`, an API root
 including `/v1`, for the embedding, vision, transcription, audio, and agent roles, with
 `AI_<ROLE>_TOKEN`, `AI_<ROLE>_HEADER`, and `AI_<ROLE>_MODEL` as each endpoint needs. A scenario
-whose variable is unset skips, naming it. [`integration/doc.go`](integration/doc.go) tells each
-scenario. The check builds the tier but never runs it, and no CI job runs it, because the models
-are on the organization's own machines.
+whose variable is unset skips, naming it. `test:integration` fills an unset `AI_<ROLE>_TOKEN`
+from [`fnox.toml`](docs/development.md#secrets). [`integration/doc.go`](integration/doc.go) tells
+each scenario. The check builds the tier but never runs it, nor does CI, because the models are
+on the organization's own machines.
 
 `integration` runs every provider's live tier, continuing past a failure; `integration:postgres`
 is the one provider tier. `integration:postgres` starts the compose harness's PostgreSQL alone,

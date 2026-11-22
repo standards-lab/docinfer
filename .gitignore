@@ -1,6 +1,8 @@
 .claude/plans/
 .claude/briefs/
 mise.local.toml
+fnox.local.toml
+.fnox.local.toml
 bin/
 *.swp
 *.swo

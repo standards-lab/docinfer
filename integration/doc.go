@@ -28,6 +28,9 @@
 // failing when the list names none or more than one. The reading of the credentials and the model
 // is untagged, so the unit tier tests it.
 //
+// `mise run test:integration` fills an unset AI_<ROLE>_TOKEN from the committed fnox.toml, as
+// docs/development.md, "Secrets", says.
+//
 // A scenario whose variable is unset skips, naming the variable: its own role's first, then
 // AI_EMBEDDING_BASE_URL. With none set, the tier skips whole and passes.
 //

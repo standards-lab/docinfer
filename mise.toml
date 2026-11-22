@@ -1,22 +1,30 @@
 # See architecture/standards/go-elemental/principles/release-and-ci.md
 # See architecture/principles/rolling-currency.md
 # See docs/development.md
+min_version = "2026.10.4"
+
 [settings]
+experimental = true
 task.run_auto_install = false
 
 [tools]
+"aqua:FiloSottile/age" = "1.3.2"
 "aqua:google/go-containerregistry" = "0.22.1"
 "github:standards-lab/claude-plugins" = { version = "0.22.0", version_prefix = "marathon/v" }
+fnox = "1.50.0"
 go = "1.27.4"
 golangci-lint = "2.15.0"
 jq = "1.8.2"
+yq = "4.54.3"
+
+[secrets.fnox]
 
 [env]
 GO_MODULES = ". postgres"
 DOCINFER_DSN = "postgres://app:app@127.0.0.1:{{ get_env(name='DOCINFER_POSTGRES_PORT', default='5437') }}/app?sslmode=disable"
 
 [tasks.check]
-description = "Build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL, stopping at the first failure, then run both lint-context and lint-references; writes nothing"
+description = "Build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL, stopping at the first failure, then run lint-context, lint-references, and scripts/lint-secrets.sh, which needs no key; writes nothing"
 run = '''
 set -eu
 export GOWORK=off
@@ -49,14 +57,25 @@ for lint in lint-context lint-references; do
     fail=1
   fi
 done
+echo "check: lint-secrets"
+scripts/lint-secrets.sh || fail=1
 exit "$fail"
 '''
 
 [tasks."test:integration"]
-description = "Run the integration tier against the endpoints the AI_*_BASE_URL variables name"
+description = "Run the integration tier against the endpoints the AI_*_BASE_URL variables name, each role whose AI_<ROLE>_TOKEN is unset sending fnox.toml's AI_GATEWAY_TOKEN"
+secrets = ["AI_GATEWAY_TOKEN"]
 run = '''
 set -eu
 export GOWORK=off
+if [ -n "${AI_GATEWAY_TOKEN:-}" ]; then
+  for role in AGENT VISION AUDIO EMBEDDING TRANSCRIPTION; do
+    eval "base=\${AI_${role}_BASE_URL:-} token=\${AI_${role}_TOKEN:-}"
+    if [ -n "$base" ] && [ -z "$token" ]; then
+      export "AI_${role}_TOKEN=$AI_GATEWAY_TOKEN"
+    fi
+  done
+fi
 for mod in $GO_MODULES; do
   cd "$MISE_PROJECT_ROOT/$mod"
   [ -d integration ] || continue
