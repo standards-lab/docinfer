@@ -70,8 +70,8 @@ network, so CI never runs it.
 [age](https://age-encryption.org) by [fnox](https://fnox.jdx.dev) to the maintainer's recipients,
 `laptop` and `backup`. The ciphertext is safe to read, but only those recipients can decrypt it.
 The workspace's principle for development-time secrets is
-`architecture/principles/development-secrets.md`. Each secret says what it is, what reads it, and how to get
-your own; list them, and the tasks they are granted to, with no key:
+`architecture/principles/development-secrets.md`. Each secret says what it is, what reads it, and
+how to get your own; list them, and the tasks they are granted to, with no key:
 
 ```sh
 mise secrets ls
@@ -103,10 +103,10 @@ the committed file.
 
 CI's check job runs on every pull request into main, every push to main, and on demand. It
 installs only what the check runs: Go, golangci-lint, marathon's lints, and the jq and yq
-`lint-secrets` reads. The integration job
-runs `mise run integration` on a push to main and on demand, never on a pull request, below the
-per-PR rate by design; it installs only Go, docker being the runner's. No job runs the base
-module's AI tier, `test:integration`, whose models are on the organization's own machines.
+`lint-secrets` reads. The integration job runs `mise run integration` on a push to main and on
+demand, never on a pull request, below the per-PR rate by design; it installs only Go, docker
+being the runner's. No job runs the base module's AI tier, `test:integration`, whose models are on
+the organization's own machines.
 
 The release workflow runs on a pushed tag; nothing in CI tags. A tag is the base module's,
 `vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z`, and, once the planned command
