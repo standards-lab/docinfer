@@ -1,0 +1,67 @@
+# golangci-lint v2 configuration for the cmd/docinfer module, run by `mise run check` from here:
+# the standard set plus depguard, testpackage, and nolintlint.
+# See docs/development.md
+# See architecture/standards/go-elemental/principles/dependencies.md
+# See architecture/standards/go-elemental/principles/tests-and-docs.md
+# See architecture/principles/comments.md
+version: "2"
+
+run:
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - nolintlint
+    - testpackage
+  settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    testpackage:
+      skip-regexp: export_test\.go
+      allow-packages: [""]
+    depguard:
+      rules:
+        production:
+          list-mode: strict
+          files:
+            - $all
+            - "!$test"
+          allow:
+            - $gostd
+            - github.com/standards-lab/docinfer$
+            - github.com/standards-lab/docinfer/
+            - github.com/standards-lab/docproc$
+            - github.com/standards-lab/docproc/
+            - github.com/standards-lab/go-ai$
+            - github.com/standards-lab/go-ai/
+            - github.com/standards-lab/go-cli-sdk$
+            - github.com/standards-lab/go-core/
+          deny:
+            - pkg: github.com/standards-lab/docinfer/postgres
+              desc: cmd/docinfer requires the base module, not the postgres module
+            - pkg: github.com/standards-lab/docinfer/docinfertest
+              desc: docinfertest imports testing; only the module's tests use it
+            - pkg: github.com/standards-lab/go-ai/aitest
+              desc: aitest imports testing; only the module's tests use it
+            - pkg: github.com/standards-lab/go-core/graph/graphtest
+              desc: graphtest imports testing; only the module's tests use it
+        tests:
+          list-mode: strict
+          files:
+            - $test
+          allow:
+            - $gostd
+            - github.com/standards-lab/docinfer$
+            - github.com/standards-lab/docinfer/
+            - github.com/standards-lab/docproc$
+            - github.com/standards-lab/docproc/
+            - github.com/standards-lab/go-ai$
+            - github.com/standards-lab/go-ai/
+            - github.com/standards-lab/go-cli-sdk$
+            - github.com/standards-lab/go-core/
+          deny:
+            - pkg: github.com/standards-lab/docinfer/postgres
+              desc: cmd/docinfer requires the base module, not the postgres module

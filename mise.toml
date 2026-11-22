@@ -20,7 +20,7 @@ yq = "4.54.3"
 [secrets.fnox]
 
 [env]
-GO_MODULES = ". postgres"
+GO_MODULES = ". postgres cmd/docinfer"
 DOCINFER_DSN = "postgres://app:app@127.0.0.1:{{ get_env(name='DOCINFER_POSTGRES_PORT', default='5437') }}/app?sslmode=disable"
 
 [tasks.check]
