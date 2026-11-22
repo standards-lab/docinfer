@@ -17,7 +17,7 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 		e := cfg.Embeddings
 		rc := run.Config{
 			Embeddings:  docinfer.Embeddings{Client: s.Use(n.EmbeddingsClient), Model: e.Model},
-			Endpoints:   map[docinfer.Capability]string{docinfer.CapabilityEmbeddings: e.Endpoint},
+			Endpoints:   map[docinfer.Capability]run.Endpoint{docinfer.CapabilityEmbeddings: endpoint(cfg, e.Endpoint)},
 			Concurrency: map[docinfer.Capability]int{docinfer.CapabilityEmbeddings: *e.Concurrency},
 			Chunker:     chunk.Splitter{Bound: *e.ChunkSize},
 			Dimensions:  *e.Dimensions,
@@ -26,6 +26,7 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 			BatchBytes:  *cfg.Run.BatchBytes,
 			Join:        join.Request{WordsPerSecond: startWordsPerSecond},
 		}
+		rc.Build.Command, rc.Build.Library = versions()
 		if v := cfg.Vision; v != nil {
 			rc.Vision = &docinfer.Vision{
 				Client:    s.Use(n.VisionClient),
@@ -34,7 +35,7 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 				MaxTokens: *v.MaxTokens,
 				Reasoning: v.Reasoning,
 			}
-			rc.Endpoints[docinfer.CapabilityVision] = v.Endpoint
+			rc.Endpoints[docinfer.CapabilityVision] = endpoint(cfg, v.Endpoint)
 			rc.Concurrency[docinfer.CapabilityVision] = *v.Concurrency
 		}
 		if t := cfg.Transcription; t != nil {
@@ -44,12 +45,16 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 				Prompt:   t.Prompt,
 				Language: t.Language,
 			}
-			rc.Endpoints[docinfer.CapabilityTranscription] = t.Endpoint
+			rc.Endpoints[docinfer.CapabilityTranscription] = endpoint(cfg, t.Endpoint)
 			rc.Concurrency[docinfer.CapabilityTranscription] = *t.Concurrency
 			rc.Join.WordsPerSecond = *t.WordsPerSecond
 		}
 		return rc, nil
 	})
+}
+
+func endpoint(cfg Config, name string) run.Endpoint {
+	return run.Endpoint{Name: name, BaseURL: cfg.Endpoints[name].BaseURL, Format: cfg.Endpoints[name].Format}
 }
 
 func mountDomain(root *cli.Command, n *Nodes) {

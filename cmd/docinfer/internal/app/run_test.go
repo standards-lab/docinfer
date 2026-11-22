@@ -6,6 +6,7 @@ import (
 	"encoding/json/jsontext"
 	"net"
 	"net/http"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -46,13 +47,18 @@ func modelList(entries ...string) func(context.Context, aitest.ModelsRequest) ai
 	}
 }
 
-var runArgs = []string{"run", "docproc-dir", "--out", "out"}
+func runArgs(t *testing.T) []string {
+	t.Helper()
+	docproc := filepath.Join(t.TempDir(), "docproc")
+	newDocprocRun(t, docproc).end()
+	return []string{"run", docproc, "--out", filepath.Join(t.TempDir(), "out")}
+}
 
 func runWith(t *testing.T, cfg app.Config) (code int, stdout, stderr *bytes.Buffer, built *apptest.Recorder) {
 	t.Helper()
 	a, stdout, stderr, built := newApp(t)
 	apptest.Config(a, cfg)
-	return a.Run(context.Background(), runArgs), stdout, stderr, built
+	return a.Run(context.Background(), runArgs(t)), stdout, stderr, built
 }
 
 func modelRequests(e *aitest.Endpoint) []aitest.Request {
@@ -82,7 +88,7 @@ func TestRun_ModelTable(t *testing.T) {
 		"transcription  gb10      audio-model   unloaded\n" +
 		"embeddings     gb10      embed-model   listed\n" +
 		`warning: transcription: endpoint "gb10" lists model "audio-model" as unloaded` + "\n"
-	if stdout.String() != want {
+	if !strings.HasPrefix(stdout.String(), want) {
 		t.Errorf("stdout =\n%s\nwant\n%s", stdout, want)
 	}
 	if n := len(modelRequests(e)); n != 3 {
@@ -108,7 +114,7 @@ func TestRun_UnsetCapabilitiesAreSkipped(t *testing.T) {
 		"vision         -         -            skipped\n" +
 		"transcription  -         -            skipped\n" +
 		"embeddings     gb10      embed-model  loaded\n"
-	if stdout.String() != want {
+	if !strings.HasPrefix(stdout.String(), want) {
 		t.Errorf("stdout =\n%s\nwant\n%s", stdout, want)
 	}
 	if n := len(modelRequests(e)); n != 1 {
@@ -208,7 +214,7 @@ func TestRun_ModelsListThroughTheEndpointsSettings(t *testing.T) {
 	})
 	a, _, stderr, _ := newApp(t)
 
-	code := a.Run(context.Background(), append(slices.Clone(runArgs), "--config", dir))
+	code := a.Run(context.Background(), append(runArgs(t), "--config", dir))
 
 	if code != process.ExitOK {
 		t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)

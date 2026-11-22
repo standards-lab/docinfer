@@ -9,6 +9,8 @@ import (
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/docinfer/join"
+
+	"github.com/standards-lab/docinfer/cmd/docinfer/internal/outdir"
 )
 
 // Config is what the run command runs under, in the library's shapes: each capability the
@@ -21,8 +23,8 @@ type Config struct {
 	Transcription *docinfer.Transcription
 	// Embeddings embeds chunks.
 	Embeddings docinfer.Embeddings
-	// Endpoints names each set capability's endpoint, its key in the configuration's endpoints.
-	Endpoints map[docinfer.Capability]string
+	// Endpoints is each set capability's endpoint.
+	Endpoints map[docinfer.Capability]Endpoint
 	// Concurrency is each set capability's most requests in flight.
 	Concurrency map[docinfer.Capability]int
 	// Chunker cuts each text into the chunks Embeddings embeds.
@@ -37,6 +39,16 @@ type Config struct {
 	BatchBytes int
 	// Join is how window transcripts are merged.
 	Join join.Request
+	// Build is the command's and the library's versions, which each run's manifest records.
+	Build outdir.Build
+}
+
+// Endpoint is a capability's endpoint, as the manifest records it: its name, its key in the
+// configuration's endpoints, its base URL, and its format.
+type Endpoint struct {
+	Name    string
+	BaseURL string
+	Format  string
 }
 
 // Commands returns the run command, over the configuration cfg's node holds, which it declares.
@@ -61,11 +73,15 @@ func command(cfg *graph.Node[Config]) *cli.Command {
 			return nil
 		},
 		Run: func(ctx context.Context, inv *cli.Invocation) error {
-			check, err := checkModels(ctx, inv.Get(cfg))
+			c := inv.Get(cfg)
+			check, err := checkModels(ctx, c)
 			if werr := writeModels(inv.Stdout, check); werr != nil {
 				return werr
 			}
-			return err
+			if err != nil {
+				return err
+			}
+			return infer(ctx, inv.Stdout, c, target{docproc: inv.Args[0], out: out, run: id})
 		},
 	}
 	flags := cmd.Flags()

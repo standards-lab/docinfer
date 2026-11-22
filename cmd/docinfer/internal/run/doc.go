@@ -15,4 +15,27 @@
 //   - skipped: the configuration leaves the capability unset
 //
 // A stopped check returns its error once the table is printed.
+//
+// The run then reads docproc's run directory through docproc's rundir: the latest run that
+// ended, Dir.Latest's, or the run --run names, which rundir refuses when it isn't one of the
+// directory's runs; a --run naming a run that hasn't ended is refused too, matching
+// rundir.ErrNotEnded. It opens docinfer's directory at --out with outdir.Create and begins a run
+// there, its manifest recording the build, the docproc run and its directory relative to --out,
+// each capability's identity, endpoint, and bounds, and the capabilities skipped. It feeds every
+// line of docproc's record to docinfer.Pipeline.Run, each input's depth-0 part line with its
+// metadata text, as the job's last delivery, docinfer.Options.Final, so an image, window, or
+// chunk a model fails on is recorded failed and the run goes on. Each inference's text goes into
+// the directory's texts, each inference into its inferences record, and each batch into its
+// chunk record, as the pipeline yields them, over the directory's held results.
+//
+// Its lines come from the pipeline's results alone: a first line naming the run and docproc's,
+// a line per docproc input once everything derived from it is out, its path, images, windows,
+// chunks, and failures (images refused or failed, windows not transcribed, and chunks refused or
+// failed), and, once the run ends, a line per capability with its counts and a last line,
+// counting the inputs, the outputs read, the chunks, and the failures. A run that stops, for an
+// error or a cancellation, writes its manifest with its end and its error, keeps the records it
+// wrote, prints no last line, and returns its error, so the command exits 1.
+//
+// The run builds its docinfer.Bounds from each capability's concurrency, 1 for a capability the
+// configuration leaves unset, and 1 for extraction, which the command never runs.
 package run

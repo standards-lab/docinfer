@@ -37,10 +37,28 @@ the postgres module keep their own.
   `DOCINFER_ENDPOINTS_<NAME>_RESPONSE_HEADER_TIMEOUT`. A configuration error fails the command
   before it reads anything, labelled `config`, and a client go-ai refuses is named for its
   endpoint.
-- `docinfer run <docproc-dir> --out <dir> [--run <id>]`, which for now checks each capability's
+- `docinfer run <docproc-dir> --out <dir> [--run <id>]`, which first checks each capability's
   model through its own client's model listing, within 30 seconds, and prints the table of their
   states: loaded or the listing's status, listed, unlisted, unchecked (the endpoint gives no
-  listing), unreachable, or skipped. An unlisted model or an unreachable endpoint exits 1.
+  listing), unreachable, or skipped. An unlisted model or an unreachable endpoint exits 1. It
+  then reads docproc's latest run that ended, or the one `--run` names, and feeds every record
+  line, each input's metadata text with its part line, to the pipeline as the job's last
+  delivery, printing a line per docproc input as its work ends, a line of counts per capability,
+  and a last line counting the inputs, outputs, chunks, and failures. A run that ends exits 0,
+  refused or failed images, windows, and chunks recorded and counted; a run that stops, never
+  begins, or is cancelled exits 1. A `--run` that isn't one of docproc's runs, or names one that
+  hasn't ended, is refused before anything is written.
+- The output directory at schema "2": `outdir.json`, `{"schema": "2"}`, which reading refuses
+  for any other schema, naming both, and which `results/`, `texts/`, or `runs/` without it marks
+  as schema "1"; `results/`, the held results; `texts/<xx>/<sha256>`, each inference's text; and
+  per run `runs/<run>/manifest.json`, written as the run starts and as it ends, with the build's
+  versions, UTC start and end, docproc's directory relative to the output directory and its run,
+  each input's path and SHA-256 or error, each capability's identity, endpoint, and bounds, the
+  skipped capabilities, the embedding space, the counts, the outputs read, and the run's error;
+  `runs/<run>/chunks.jsonl`, a line per chunk with its part and source inline, appended per
+  batch; and `runs/<run>/inferences.jsonl`, each vision and transcription inference, refused and
+  failed ones among them by part ID and content SHA-256, appended as made, so a stopped run
+  keeps what it made.
 - The built-binary integration tier, under the `integration` build tag, run by
   `mise run test:integration`: it builds `docinfer` and asserts `version`, the root help, and an
   unknown command's usage error through its arguments, output, and exit status.

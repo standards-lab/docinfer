@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -177,7 +176,7 @@ func TestConfig_DirectoryFromTheEnvironment(t *testing.T) {
 	t.Setenv("DOCINFER_CONFIG", configDir(t, map[string]string{"config.json": embeddingsJSON(e.URL())}))
 	a, stdout, stderr, _ := newApp(t)
 
-	code := a.Run(context.Background(), runArgs)
+	code := a.Run(context.Background(), runArgs(t))
 
 	if code != process.ExitOK {
 		t.Errorf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
@@ -236,7 +235,7 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 			for name, value := range tt.env {
 				t.Setenv(name, value)
 			}
-			args := slices.Clone(runArgs)
+			args := runArgs(t)
 			switch {
 			case tt.dir != "":
 				args = append(args, "--config", tt.dir)
@@ -270,7 +269,7 @@ func TestConfig_ClientErrorNamedForItsEndpoint(t *testing.T) {
 	dir := configDir(t, map[string]string{"config.json": embeddingsJSON("ftp://gb10/v1")})
 	a, stdout, stderr, _ := newApp(t)
 
-	code := a.Run(context.Background(), append(slices.Clone(runArgs), "--config", dir))
+	code := a.Run(context.Background(), append(runArgs(t), "--config", dir))
 
 	if code != process.ExitFailure {
 		t.Errorf("code = %d, want %d", code, process.ExitFailure)

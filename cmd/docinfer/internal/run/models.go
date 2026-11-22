@@ -84,7 +84,7 @@ func checkModels(ctx context.Context, cfg Config) (modelCheck, error) {
 			check.rows = append(check.rows, modelRow{capability: c.name, endpoint: "-", model: "-", state: stateSkipped})
 			continue
 		}
-		endpoint := cfg.Endpoints[c.name]
+		endpoint := cfg.Endpoints[c.name].Name
 		row := modelRow{capability: c.name, endpoint: endpoint, model: c.model}
 		l := lists[i]
 		if apiErr, ok := errors.AsType[*ai.APIError](l.err); ok {
