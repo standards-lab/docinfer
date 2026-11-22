@@ -33,10 +33,9 @@ tool is a `mise install` away.
   unset, none is sent, and no failing scenario prints a token or header value. `AI_<ROLE>_MODEL`
   names the model of an endpoint that lists more than one. A scenario whose variable is unset
   skips, naming it, so with none set the run skips whole and passes. It runs verbose, so the log
-  lists each scenario passed or skipped, and it never starts a server. mise grants it
-  `AI_GATEWAY_TOKEN` from the committed `fnox.toml`, and it fills each unset `AI_<ROLE>_TOKEN`
-  with that value ([Secrets](#secrets)). [`integration/doc.go`](../integration/doc.go) tells each scenario in
-  full.
+  lists each scenario passed or skipped, and it never starts a server. It fills an unset
+  `AI_<ROLE>_TOKEN` from the committed `fnox.toml` ([Secrets](#secrets)).
+  [`integration/doc.go`](../integration/doc.go) tells each scenario in full.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
   its log on a failure. **`integration`** runs every provider's live tier one module at a time,
@@ -67,12 +66,10 @@ network, so CI never runs it.
 ## Secrets
 
 `fnox.toml` holds docinfer's one development-time secret, `AI_GATEWAY_TOKEN`, the model gateway's
-key for the integration tier, encrypted to two recipients: `laptop` and the offline `backup`. It
-says what it is, what reads it, and how to get your own; `mise secrets ls` lists it without a key.
+key for the integration tier, encrypted to two recipients: `laptop` and the offline `backup`.
 Only `test:integration` is granted it, and the task copies it into `AI_<ROLE>_TOKEN` for each role
-whose `AI_<ROLE>_BASE_URL` is set and whose `AI_<ROLE>_TOKEN` is unset, so a token you export for a
-role takes precedence. Any OpenAI-compatible endpoint's API key works in its place, or leave it
-unset to send no credential.
+whose `AI_<ROLE>_BASE_URL` is set and whose `AI_<ROLE>_TOKEN` is unset. Any OpenAI-compatible
+endpoint's API key works in its place, or leave it unset to send no credential.
 
 The [development-secrets
 principle](https://github.com/standards-lab/architecture/blob/main/principles/development-secrets.md)
