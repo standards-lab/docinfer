@@ -194,10 +194,10 @@ fake endpoint, and the postgres module's cache against sqlate's scripted driver.
 go-ai's tier's variables, so one environment drives both: `AI_<ROLE>_BASE_URL`, an API root
 including `/v1`, for the embedding, vision, transcription, audio, and agent roles, with
 `AI_<ROLE>_TOKEN`, `AI_<ROLE>_HEADER`, and `AI_<ROLE>_MODEL` as each endpoint needs. A scenario
-whose variable is unset skips, naming it. [`fnox.toml`](docs/development.md#secrets) fills an
-unset `AI_<ROLE>_TOKEN`. [`integration/doc.go`](integration/doc.go) tells each scenario. The check
-builds the tier but never runs it, nor does CI, because the models are on the organization's own
-machines.
+whose variable is unset skips, naming it. `test:integration` fills an unset `AI_<ROLE>_TOKEN`
+from [`fnox.toml`](docs/development.md#secrets). [`integration/doc.go`](integration/doc.go) tells
+each scenario. The check builds the tier but
+never runs it, nor does CI, because the models are on the organization's own machines.
 
 `integration` runs every provider's live tier, continuing past a failure; `integration:postgres`
 is the one provider tier. `integration:postgres` starts the compose harness's PostgreSQL alone,

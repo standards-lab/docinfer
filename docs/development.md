@@ -33,9 +33,9 @@ tool is a `mise install` away.
   unset, none is sent, and no failing scenario prints a token or header value. `AI_<ROLE>_MODEL`
   names the model of an endpoint that lists more than one. A scenario whose variable is unset
   skips, naming it, so with none set the run skips whole and passes. It runs verbose, so the log
-  lists each scenario passed or skipped, and it never starts a server. It is granted
-  `AI_GATEWAY_TOKEN` from the committed `fnox.toml`, which fills each unset `AI_<ROLE>_TOKEN`
-  ([Secrets](#secrets)). [`integration/doc.go`](../integration/doc.go) tells each scenario in
+  lists each scenario passed or skipped, and it never starts a server. mise grants it
+  `AI_GATEWAY_TOKEN` from the committed `fnox.toml`, and it fills each unset `AI_<ROLE>_TOKEN`
+  with that value ([Secrets](#secrets)). [`integration/doc.go`](../integration/doc.go) tells each scenario in
   full.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
@@ -71,7 +71,7 @@ network, so CI never runs it.
 `laptop` and `backup`. The ciphertext is safe to read, but only those recipients can decrypt it.
 The workspace's principle for development-time secrets is
 `architecture/principles/development-secrets.md`. Each secret says what it is, what reads it, and
-how to get your own; list them, and the tasks they are granted to, with no key:
+how to get your own. This lists them, and the tasks they are granted to, without a key:
 
 ```sh
 mise secrets ls
