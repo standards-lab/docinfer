@@ -66,38 +66,17 @@ network, so CI never runs it.
 
 ## Secrets
 
-`fnox.toml` holds docinfer's development-time secrets, encrypted with
-[age](https://age-encryption.org) by [fnox](https://fnox.jdx.dev) to the maintainer's recipients,
-`laptop` and `backup`. The ciphertext is safe to read, but only those recipients can decrypt it.
-The workspace's principle for development-time secrets is
-`architecture/principles/development-secrets.md`. Each secret says what it is, what reads it, and
-how to get your own. This lists them, and the tasks they are granted to, without a key:
+`fnox.toml` holds docinfer's one development-time secret, `AI_GATEWAY_TOKEN`, the model gateway's
+key for the integration tier, encrypted to two recipients: `laptop` and the offline `backup`. It
+says what it is, what reads it, and how to get your own; `mise secrets ls` lists it without a key.
+Only `test:integration` is granted it, and the task copies it into `AI_<ROLE>_TOKEN` for each role
+whose `AI_<ROLE>_BASE_URL` is set and whose `AI_<ROLE>_TOKEN` is unset, so a token you export for a
+role takes precedence. Any OpenAI-compatible endpoint's API key works in its place, or leave it
+unset to send no credential.
 
-```sh
-mise secrets ls
-```
-
-There is one, `AI_GATEWAY_TOKEN`, the model gateway's key for docinfer's integration tier.
-`mise.toml` grants it to `test:integration` alone, through `[secrets.fnox]` and the task's
-`secrets` list, which needs mise 2026.10.4 or later (`min_version`) and `experimental = true`.
-The task sends it as `AI_<ROLE>_TOKEN` for each role whose `AI_<ROLE>_BASE_URL` is set and whose
-`AI_<ROLE>_TOKEN` is unset, so a token the caller exports for a role still wins, and mise redacts
-it in the task's output. With no age identity that decrypts it, fnox warns, the variable stays
-unset, and the task runs on the caller's environment alone.
-
-To use your own value, generate an age identity with `age-keygen -o ~/.config/fnox/age.txt`, then
-write the value to the gitignored `fnox.local.toml`, which overrides `fnox.toml`. Give that file an
-age provider whose recipient is your own public key (`age-keygen -y ~/.config/fnox/age.txt`), then
-run:
-
-```sh
-fnox -c ./fnox.local.toml set AI_GATEWAY_TOKEN
-```
-
-Any OpenAI-compatible endpoint's API key works, or leave it unset to send no credential. In a fork,
-replace the recipients in `fnox.toml` with your own and set the value again. A plain `fnox set`
-writes to the committed `fnox.toml`, so name `fnox.local.toml` with `-c` unless you mean to change
-the committed file.
+The [development-secrets
+principle](https://github.com/standards-lab/architecture/blob/main/principles/development-secrets.md)
+gives the convention and every step, including supplying your own value.
 
 ## CI and releases
 
