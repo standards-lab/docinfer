@@ -1,0 +1,235 @@
+{{/*
+The report's pages: "index", the run's index, over a model, and "content", one input content's
+page, over a contentView. Each is a whole page with its style inline and nothing loaded from
+elsewhere.
+*/ -}}
+{{define "head" -}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfbfa; --fg: #1d1d1b; --muted: #6b6b66; --line: #dddcd6; --panel: #f1f0ec;
+  --link: #1f5fa8; --ok: #2f7a3a; --warn: #9a6400; --bad: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a; --fg: #e6e5e1; --muted: #9a9a94; --line: #34363a; --panel: #212226;
+    --link: #8ab8f0; --ok: #79c487; --warn: #e0b45c; --bad: #f08a80;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; max-width: 72rem; padding: 1.5rem 1rem 4rem;
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.5 system-ui, sans-serif;
+}
+h1 { font-size: 1.4rem; margin: 0 0 .25rem; overflow-wrap: anywhere; }
+h2 { font-size: 1.1rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+h3 { font-size: 1rem; margin: 1rem 0 .25rem; overflow-wrap: anywhere; }
+a { color: var(--link); }
+code, pre, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: .3rem; padding: .5rem .75rem; margin: .3rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
+.error { color: var(--bad); }
+.warning { color: var(--warn); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: .3rem .6rem .3rem 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+th { font-weight: 600; color: var(--muted); }
+td.n, th.n { text-align: right; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: .15rem 1rem; margin: .5rem 0; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+.badge { display: inline-block; padding: 0 .45rem; border-radius: .6rem; border: 1px solid var(--line); background: var(--panel); font-size: .85em; white-space: nowrap; }
+[data-outcome="described"], [data-outcome="transcribed"] { color: var(--ok); border-color: currentColor; }
+[data-outcome="refused"], [data-outcome="failed"], [data-outcome="damaged"] { color: var(--bad); border-color: currentColor; }
+[data-outcome="incomplete"] { color: var(--warn); border-color: currentColor; }
+section.item { border: 1px solid var(--line); border-radius: .4rem; margin: .6rem 0; padding: .25rem .75rem; }
+.pair { display: flex; gap: 1rem; }
+.pair .what { flex: 0 0 16rem; max-width: 16rem; overflow-wrap: anywhere; }
+.pair .what img { display: block; max-width: 100%; max-height: 24rem; border: 1px solid var(--line); background: #fff; }
+.pair .text { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 40rem) { .pair { flex-direction: column; } .pair .what { flex-basis: auto; max-width: none; } }
+ol.chunks { list-style: none; margin: .3rem 0; padding: 0; }
+ol.chunks li { margin: .4rem 0; }
+</style>
+{{- end}}
+
+{{define "index" -}}
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head"}}
+<title>docinfer run {{.Manifest.Run}}</title>
+</head>
+<body>
+<header>
+<h1>docinfer run <code>{{.Manifest.Run}}</code></h1>
+<dl class="facts">
+<dt>Start</dt><dd class="mono">{{time .Manifest.Start}}</dd>
+<dt>End</dt><dd class="mono">{{if .Ended}}{{time .Manifest.End}} <span class="muted">({{took .Span}})</span>{{else}}<span class="warning">not ended</span>{{end}}</dd>
+<dt>docinfer</dt><dd>command <code>{{.Manifest.Docinfer.Command}}</code>, library <code>{{.Manifest.Docinfer.Library}}</code></dd>
+<dt>docproc run</dt><dd><code>{{.Manifest.Docproc.Run}}</code> in <code>{{.Manifest.Docproc.Dir}}</code></dd>
+<dt>Outputs read</dt><dd>{{.Manifest.Outputs}}</dd>
+{{- with .Manifest.Error}}
+<dt>Error</dt><dd class="error">{{.}}</dd>
+{{- end}}
+</dl>
+{{- if not .Ended}}
+<p class="warning">The run has not ended: it is still running, or it was killed. The pages show the lines its records hold.</p>
+{{- end}}
+</header>
+
+<h2>Capabilities</h2>
+<div class="scroll"><table>
+<thead><tr><th>Capability</th><th>Endpoint</th><th>Model</th><th>Settings</th><th>Bounds</th></tr></thead>
+<tbody>
+{{- range .Manifest.Capabilities}}
+<tr><td>{{.Capability}}</td><td>{{.Endpoint}} <code class="muted">{{.BaseURL}}</code> <span class="muted">{{.Format}}</span></td><td><code>{{.Model}}</code></td><td><code>{{.Settings}}</code></td><td>concurrency {{.Concurrency}}{{with .Batch}}, batch {{.}}{{end}}{{with .ChunkSize}}, chunk size {{.}}{{end}}</td></tr>
+{{- end}}
+{{- range .Manifest.Skipped}}
+<tr><td>{{.Name}}</td><td colspan="4" class="muted">skipped: {{.Reason}}</td></tr>
+{{- end}}
+</tbody>
+</table></div>
+
+<h2>Embedding space</h2>
+{{- with .Manifest.Space}}
+<dl class="facts">
+<dt>Model</dt><dd>{{.Endpoint}} <code>{{.Model}}</code></dd>
+<dt>Vectors</dt><dd>{{.Vectors}} of {{.Dimensions}} dimensions</dd>
+<dt>Norms</dt><dd>{{printf "%.6f" .MinNorm}} to {{printf "%.6f" .MaxNorm}}; {{if .Unit}}unit length{{else}}not unit length{{end}} within {{.Tolerance}}</dd>
+<dt>Chunker</dt><dd><code>{{.Chunker}}</code></dd>
+</dl>
+{{- else}}
+<p class="muted">None: the run has not measured one.</p>
+{{- end}}
+
+<h2>Counts</h2>
+{{- with .Manifest.Counts}}
+<dl class="facts">
+<dt>vision</dt><dd>{{with .Vision}}images {{$.Manifest.Counts.Images}}: described {{.Described}}, incomplete {{.Incomplete}} (empty {{.Empty}}), refused {{.Refused}}, failed {{.Failed}}, held {{.Held}}; requests {{.Requests}}{{else}}<span class="muted">skipped</span>; images {{.Images}}{{end}}</dd>
+<dt>transcription</dt><dd>{{with .Transcription}}windows {{$.Manifest.Counts.Windows}}: transcribed {{.Transcribed}}, incomplete {{.Incomplete}}, refused {{.Refused}}, failed {{.Failed}}, held {{.Held}}; requests {{.Requests}}; transcripts {{.Transcripts}}, seams matched {{.SeamsMatched}}, unmatched {{.SeamsUnmatched}}{{else}}<span class="muted">skipped</span>; windows {{.Windows}}{{end}}</dd>
+<dt>embeddings</dt><dd>texts {{.Texts}}, metadata {{.Metadata}}: embedded {{.Embedded}}, rejected {{.Rejected}}, held {{.Held}}; requests {{.Requests}}</dd>
+</dl>
+{{- end}}
+
+<h2>Inputs</h2>
+<div class="scroll"><table>
+<thead><tr><th>Path</th><th class="n">Images</th><th class="n">Transcripts</th><th class="n">Chunks</th><th class="n">Failures</th></tr></thead>
+<tbody>
+{{- range .Inputs}}
+<tr><td>{{if .Content}}<a href="{{.Content.SHA256}}.html"><code>{{.Path}}</code></a>{{else}}<code>{{.Path}}</code>{{end}}{{with .Error}}<br><span class="error">{{.}}</span>{{end}}</td><td class="n">{{.Images}}</td><td class="n">{{.Transcripts}}</td><td class="n">{{.Chunks}}</td><td class="n">{{.Failures}}</td></tr>
+{{- else}}
+<tr><td colspan="5" class="muted">The run names no input.</td></tr>
+{{- end}}
+</tbody>
+</table></div>
+</body>
+</html>
+{{end}}
+
+{{define "content" -}}
+<!doctype html>
+<html lang="en">
+<head>
+{{template "head"}}
+<title>docinfer content {{.Content.SHA256}}</title>
+</head>
+<body>
+<p><a href="index.html">docinfer run <code>{{.Run.Manifest.Run}}</code></a>{{if not .Run.Ended}} <span class="warning">not ended</span>{{end}}</p>
+<h1>Content <code>{{.Content.SHA256}}</code></h1>
+<p><a href="{{.Content.Docproc}}">docproc's page for this content</a></p>
+
+<h2>Inputs</h2>
+<ul>
+{{- range .Content.Paths}}
+<li><code>{{.}}</code></li>
+{{- end}}
+</ul>
+
+<h2>Images</h2>
+{{- range .Content.Images}}
+<section class="item pair">
+<div class="what">
+{{- if .Href}}
+<a href="{{$.Content.Docproc}}"><img src="{{.Href}}" alt="image {{.SHA256}}" loading="lazy"></a>
+{{- end}}
+<div class="muted">part <code>{{.Part}}</code><br>sha256 <code>{{.SHA256}}</code></div>
+</div>
+<div class="text">
+<div><span class="badge" data-outcome="{{.Outcome}}">{{.Outcome}}</span>{{if .Held}} <span class="badge">held</span>{{end}}</div>
+{{- with .Reason}}
+<p class="error">{{.}}</p>
+{{- end}}
+{{- template "text" .Text}}
+</div>
+</section>
+{{- else}}
+<p class="muted">No image of this content was described.</p>
+{{- end}}
+
+<h2>Transcripts</h2>
+{{- range .Content.Transcripts}}
+<section class="item">
+<div><span class="muted">part</span> <code>{{.Part}}</code> <span class="badge" data-outcome="{{.Outcome}}">{{.Outcome}}</span>{{if .Held}} <span class="badge">held</span>{{end}}</div>
+<dl class="facts">
+<dt>Windows</dt><dd>{{range $i, $w := .Windows}}{{if $i}}, {{end}}{{if .Href}}<a href="{{.Href}}">{{.Index}}</a>{{else}}{{.Index}}{{end}}{{if .Failed}} <span class="error">not transcribed</span>{{end}}{{else}}<span class="muted">none</span>{{end}}</dd>
+{{- with .Failed}}
+<dt>Not transcribed</dt><dd class="error">{{range $i, $f := .}}{{if $i}}, {{end}}{{$f}}{{end}}</dd>
+{{- end}}
+<dt>Seams</dt><dd>{{range $i, $s := .Seams}}{{if $i}}<br>{{end}}{{if .Matched}}matched {{.Matches}} of {{.Overlap}} words{{else}}<span class="warning">unmatched</span>{{end}} at word {{.Position}}{{else}}<span class="muted">none</span>{{end}}</dd>
+</dl>
+{{- template "text" .Text}}
+</section>
+{{- else}}
+<p class="muted">No audio of this content was transcribed.</p>
+{{- end}}
+
+<h2>Sources</h2>
+{{- range .Content.Sources}}
+<section class="item">
+<h3><span class="badge">{{.Kind}}</span> <span>{{.Part.Name}}</span> <code class="muted">{{.Part.ID}}</code></h3>
+<dl class="facts">
+<dt>Part</dt><dd><code>{{.Part.ID}}</code>, depth {{.Part.Depth}}, sha256 <code>{{.Part.SHA256}}</code></dd>
+{{- with .Output}}
+<dt>Output</dt><dd>{{with .Name}}{{.}} {{end}}<span class="badge">{{.Kind}}</span>{{with .MediaType}} <code class="muted">{{.}}</code>{{end}}</dd>
+{{- end}}
+{{- with .Href}}
+<dt>Content</dt><dd><a href="{{.}}">in docproc's run directory</a></dd>
+{{- end}}
+<dt>Text</dt><dd>sha256 <code>{{.SHA256}}</code></dd>
+{{- with .Incomplete}}
+<dt>Incomplete</dt><dd class="warning">{{.}}</dd>
+{{- end}}
+</dl>
+<ol class="chunks">
+{{- range .Chunks}}
+<li><div class="muted">chunk {{.Index}}, span {{.Span.Start}} to {{.Span.End}}{{with .Error}} <span class="badge" data-outcome="failed">rejected</span>{{end}}</div>
+{{- with .Error}}
+<p class="error">{{.}}</p>
+{{- end}}
+<pre>{{.Text}}</pre></li>
+{{- end}}
+</ol>
+</section>
+{{- else}}
+<p class="muted">No chunk of this content is recorded.</p>
+{{- end}}
+</body>
+</html>
+{{end}}
+
+{{define "text" -}}
+{{- with .}}
+<div class="muted">text sha256 <code>{{.SHA256}}</code>{{with .Damaged}} <span class="badge" data-outcome="damaged">damaged</span> <span class="error">its SHA-256 is <code>{{.}}</code></span>{{end}}</div>
+{{- if .Missing}}
+<p class="error">texts/ holds no text by this SHA-256.</p>
+{{- else}}
+<pre>{{.Body}}</pre>
+{{- end}}
+{{- else}}
+<p class="muted">No text.</p>
+{{- end}}
+{{- end}}

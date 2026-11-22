@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfbfa; --fg: #1d1d1b; --muted: #6b6b66; --line: #dddcd6; --panel: #f1f0ec;
+  --link: #1f5fa8; --ok: #2f7a3a; --warn: #9a6400; --bad: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a; --fg: #e6e5e1; --muted: #9a9a94; --line: #34363a; --panel: #212226;
+    --link: #8ab8f0; --ok: #79c487; --warn: #e0b45c; --bad: #f08a80;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; max-width: 72rem; padding: 1.5rem 1rem 4rem;
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.5 system-ui, sans-serif;
+}
+h1 { font-size: 1.4rem; margin: 0 0 .25rem; overflow-wrap: anywhere; }
+h2 { font-size: 1.1rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+h3 { font-size: 1rem; margin: 1rem 0 .25rem; overflow-wrap: anywhere; }
+a { color: var(--link); }
+code, pre, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: .3rem; padding: .5rem .75rem; margin: .3rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
+.error { color: var(--bad); }
+.warning { color: var(--warn); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: .3rem .6rem .3rem 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+th { font-weight: 600; color: var(--muted); }
+td.n, th.n { text-align: right; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: .15rem 1rem; margin: .5rem 0; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+.badge { display: inline-block; padding: 0 .45rem; border-radius: .6rem; border: 1px solid var(--line); background: var(--panel); font-size: .85em; white-space: nowrap; }
+[data-outcome="described"], [data-outcome="transcribed"] { color: var(--ok); border-color: currentColor; }
+[data-outcome="refused"], [data-outcome="failed"], [data-outcome="damaged"] { color: var(--bad); border-color: currentColor; }
+[data-outcome="incomplete"] { color: var(--warn); border-color: currentColor; }
+section.item { border: 1px solid var(--line); border-radius: .4rem; margin: .6rem 0; padding: .25rem .75rem; }
+.pair { display: flex; gap: 1rem; }
+.pair .what { flex: 0 0 16rem; max-width: 16rem; overflow-wrap: anywhere; }
+.pair .what img { display: block; max-width: 100%; max-height: 24rem; border: 1px solid var(--line); background: #fff; }
+.pair .text { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 40rem) { .pair { flex-direction: column; } .pair .what { flex-basis: auto; max-width: none; } }
+ol.chunks { list-style: none; margin: .3rem 0; padding: 0; }
+ol.chunks li { margin: .4rem 0; }
+</style>
+<title>docinfer content 4b9a4ac59f3c3aa32273260df6cf4bf358d1c46f8415126aa35b6380d0abb8f7</title>
+</head>
+<body>
+<p><a href="index.html">docinfer run <code>019a6000-0000-7000-8000-0000000000a1</code></a></p>
+<h1>Content <code>4b9a4ac59f3c3aa32273260df6cf4bf358d1c46f8415126aa35b6380d0abb8f7</code></h1>
+<p><a href="../../../../docproc/runs/019a5f3c-1d2e-7a10-8b00-0000000000d1/report/4b9a4ac59f3c3aa32273260df6cf4bf358d1c46f8415126aa35b6380d0abb8f7.html">docproc's page for this content</a></p>
+
+<h2>Inputs</h2>
+<ul>
+<li><code>/docs/archive.zip</code></li>
+</ul>
+
+<h2>Images</h2>
+<p class="muted">No image of this content was described.</p>
+
+<h2>Transcripts</h2>
+<p class="muted">No audio of this content was transcribed.</p>
+
+<h2>Sources</h2>
+<section class="item">
+<h3><span class="badge">metadata</span> <span>archive.zip</span> <code class="muted">/</code></h3>
+<dl class="facts">
+<dt>Part</dt><dd><code>/</code>, depth 0, sha256 <code>4b9a4ac59f3c3aa32273260df6cf4bf358d1c46f8415126aa35b6380d0abb8f7</code></dd>
+<dt>Text</dt><dd>sha256 <code>b47bbd775366f1c88932fa29cb9cb0410e74cc19c67b05a64958f82bc97fc478</code></dd>
+</dl>
+<ol class="chunks">
+<li><div class="muted">chunk 0, span 0 to 37</div>
+<pre>file name: archive.zip
+size: 9 bytes
+</pre></li>
+</ol>
+</section>
+<section class="item">
+<h3><span class="badge">output</span> <span>inner.txt</span> <code class="muted">/inner.txt</code></h3>
+<dl class="facts">
+<dt>Part</dt><dd><code>/inner.txt</code>, depth 1, sha256 <code>3ff126a6057cddb01e4525cf4df34c77eefb3a68b980be19c4568efe38ebeaa9</code></dd>
+<dt>Output</dt><dd><span class="badge">text</span> <code class="muted">text/plain</code></dd>
+<dt>Content</dt><dd><a href="../../../../docproc/content/d7/d78392034c5d063ba75cf395c6980ea21524064baa6e89c2bdcef52c70d38363">in docproc's run directory</a></dd>
+<dt>Text</dt><dd>sha256 <code>d78392034c5d063ba75cf395c6980ea21524064baa6e89c2bdcef52c70d38363</code></dd>
+</dl>
+<ol class="chunks">
+<li><div class="muted">chunk 0, span 0 to 22</div>
+<pre>The inner file&#39;s text.</pre></li>
+</ol>
+</section>
+</body>
+</html>

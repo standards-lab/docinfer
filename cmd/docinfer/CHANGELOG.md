@@ -60,6 +60,17 @@ the postgres module keep their own.
   failed ones among them by part ID and content SHA-256, appended as made, so a stopped run
   keeps what it made. Each chunk line and inference line names, as `"input"`, the path of the
   input its part was found in.
+- `docinfer report <dir> [--run <id>]`, which renders a run's report, the latest that ended or
+  the one `--run` names, into `runs/<run>/report/` and prints its index's absolute path: an
+  `index.html` listing every input, sorted by path, with its counts, and a `<sha256>.html` per
+  input content, the name docproc's page for the same content has, which it links. A content's
+  page shows each vision text whole, with its outcome, its reason, and an `img` at docproc's
+  content file; each transcript, with its windows, those not transcribed, and its seams; and
+  each source text once, as its chunks in order, with each rejected chunk's error and no vector.
+  An input with no SHA-256 keeps an unlinked row with its error, a text whose SHA-256 isn't its
+  name shows marked damaged, and an unended run's pages are marked not ended. It reads
+  docinfer's directory alone and no clock, so the same directory renders the same bytes, docproc's
+  directory present or not. It exits 1 when it renders nothing and 2 for a usage error.
 - The built-binary integration tier, under the `integration` build tag, run by
   `mise run test:integration`: it builds `docinfer` and asserts `version`, the root help, and an
   unknown command's usage error through its arguments, output, and exit status.

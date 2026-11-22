@@ -8,6 +8,7 @@ import (
 	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/docinfer/join"
 
+	"github.com/standards-lab/docinfer/cmd/docinfer/internal/report"
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/run"
 )
 
@@ -59,4 +60,5 @@ func endpoint(cfg Config, name string) run.Endpoint {
 
 func mountDomain(root *cli.Command, n *Nodes) {
 	root.Add(run.Commands(n.RunConfig)...)
+	root.Add(report.Commands()...)
 }

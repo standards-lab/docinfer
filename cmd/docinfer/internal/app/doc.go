@@ -17,7 +17,8 @@
 //     labelled "config", before any command reads anything;
 //   - domain.go: defineDomain and mountDomain: the run configuration, internal/run's Config, in
 //     the library's shapes over the capabilities' clients, with each capability's endpoint and
-//     the build's versions its manifests record, and the run command over it;
+//     the build's versions its manifests record, and the run command over it, and the report
+//     command, which declares no nodes;
 //   - version.go: the version command, which declares no nodes and prints two lines, the
 //     command's version, the main module's, and the library's, the docinfer module's the binary
 //     was built with, each read from the build info, or (devel) when the binary carries none, as
