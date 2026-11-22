@@ -59,3 +59,16 @@ func Halt(a *app.App) {
 		return lifecycle.Config{}, ErrHalted
 	})
 }
+
+// Config makes a's config node hold cfg, finalized with no prefix: given its starting values
+// and checked as a configuration directory's would be, but reading no file and no DOCINFER_
+// variable, so a run builds its clients and its run configuration from cfg alone. A cfg that
+// fails the checks fails the run's Build, labelled "config". cfg is copied, so the run changes
+// nothing of it. Config is a Replace, so it panics once a has run a Build.
+func Config(a *app.App, cfg app.Config) {
+	a.Graph().Replace(a.Nodes().Config, func(*graph.Scope) (app.Config, error) {
+		var c app.Config
+		c.Merge(&cfg)
+		return c, c.Finalize("")
+	})
+}

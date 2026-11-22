@@ -12,6 +12,7 @@ import (
 	"github.com/standards-lab/go-core/graph/graphtest"
 
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/app"
+	"github.com/standards-lab/docinfer/cmd/docinfer/internal/apptest"
 )
 
 func TestGraph_NodesNamedByTheirFields(t *testing.T) {
@@ -36,6 +37,7 @@ func leafLayers(g *graph.Graph, lifecycleConfig graph.Ref, refs []graph.Ref) err
 
 func TestGraph_LeafLayers(t *testing.T) {
 	a := app.New(cli.Streams{})
+	apptest.Config(a, everyCapability("http://127.0.0.1:1/v1", "completions"))
 	for path, refs := range a.Root().Leaves() {
 		t.Run(path, func(t *testing.T) {
 			if err := leafLayers(a.Graph(), a.Nodes().LifecycleConfig, refs); err != nil {

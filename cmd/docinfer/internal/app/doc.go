@@ -6,17 +6,25 @@
 //
 //   - app.go: [App], [New], and [Nodes], which call the layer files' define and mount functions
 //     in layer order, lowest first;
-//   - infrastructure.go: defineInfrastructure, the configuration, read from DOCINFER_ variables:
-//     the lifecycle configuration alone;
-//   - domain.go: defineDomain and mountDomain, the services over docinfer's library and the
-//     commands, from the command packages under internal/, that run them: none yet;
+//   - infrastructure.go: defineInfrastructure: the lifecycle configuration; [Config], read from
+//     the directory the root flag --config or DOCINFER_CONFIG names, the flag winning; each
+//     endpoint's one HTTP client, over a clone of the default transport with the endpoint's
+//     ResponseHeaderTimeout; and each capability's own *ai.Client, vision's, transcription's,
+//     and embeddings', in its endpoint's format and with its endpoint's options, transcription's
+//     in its configured mode, a capability the configuration leaves unset having none. A client
+//     go-ai's ai.New refuses is reported named for its endpoint. config.go holds [Config], its
+//     starting values, its overrides, and its checks, so a configuration error fails the Build,
+//     labelled "config", before any command reads anything;
+//   - domain.go: defineDomain and mountDomain: the run configuration, internal/run's Config, in
+//     the library's shapes over the capabilities' clients, and the run command over it;
 //   - version.go: the version command, which declares no nodes and prints two lines, the
 //     command's version, the main module's, and the library's, the docinfer module's the binary
 //     was built with, each read from the build info, or (devel) when the binary carries none, as
 //     under go test or in the workspace.
 //
 // envPrefix, in infrastructure.go, is the single constant every DOCINFER_ variable name derives
-// from; go-core's config convention composes the rest, such as DOCINFER_SHUTDOWN_TIMEOUT. Every
+// from; go-core's config convention composes the rest, such as DOCINFER_SHUTDOWN_TIMEOUT and
+// DOCINFER_ENDPOINTS_<NAME>_RESPONSE_HEADER_TIMEOUT, each where it is read. Every
 // infrastructure value is read or constructed in its node's constructor, which runs only when a
 // Build reaches the node, so configuration is read only for a command that declares a node, never
 // in [New].

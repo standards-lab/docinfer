@@ -2,19 +2,25 @@ package app
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/standards-lab/go-cli-sdk"
 	"github.com/standards-lab/go-core/graph"
 	"github.com/standards-lab/go-core/lifecycle"
+
+	"github.com/standards-lab/go-ai"
+
+	"github.com/standards-lab/docinfer/cmd/docinfer/internal/run"
 )
 
 // App is docinfer: its dependency graph and the [Nodes] that describe it,
 // its command tree, and the streams it reads from and reports to.
 type App struct {
-	graph   *graph.Graph
-	nodes   Nodes
-	root    *cli.Command
-	streams cli.Streams
+	graph     *graph.Graph
+	nodes     Nodes
+	root      *cli.Command
+	streams   cli.Streams
+	configDir string
 }
 
 // New describes the graph, layer by layer, lowest first, builds the command
@@ -31,7 +37,9 @@ func New(streams cli.Streams) *App {
 		},
 		streams: streams,
 	}
-	defineInfrastructure(a.graph, &a.nodes)
+	a.root.Flags().StringVar(&a.configDir, "config", "",
+		"the `dir`ectory docinfer's configuration is read from (env "+configVariable+")")
+	defineInfrastructure(a.graph, &a.nodes, &a.configDir)
 	defineDomain(a.graph, &a.nodes)
 	a.root.Add(versionCommand())
 	mountDomain(a.root, &a.nodes)
@@ -61,7 +69,13 @@ func (a *App) Run(ctx context.Context, args []string) int {
 // "lifecycle config", the name the dispatcher labels its errors with; the
 // field names the node, and no comment repeats it.
 type Nodes struct {
-	LifecycleConfig *graph.Node[lifecycle.Config]
+	LifecycleConfig     *graph.Node[lifecycle.Config]
+	Config              *graph.Node[Config]
+	HTTPClients         *graph.Node[map[string]*http.Client]
+	VisionClient        *graph.Node[*ai.Client]
+	TranscriptionClient *graph.Node[*ai.Client]
+	EmbeddingsClient    *graph.Node[*ai.Client]
+	RunConfig           *graph.Node[run.Config]
 }
 
 // Graph returns the graph a's commands are built from, as [New] described

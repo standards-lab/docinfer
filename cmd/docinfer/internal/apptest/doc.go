@@ -7,7 +7,9 @@
 // [Builds] records the name of every node a run's Build begins, read from the handle
 // graph.Graph.Observe reports, so a test asserts which nodes a command builds from what the graph
 // reports. [Halt] fails the lifecycle configuration node, which the dispatcher adds to every
-// Build, so a run of a command that declares nodes fails before anything starts.
+// Build, so a run of a command that declares nodes fails before anything starts. [Config] gives
+// the configuration node a configuration of the test's own, which reads no file and no DOCINFER_
+// variable, so a test points the capabilities at go-ai's aitest endpoint without a directory.
 //
 // The package exports:
 //
@@ -16,4 +18,5 @@
 //   - [Builds], which returns a Recorder of the nodes the App's runs build
 //   - [Halt], which stops the App's runs before anything starts, and [ErrHalted], what such a
 //     run fails with
+//   - [Config], which makes the App's runs build from a configuration the test gives
 package apptest
