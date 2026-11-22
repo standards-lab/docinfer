@@ -86,13 +86,25 @@ func (p *progress) echo(in docinfer.Input) {
 	}
 }
 
-func (p *progress) inference(inf docinfer.Inference) {
-	path, ok := "", false
+func (p *progress) inputOf(inf docinfer.Inference) (string, bool) {
 	for _, sha := range inf.ContentSHA256 {
-		if path, ok = p.contents[sha]; ok {
-			break
+		if path, ok := p.contents[sha]; ok {
+			return path, true
 		}
 	}
+	return "", false
+}
+
+func (p *progress) partInputs(b docinfer.Batch) []string {
+	inputs := make([]string, len(b.Parts))
+	for i, part := range b.Parts {
+		inputs[i] = p.parts[partKey(part)]
+	}
+	return inputs
+}
+
+func (p *progress) inference(inf docinfer.Inference) {
+	path, ok := p.inputOf(inf)
 	if !ok {
 		return
 	}

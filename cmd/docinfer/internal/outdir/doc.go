@@ -7,8 +7,7 @@
 //	texts/<xx>/<sha256>            each inference's text, a dispatch.FileContent, no extension
 //	runs/<run>/manifest.json       each run's [Manifest], written as it starts and as it ends
 //	runs/<run>/chunks.jsonl        its chunk record, one [Line] per chunk, appended per batch
-//	runs/<run>/inferences.jsonl    its inferences, one docinfer.Inference per line, appended as
-//	                               made
+//	runs/<run>/inferences.jsonl    its inferences, one [Inference] per line, appended as made
 //	runs/<run>/report/             its report, which [Dir.ReportDir] names; the report's writer
 //	                               makes it, not this package
 //
@@ -47,5 +46,6 @@
 //     [Run.Inference], [Run.Batch], and [Run.End]
 //   - the manifest's shapes: [Manifest], [Build], [Docproc], [Input], [Capability], [Skipped],
 //     and [Space], with [UnitTolerance]
-//   - [Line], one line of the chunk record
+//   - [Line], one line of the chunk record, and [Inference], one line of the inferences record,
+//     each naming the input its part was found in by the input's path
 package outdir

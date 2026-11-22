@@ -239,8 +239,8 @@ func (d *Dir) Lines(id string) iter.Seq2[Line, error] {
 // Inferences yields the lines of d's run id's inferences record, in the order they were written,
 // as [Dir.Lines] yields the chunk record's. A line's Text is empty: the text is in [Dir.Texts],
 // under its TextSHA256.
-func (d *Dir) Inferences(id string) iter.Seq2[docinfer.Inference, error] {
-	return func(yield func(docinfer.Inference, error) bool) {
+func (d *Dir) Inferences(id string) iter.Seq2[Inference, error] {
+	return func(yield func(Inference, error) bool) {
 		records(d, id, inferencesFile, yield)
 	}
 }

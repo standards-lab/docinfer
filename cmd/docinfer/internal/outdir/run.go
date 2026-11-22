@@ -79,7 +79,7 @@ func (r *Run) ID() string { return r.manifest.Run }
 
 // Inference appends i to the run's inferences record as one line, written through to the file in
 // one write, with no fsync. Its Text isn't in the line; the caller puts it in [Dir.Texts].
-func (r *Run) Inference(i docinfer.Inference) error {
+func (r *Run) Inference(i Inference) error {
 	var buf bytes.Buffer
 	if err := encodeLine(&buf, i); err != nil {
 		return fmt.Errorf("outdir: inferences %s: %w", r.manifest.Run, err)
@@ -91,10 +91,14 @@ func (r *Run) Inference(i docinfer.Inference) error {
 }
 
 // Batch appends b's chunks to the run's chunk record, a [Line] each, in order, written through
-// to the file in one write, with no fsync.
-func (r *Run) Batch(b docinfer.Batch) error {
+// to the file in one write, with no fsync. inputs holds the input path of each of b's Parts, by
+// the same index; Batch refuses inputs of another length.
+func (r *Run) Batch(b docinfer.Batch, inputs []string) error {
+	if len(inputs) != len(b.Parts) {
+		return fmt.Errorf("outdir: chunks %s: %d inputs for %d parts: %w", r.manifest.Run, len(inputs), len(b.Parts), dispatch.ErrRequest)
+	}
 	var buf bytes.Buffer
-	for _, l := range lines(b) {
+	for _, l := range lines(b, inputs) {
 		if err := encodeLine(&buf, l); err != nil {
 			return fmt.Errorf("outdir: chunks %s: %w", r.manifest.Run, err)
 		}

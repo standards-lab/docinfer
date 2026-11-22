@@ -26,7 +26,10 @@
 // metadata text, as the job's last delivery, docinfer.Options.Final, so an image, window, or
 // chunk a model fails on is recorded failed and the run goes on. Each inference's text goes into
 // the directory's texts, each inference into its inferences record, and each batch into its
-// chunk record, as the pipeline yields them, over the directory's held results.
+// chunk record, as the pipeline yields them, over the directory's held results. Each line names
+// the input its part was found in by the input's path, from the docproc record lines fed so far:
+// an inference by its content SHA-256, a chunk by its part's ID and SHA-256, a part or output two
+// inputs share named by the later.
 //
 // Its lines come from the pipeline's results alone: a first line naming the run and docproc's,
 // a line per docproc input once everything derived from it is out, its path, images, windows,

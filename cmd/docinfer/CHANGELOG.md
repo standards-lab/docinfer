@@ -58,7 +58,8 @@ the postgres module keep their own.
   `runs/<run>/chunks.jsonl`, a line per chunk with its part and source inline, appended per
   batch; and `runs/<run>/inferences.jsonl`, each vision and transcription inference, refused and
   failed ones among them by part ID and content SHA-256, appended as made, so a stopped run
-  keeps what it made.
+  keeps what it made. Each chunk line and inference line names, as `"input"`, the path of the
+  input its part was found in.
 - The built-binary integration tier, under the `integration` build tag, run by
   `mise run test:integration`: it builds `docinfer` and asserts `version`, the root help, and an
   unknown command's usage error through its arguments, output, and exit status.

@@ -108,10 +108,13 @@ type Space struct {
 }
 
 // Line is one line of a run's chunk record, runs/<run>/chunks.jsonl: a batch's chunk with the
-// part and source its indexes name inline, since the record holds no batches. Its JSON is
-// {digest, text, span, index, vector, error, part, source}, its Source's "part" always 0, since
-// Part is inline. The same chunk in two places is two lines.
+// part and source its indexes name inline, since the record holds no batches, and the input its
+// part was found in. Its JSON is {input, digest, text, span, index, vector, error, part, source},
+// its Source's "part" always 0, since Part is inline. The same chunk in two places is two lines.
 type Line struct {
+	// Input is the path of the input the chunk's part was found in, as docproc's record gives it,
+	// an [Input]'s Path.
+	Input       string `json:"input"`
 	Digest      string `json:"digest"`
 	chunk.Chunk        // inline: text, span
 	Index       int    `json:"index"`
@@ -123,13 +126,24 @@ type Line struct {
 	Source docinfer.Source `json:"source"`
 }
 
-func lines(b docinfer.Batch) []Line {
+// Inference is one line of a run's inferences record, runs/<run>/inferences.jsonl: a
+// docinfer.Inference, inline, and the input its part was found in. Its JSON is the Inference's
+// with "input" first; its Text is never written, being in [Dir.Texts] under its TextSHA256.
+type Inference struct {
+	// Input is the path of the input the inference's part was found in, as docproc's record
+	// gives it, an [Input]'s Path.
+	Input string `json:"input"`
+	docinfer.Inference
+}
+
+func lines(b docinfer.Batch, inputs []string) []Line {
 	out := make([]Line, len(b.Chunks))
 	for i, c := range b.Chunks {
 		src := b.Sources[c.Source]
 		part := b.Parts[src.Part]
+		input := inputs[src.Part]
 		src.Part = 0
-		out[i] = Line{Digest: c.Digest, Chunk: c.Chunk, Index: c.Index, Vector: c.Vector, Error: c.Error, Part: part, Source: src}
+		out[i] = Line{Input: input, Digest: c.Digest, Chunk: c.Chunk, Index: c.Index, Vector: c.Vector, Error: c.Error, Part: part, Source: src}
 	}
 	return out
 }

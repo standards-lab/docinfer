@@ -130,9 +130,9 @@ func lines(t *testing.T, d *outdir.Dir, id string) []outdir.Line {
 	return got
 }
 
-func inferences(t *testing.T, d *outdir.Dir, id string) []docinfer.Inference {
+func inferences(t *testing.T, d *outdir.Dir, id string) []outdir.Inference {
 	t.Helper()
-	var got []docinfer.Inference
+	var got []outdir.Inference
 	for i, err := range d.Inferences(id) {
 		if err != nil {
 			t.Fatal(err)
@@ -153,24 +153,27 @@ func TestRun_AppendsPerBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := r.Batch(batch("p1", "one", "AACAPw==")); err != nil {
+	if err := r.Batch(batch("p1", "one", "AACAPw=="), []string{"/in/a.pdf"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := lines(t, d, r.ID()); len(got) != 1 || got[0].Text != "one" || got[0].Part.ID != "p1" {
 		t.Errorf("lines after one batch = %+v, want its line", got)
 	}
-	if err := r.Batch(batch("p2", "two", "")); err != nil {
+	if err := r.Batch(batch("p2", "two", ""), []string{"/in/b.txt"}); err != nil {
 		t.Fatal(err)
 	}
 	inf := docinfer.Inference{Capability: docinfer.CapabilityVision, Part: "p1", ContentSHA256: []string{strings.Repeat("c", 64)}, Outcome: docinfer.OutcomeFailed, Reason: "500"}
-	if err := r.Inference(inf); err != nil {
+	if err := r.Inference(outdir.Inference{Input: "/in/a.pdf", Inference: inf}); err != nil {
 		t.Fatal(err)
 	}
-	if got := lines(t, d, r.ID()); len(got) != 2 || got[1].Text != "two" {
-		t.Errorf("lines after two batches = %+v, want both", got)
+	if got := lines(t, d, r.ID()); len(got) != 2 || got[1].Text != "two" || got[0].Input != "/in/a.pdf" || got[1].Input != "/in/b.txt" {
+		t.Errorf("lines after two batches = %+v, want both, each naming its input", got)
 	}
-	if got := inferences(t, d, r.ID()); len(got) != 1 || got[0].Outcome != docinfer.OutcomeFailed || got[0].Reason != "500" {
-		t.Errorf("inferences = %+v, want the failed image", got)
+	if got := inferences(t, d, r.ID()); len(got) != 1 || got[0].Outcome != docinfer.OutcomeFailed || got[0].Reason != "500" || got[0].Input != "/in/a.pdf" {
+		t.Errorf("inferences = %+v, want the failed image, naming its input", got)
+	}
+	if err := r.Batch(batch("p3", "three", ""), nil); !errors.Is(err, dispatch.ErrRequest) {
+		t.Errorf("Batch with no input for its part = %v, want dispatch.ErrRequest", err)
 	}
 	if _, err := d.Latest(); !errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Latest before End = %v, want no run that ended", err)
@@ -208,10 +211,10 @@ func TestLines_DropAnUnendedRunsPartialLastLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Batch(batch("p1", "one", "")); err != nil {
+	if err := r.Batch(batch("p1", "one", ""), []string{"/in/a.pdf"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Inference(docinfer.Inference{Part: "p1", Outcome: docinfer.OutcomeDescribed}); err != nil {
+	if err := r.Inference(outdir.Inference{Input: "/in/a.pdf", Part: "p1", Outcome: docinfer.OutcomeDescribed}); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"chunks.jsonl", "inferences.jsonl"} {
@@ -245,7 +248,7 @@ func TestLines_LeaveOutVectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Batch(batch("p1", "one", "AACAPw==")); err != nil {
+	if err := r.Batch(batch("p1", "one", "AACAPw=="), []string{"/in/a.pdf"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.End(outdir.Manifest{}); err != nil {

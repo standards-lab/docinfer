@@ -114,12 +114,13 @@ func take(ctx context.Context, res docinfer.Result, out *outdir.Dir, r *outdir.R
 				return fmt.Errorf("put the text %s of part %s's %s: %w", inf.TextSHA256, inf.Part, inf.Capability, err)
 			}
 		}
-		if err := r.Inference(*inf); err != nil {
+		input, _ := pr.inputOf(*inf)
+		if err := r.Inference(outdir.Inference{Input: input, Inference: *inf}); err != nil {
 			return err
 		}
 		pr.inference(*inf)
 	case res.Batch != nil:
-		if err := r.Batch(*res.Batch); err != nil {
+		if err := r.Batch(*res.Batch, pr.partInputs(*res.Batch)); err != nil {
 			return err
 		}
 		if err := sp.measure(*res.Batch); err != nil {

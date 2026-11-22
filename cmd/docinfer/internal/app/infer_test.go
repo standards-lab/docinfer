@@ -181,7 +181,7 @@ func TestRun_EndsWithAFailedImageRecorded(t *testing.T) {
 	}
 
 	infs := collect(t, d.Inferences(m.Run))
-	var failed, described *docinfer.Inference
+	var failed, described *outdir.Inference
 	for i := range infs {
 		switch infs[i].Outcome {
 		case docinfer.OutcomeFailed:
@@ -190,8 +190,8 @@ func TestRun_EndsWithAFailedImageRecorded(t *testing.T) {
 			described = &infs[i]
 		}
 	}
-	if failed == nil || failed.Part != "/" || !slices.Equal(failed.ContentSHA256, []string{failedImage}) || failed.Reason == "" {
-		t.Errorf("inferences = %+v, want the failed image by part ID and content SHA-256, with its reason", infs)
+	if failed == nil || failed.Input != "/in/a.pdf" || failed.Part != "/" || !slices.Equal(failed.ContentSHA256, []string{failedImage}) || failed.Reason == "" {
+		t.Errorf("inferences = %+v, want the failed image by its input, part ID, and content SHA-256, with its reason", infs)
 	}
 	if described == nil {
 		t.Fatalf("inferences = %+v, want the described image", infs)
@@ -207,8 +207,14 @@ func TestRun_EndsWithAFailedImageRecorded(t *testing.T) {
 	if string(text) != "a red square" {
 		t.Errorf("texts/ holds %q, want the description", text)
 	}
-	if lines := collect(t, d.Lines(m.Run)); len(lines) != 3 {
+	lines := collect(t, d.Lines(m.Run))
+	if len(lines) != 3 {
 		t.Errorf("chunk lines = %d, want 3", len(lines))
+	}
+	for _, l := range lines {
+		if l.Input != "/in/a.pdf" {
+			t.Errorf("chunk line %s of part %s names input %q, want /in/a.pdf", l.Source.Kind, l.Part.ID, l.Input)
+		}
 	}
 
 	stdout.Reset()
