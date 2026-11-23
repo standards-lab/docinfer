@@ -10,6 +10,11 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+### Changed
+
+- The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
+  images, with its exported API unchanged.
+
 ## [v0.1.0] - 2026-11-23
 
 The first release, from spike-ai-pipeline's `cmd/docinfer` at
