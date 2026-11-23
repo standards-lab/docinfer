@@ -71,6 +71,15 @@ the postgres module keep their own.
   name shows marked damaged, and an unended run's pages are marked not ended. It reads
   docinfer's directory alone and no clock, so the same directory renders the same bytes, docproc's
   directory present or not. It exits 1 when it renders nothing and 2 for a usage error.
+- `docinfer run --report`, which, once a run has ended and its last line is printed, renders
+  its report as `docinfer report` does and prints the index's absolute path. A run that stops
+  or is cancelled renders nothing. A render that fails exits 1, leaving the run's manifest and
+  records as the run wrote them, and names the `docinfer report <dir> --run <id>` that renders
+  the pages again.
+- An exit-status footer at the end of every command's help, the root's and `version`'s among
+  them: 0 for a run that ended, refused and failed images, windows, and chunks recorded and
+  counted by the last line; 1 for a run that stopped, never began, or was cancelled, or a report
+  that rendered nothing; 2 for a usage error, and for help.
 - The built-binary integration tier, under the `integration` build tag, run by
   `mise run test:integration`: it builds `docinfer` and asserts `version`, the root help, and an
   unknown command's usage error through its arguments, output, and exit status.

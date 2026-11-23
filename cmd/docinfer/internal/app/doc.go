@@ -24,6 +24,9 @@
 //     was built with, each read from the build info, or (devel) when the binary carries none, as
 //     under go test or in the workspace.
 //
+// Each command's help, the root's among them, ends with its exit status: 0, 1, and 2, help and a
+// usage error being 2.
+//
 // envPrefix, in infrastructure.go, is the single constant every DOCINFER_ variable name derives
 // from; go-core's config convention composes the rest, such as DOCINFER_SHUTDOWN_TIMEOUT and
 // DOCINFER_ENDPOINTS_<NAME>_RESPONSE_HEADER_TIMEOUT, each where it is read. Every

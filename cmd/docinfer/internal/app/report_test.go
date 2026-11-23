@@ -166,16 +166,6 @@ func TestReport_UsageErrorExits2(t *testing.T) {
 	}
 }
 
-func TestReport_HelpStatesItsExitStatus(t *testing.T) {
-	a, stdout, stderr, _ := newApp(t)
-
-	a.Run(context.Background(), []string{"report", "--help"})
-
-	if help := stdout.String() + stderr.String(); !strings.Contains(help, "Exit status:") || !strings.Contains(help, "1  nothing was rendered") {
-		t.Errorf("help = %q, want its exit status", help)
-	}
-}
-
 func TestReport_InputWithNoSHA256(t *testing.T) {
 	out := reportFixture(t)
 	a, _, stderr, _ := newApp(t)

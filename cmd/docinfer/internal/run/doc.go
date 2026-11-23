@@ -1,4 +1,5 @@
-// Package run is docinfer's run command: docinfer run <docproc-dir> --out <dir> [--run <id>].
+// Package run is docinfer's run command:
+// docinfer run <docproc-dir> --out <dir> [--run <id>] [--report].
 // Before it reads anything, it checks each capability's model through that capability's own
 // client, as its [Config] holds it: one (*ai.Client).Models call per client, all at once and
 // bounded at 30 seconds together, so each lists through the same query, token, headers, and
@@ -38,6 +39,16 @@
 // counting the inputs, the outputs read, the chunks, and the failures. A run that stops, for an
 // error or a cancellation, writes its manifest with its end and its error, keeps the records it
 // wrote, prints no last line, and returns its error, so the command exits 1.
+//
+// With --report, a run that ended renders its report once its last line is printed, through
+// report.Make, which prints the index's absolute path, as docinfer report does. A run that stops
+// renders nothing, and neither does a cancellation, whose context the render checks before it
+// writes a page. A render that fails returns its error, naming the docinfer report command that
+// renders the pages again, so the command exits 1, the run's manifest and records as it left them.
+//
+// The command's help ends with its exit status: 0 for a run that ended, refusals and failures
+// recorded and counted by the last line; 1 for a run that stopped, never began, or was cancelled,
+// or a report that rendered nothing; 2 for a usage error.
 //
 // The run builds its docinfer.Bounds from each capability's concurrency, 1 for a capability the
 // configuration leaves unset, and 1 for extraction, which the command never runs.

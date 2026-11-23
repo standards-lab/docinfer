@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"io"
 	"net/http"
 
 	"github.com/standards-lab/go-cli-sdk"
@@ -23,6 +24,12 @@ type App struct {
 	configDir string
 }
 
+const rootExitStatus = `Exit status:
+  0  the command succeeded; each command's help states what that means for it
+  1  the command failed, a configuration that doesn't load among its failures
+  2  a usage error, such as no command or an unknown one; help exits 2 too
+`
+
 // New describes the graph, layer by layer, lowest first, builds the command
 // tree, and returns the App. It is cold: it constructs nothing, reads no
 // configuration, and writes nothing until [App.Run]. Every run reads from
@@ -34,6 +41,7 @@ func New(streams cli.Streams) *App {
 		root: &cli.Command{
 			Name:    "docinfer",
 			Summary: "docinfer runs docinfer's inference over a docproc run directory.",
+			Footer:  func(w io.Writer) { _, _ = io.WriteString(w, rootExitStatus) },
 		},
 		streams: streams,
 	}

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 	"runtime/debug"
 
@@ -11,10 +12,17 @@ import (
 	"github.com/standards-lab/docinfer"
 )
 
+const versionExitStatus = `Exit status:
+  0  both versions were printed
+  1  they couldn't be written
+  2  a usage error, such as an argument
+`
+
 func versionCommand() *cli.Command {
 	return &cli.Command{
 		Name:    "version",
 		Summary: "Print the docinfer command's and library's versions",
+		Footer:  func(w io.Writer) { _, _ = io.WriteString(w, versionExitStatus) },
 		Args:    cli.NoArgs,
 		Run: func(_ context.Context, inv *cli.Invocation) error {
 			command, library := versions()

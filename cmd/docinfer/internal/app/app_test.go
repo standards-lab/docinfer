@@ -199,3 +199,40 @@ func TestRun_HaltLeavesVersion(t *testing.T) {
 		t.Errorf("nodes built = %q, want none", log)
 	}
 }
+
+func TestRun_HelpEndsWithItsExitStatus(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		says string
+	}{
+		{[]string{"--help"}, "2  a usage error, such as no command or an unknown one"},
+		{[]string{"version", "--help"}, "0  both versions were printed"},
+		{[]string{"run", "--help"}, "0  the run ended"},
+		{[]string{"report", "--help"}, "1  nothing was rendered"},
+	} {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			a, stdout, stderr, _ := newApp(t)
+
+			code := a.Run(context.Background(), tc.args)
+
+			if code != process.ExitUsage {
+				t.Errorf("code = %d, want %d", code, process.ExitUsage)
+			}
+			help := stdout.String() + stderr.String()
+			_, footer, ok := strings.Cut(help, "\nExit status:\n")
+			if !ok || !strings.Contains(footer, tc.says) {
+				t.Fatalf("help = %q, want an exit status saying %q", help, tc.says)
+			}
+			for line := range strings.Lines(footer) {
+				if !strings.HasPrefix(line, "  ") {
+					t.Errorf("help's line %q follows its exit status, want the exit status last", line)
+				}
+			}
+			for _, status := range []string{"  0  ", "  1  ", "  2  "} {
+				if !strings.Contains(footer, status) {
+					t.Errorf("exit status = %q, want a line for %q", footer, strings.TrimSpace(status))
+				}
+			}
+		})
+	}
+}

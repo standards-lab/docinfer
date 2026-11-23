@@ -30,43 +30,43 @@ type target struct {
 }
 
 // Adapted from spike-ai-pipeline (6a631f1): rundir and outdir in place of source and the spike's outdir, the pipeline's results in place of the phases.
-func infer(ctx context.Context, w io.Writer, cfg Config, t target) error {
+func infer(ctx context.Context, w io.Writer, cfg Config, t target) (string, error) {
 	src, err := rundir.Open(t.docproc)
 	if err != nil {
-		return err
+		return "", err
 	}
 	id := t.run
 	if id == "" {
 		if id, err = src.Latest(); err != nil {
-			return err
+			return "", err
 		}
 	}
 	dm, err := src.Manifest(id)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if dm.End.IsZero() {
-		return fmt.Errorf("docproc run %s: %w", id, rundir.ErrNotEnded)
+		return "", fmt.Errorf("docproc run %s: %w", id, rundir.ErrNotEnded)
 	}
 	rel, err := relative(t.out, t.docproc)
 	if err != nil {
-		return err
+		return "", err
 	}
 	out, err := outdir.Create(t.out)
 	if err != nil {
-		return err
+		return "", err
 	}
 	p, err := pipeline(cfg, out.Cache())
 	if err != nil {
-		return err
+		return "", err
 	}
 	m := manifest(cfg, p.Profile(), outdir.Docproc{Dir: rel, Run: id})
 	r, err := out.Begin(m)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := writeBegin(w, r.ID(), id); err != nil {
-		return errors.Join(err, r.End(m))
+		return "", errors.Join(err, r.End(m))
 	}
 
 	f := &feed{}
@@ -95,12 +95,12 @@ func infer(ctx context.Context, w io.Writer, cfg Config, t target) error {
 		m.Error = stop.Error()
 	}
 	if err := r.End(m); err != nil {
-		return errors.Join(stop, err)
+		return "", errors.Join(stop, err)
 	}
 	if stop != nil {
-		return stop
+		return "", stop
 	}
-	return writeEnd(w, r.ID(), m)
+	return r.ID(), writeEnd(w, r.ID(), m)
 }
 
 func take(ctx context.Context, res docinfer.Result, out *outdir.Dir, r *outdir.Run, pr *progress, sp *space) error {
