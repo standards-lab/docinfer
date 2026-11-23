@@ -1,0 +1,54 @@
+{
+  "schema": "2",
+  "run": "019a6000-0000-7000-8000-0000000000a2",
+  "docinfer": {
+    "command": "(devel)",
+    "library": "v0.2.0"
+  },
+  "start": "2026-11-20T11:00:00.000000000Z",
+  "docproc": {
+    "dir": "../docproc",
+    "run": "019a5f3c-1d2e-7a10-8b00-0000000000d2"
+  },
+  "inputs": null,
+  "capabilities": [
+    {
+      "capability": "embeddings",
+      "model": "embed-model",
+      "settings": "",
+      "endpoint": "gb10",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "format": "completions",
+      "concurrency": 4,
+      "batch": 16,
+      "chunk_size": 2000
+    }
+  ],
+  "skipped": [
+    {
+      "name": "vision",
+      "reason": "not configured"
+    },
+    {
+      "name": "transcription",
+      "reason": "not configured"
+    }
+  ],
+  "counts": {
+    "texts": 0,
+    "metadata": 0,
+    "embedded": 0,
+    "rejected": 0,
+    "held": 0,
+    "requests": 0,
+    "images": 0,
+    "windows": 0,
+    "tokens": {
+      "embeddings": {
+        "input": 0,
+        "output": 0
+      }
+    }
+  },
+  "outputs": 0
+}

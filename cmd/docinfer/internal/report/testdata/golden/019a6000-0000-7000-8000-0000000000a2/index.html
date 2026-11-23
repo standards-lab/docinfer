@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #fbfbfa; --fg: #1d1d1b; --muted: #6b6b66; --line: #dddcd6; --panel: #f1f0ec;
+  --link: #1f5fa8; --ok: #2f7a3a; --warn: #9a6400; --bad: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181a; --fg: #e6e5e1; --muted: #9a9a94; --line: #34363a; --panel: #212226;
+    --link: #8ab8f0; --ok: #79c487; --warn: #e0b45c; --bad: #f08a80;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto; max-width: 72rem; padding: 1.5rem 1rem 4rem;
+  background: var(--bg); color: var(--fg);
+  font: 14px/1.5 system-ui, sans-serif;
+}
+h1 { font-size: 1.4rem; margin: 0 0 .25rem; overflow-wrap: anywhere; }
+h2 { font-size: 1.1rem; margin: 2rem 0 .5rem; border-bottom: 1px solid var(--line); padding-bottom: .25rem; }
+h3 { font-size: 1rem; margin: 1rem 0 .25rem; overflow-wrap: anywhere; }
+a { color: var(--link); }
+code, pre, .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: .3rem; padding: .5rem .75rem; margin: .3rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
+.error { color: var(--bad); }
+.warning { color: var(--warn); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: .3rem .6rem .3rem 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
+th { font-weight: 600; color: var(--muted); }
+td.n, th.n { text-align: right; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: .15rem 1rem; margin: .5rem 0; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+.badge { display: inline-block; padding: 0 .45rem; border-radius: .6rem; border: 1px solid var(--line); background: var(--panel); font-size: .85em; white-space: nowrap; }
+[data-outcome="described"], [data-outcome="transcribed"] { color: var(--ok); border-color: currentColor; }
+[data-outcome="refused"], [data-outcome="failed"], [data-outcome="damaged"] { color: var(--bad); border-color: currentColor; }
+[data-outcome="incomplete"] { color: var(--warn); border-color: currentColor; }
+section.item { border: 1px solid var(--line); border-radius: .4rem; margin: .6rem 0; padding: .25rem .75rem; }
+.pair { display: flex; gap: 1rem; }
+.pair .what { flex: 0 0 16rem; max-width: 16rem; overflow-wrap: anywhere; }
+.pair .what img { display: block; max-width: 100%; max-height: 24rem; border: 1px solid var(--line); background: #fff; }
+.pair .text { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 40rem) { .pair { flex-direction: column; } .pair .what { flex-basis: auto; max-width: none; } }
+ol.chunks { list-style: none; margin: .3rem 0; padding: 0; }
+ol.chunks li { margin: .4rem 0; }
+</style>
+<title>docinfer run 019a6000-0000-7000-8000-0000000000a2</title>
+</head>
+<body>
+<header>
+<h1>docinfer run <code>019a6000-0000-7000-8000-0000000000a2</code></h1>
+<dl class="facts">
+<dt>Start</dt><dd class="mono">2026-11-20T11:00:00.000000000Z</dd>
+<dt>End</dt><dd class="mono"><span class="warning">not ended</span></dd>
+<dt>docinfer</dt><dd>command <code>(devel)</code>, library <code>v0.2.0</code></dd>
+<dt>docproc run</dt><dd><code>019a5f3c-1d2e-7a10-8b00-0000000000d2</code> in <code>../docproc</code></dd>
+<dt>Outputs read</dt><dd>0</dd>
+</dl>
+<p class="warning">The run has not ended: it is still running, or it was killed. The pages show the lines its records hold.</p>
+</header>
+
+<h2>Capabilities</h2>
+<div class="scroll"><table>
+<thead><tr><th>Capability</th><th>Endpoint</th><th>Model</th><th>Settings</th><th>Bounds</th></tr></thead>
+<tbody>
+<tr><td>embeddings</td><td>gb10 <code class="muted">http://127.0.0.1:8080/v1</code> <span class="muted">completions</span></td><td><code>embed-model</code></td><td><code></code></td><td>concurrency 4, batch 16, chunk size 2000</td></tr>
+<tr><td>vision</td><td colspan="4" class="muted">skipped: not configured</td></tr>
+<tr><td>transcription</td><td colspan="4" class="muted">skipped: not configured</td></tr>
+</tbody>
+</table></div>
+
+<h2>Embedding space</h2>
+<p class="muted">None: the run has not measured one.</p>
+
+<h2>Counts</h2>
+<dl class="facts">
+<dt>vision</dt><dd><span class="muted">skipped</span>; images 0</dd>
+<dt>transcription</dt><dd><span class="muted">skipped</span>; windows 0</dd>
+<dt>embeddings</dt><dd>texts 0, metadata 0: embedded 0, rejected 0, held 0; requests 0</dd>
+</dl>
+
+<h2>Inputs</h2>
+<div class="scroll"><table>
+<thead><tr><th>Path</th><th class="n">Images</th><th class="n">Transcripts</th><th class="n">Chunks</th><th class="n">Failures</th></tr></thead>
+<tbody>
+<tr><td><a href="89a757a32b4e897b421351d30113d6ec3c47bf0434d22f2c15b8ac8625fc85b0.html"><code>/docs/c.txt</code></a></td><td class="n">0</td><td class="n">0</td><td class="n">2</td><td class="n">0</td></tr>
+<tr><td><code>/docs/d.zip</code></td><td class="n">0</td><td class="n">0</td><td class="n">1</td><td class="n">0</td></tr>
+</tbody>
+</table></div>
+</body>
+</html>

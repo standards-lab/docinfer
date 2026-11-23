@@ -1,0 +1,115 @@
+{
+  "schema": "2",
+  "run": "019a6000-0000-7000-8000-0000000000a1",
+  "docinfer": {
+    "command": "(devel)",
+    "library": "v0.2.0"
+  },
+  "start": "2026-11-20T10:00:00.123456789Z",
+  "end": "2026-11-20T10:00:05.623456789Z",
+  "docproc": {
+    "dir": "../docproc",
+    "run": "019a5f3c-1d2e-7a10-8b00-0000000000d1"
+  },
+  "inputs": [
+    {
+      "path": "/docs/report.pdf",
+      "sha256": "29d1283686193dc1461a7deac4f53d9bc5402a28b95d854f69e94986756fd0a9"
+    },
+    {
+      "path": "/docs/copy of report.pdf",
+      "sha256": "29d1283686193dc1461a7deac4f53d9bc5402a28b95d854f69e94986756fd0a9"
+    },
+    {
+      "path": "/docs/talk.wav",
+      "sha256": "19fc9533b431dc142bf63afe0681ab543965c2122bb0085e594254f495ca33ea"
+    },
+    {
+      "path": "/docs/locked.pdf",
+      "error": "open /docs/locked.pdf: permission denied"
+    },
+    {
+      "path": "/docs/archive.zip",
+      "sha256": "4b9a4ac59f3c3aa32273260df6cf4bf358d1c46f8415126aa35b6380d0abb8f7"
+    }
+  ],
+  "capabilities": [
+    {
+      "capability": "vision",
+      "model": "vision-model",
+      "settings": "{\"request\":\"1\"}",
+      "endpoint": "gb10",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "format": "completions",
+      "concurrency": 4
+    },
+    {
+      "capability": "transcription",
+      "model": "whisper",
+      "settings": "{\"request\":\"1\"}",
+      "endpoint": "gb10",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "format": "completions",
+      "concurrency": 2
+    },
+    {
+      "capability": "embeddings",
+      "model": "embed-model",
+      "settings": "",
+      "endpoint": "gb10",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "format": "completions",
+      "concurrency": 4,
+      "batch": 16,
+      "chunk_size": 2000
+    }
+  ],
+  "embedding_space": {
+    "endpoint": "gb10",
+    "model": "embed-model",
+    "dimensions": 4,
+    "vectors": 9,
+    "unit_length": true,
+    "tolerance": 0.001,
+    "min_norm": 1,
+    "max_norm": 1,
+    "chunker": "{\"bound\":2000}"
+  },
+  "counts": {
+    "texts": 2,
+    "metadata": 4,
+    "embedded": 11,
+    "rejected": 1,
+    "held": 0,
+    "requests": 5,
+    "images": 5,
+    "vision": {
+      "described": 2,
+      "incomplete": 0,
+      "empty": 0,
+      "refused": 1,
+      "failed": 1,
+      "held": 2,
+      "requests": 3
+    },
+    "windows": 3,
+    "transcription": {
+      "transcribed": 2,
+      "incomplete": 0,
+      "refused": 0,
+      "failed": 1,
+      "held": 0,
+      "requests": 3,
+      "transcripts": 1,
+      "seams_matched": 1,
+      "seams_unmatched": 1
+    },
+    "tokens": {
+      "embeddings": {
+        "input": 0,
+        "output": 0
+      }
+    }
+  },
+  "outputs": 12
+}

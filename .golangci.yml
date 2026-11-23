@@ -39,3 +39,5 @@ linters:
           deny:
             - pkg: github.com/standards-lab/docinfer/postgres
               desc: the base imports no provider; the postgres module depends on the base
+            - pkg: github.com/standards-lab/docinfer/cmd/docinfer
+              desc: the base imports no command package; the cmd/docinfer module depends on the base

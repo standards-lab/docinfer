@@ -1,6 +1,6 @@
 # cmd/docinfer's report
 
-This note states cmd/docinfer's planned report and the directory it renders from;
+This note states cmd/docinfer's report and the directory it renders from;
 [command.md](command.md) holds the other findings, and [command-api.md](command-api.md) the layout.
 
 ## The report's shape
@@ -18,18 +18,18 @@ full vision texts, transcripts, and chunks" (data-intelligence, "The input repor
 
 **Decision.** Per run, one page per input content: `runs/<run>/report/index.html` and a
 `<sha256>.html` per content, the file name docproc's page for the same content has, so the cross
-link to it is one relative path. Schema "2" records each input's SHA-256 in an input list, since a
-chunk line's part is the part it was cut from, not the input; an input with no SHA-256 keeps its
-row, its error, and its metadata chunk on the index. Everything is inline and whole: each vision
-text with its outcome, each transcript with its windows, failed windows, and seams, and each source
-once, as its chunks in order (index, span, a rejected chunk's error, no vector), since the chunks
-don't overlap and cover the text but for trimmed white space (`chunk/doc.go:12-15`). Images and
-windows stay docproc's and are never copied: each vision text has an `img` beside it at docproc's
-`rundir.ContentPath`, and each content page links to docproc's page for it. The run records the
-relative path to docproc's directory once, so the rendered bytes don't depend on when the report
-is rendered, and a moved directory costs links, never text. The report renders from docinfer's own
-directory alone (`texts/`, the record, the manifest, and the inferences file, C15), and a test
-renders it with docproc's directory absent.
+link to it is one relative path. Each record line names its input's path, which the manifest's input
+list maps to its SHA-256; an input with no SHA-256 keeps its row and error on the index, unlinked,
+with no metadata chunk, since docproc's error line has no part. Everything is inline and whole: each
+vision text with its outcome, each transcript with its windows, failed windows, and seams, and each
+source once, as its chunks in order (index, span, a rejected chunk's error, no vector), since the
+chunks don't overlap and cover the text but for trimmed white space (`chunk/doc.go:12-15`). Images
+and windows stay docproc's and are never copied: each vision text has an `img` beside it at
+docproc's `rundir.ContentPath`, and each content page links to docproc's page for it. The run
+records the relative path to docproc's directory once, so the rendered bytes don't depend on when
+the report is rendered, and a moved directory costs links, never text. The report renders from
+docinfer's own directory alone (`texts/`, the record, the manifest, and the inferences file, C15),
+and a test renders it with docproc's directory absent.
 
 **Rejected: one page a run.** It is the spike's, and the reason for its cut; the same content
 under two paths shows twice, and nothing links to docproc's page by SHA-256.
@@ -88,13 +88,13 @@ func (d *Dir) Runs() ([]string, error)                   // its runs' ids, in or
 func (d *Dir) Latest() (string, error)                   // the latest run that ended
 func (d *Dir) Manifest(id string) (Manifest, error)
 func (d *Dir) Lines(id string) iter.Seq2[Line, error]    // the chunk record, vectors left out (C12)
-func (d *Dir) Inferences(id string) iter.Seq2[docinfer.Inference, error]
+func (d *Dir) Inferences(id string) iter.Seq2[Inference, error]
 func (d *Dir) Cache() *docinfer.FileCache                // over results/
 func (d *Dir) Texts() dispatch.Content                   // over texts/
 func (d *Dir) ReportDir(id string) (string, error)       // runs/<run>/report, not made
 func (d *Dir) Begin(m Manifest) (*Run, error)            // on a Dir from Create
-func (r *Run) Inference(i docinfer.Inference) error      // one line, written through
-func (r *Run) Batch(b docinfer.Batch) error              // its lines, written through
+func (r *Run) Inference(i Inference) error               // one line, written through
+func (r *Run) Batch(b docinfer.Batch, inputs []string) error // its lines, an input per part
 func (r *Run) End(m Manifest) error                      // the manifest, its end set
 
 type Manifest struct {
@@ -136,6 +136,7 @@ type Skipped struct { Name, Reason string } // "name", "reason": not configured
 type Space struct { … } // the measured embedding space and its norms, as the spike's
 // Line is a batch's chunk with what its indexes name inline, since chunks.jsonl holds no batches.
 type Line struct {
+    Input       string          `json:"input"`  // the input path its part was found in
     Digest      string          `json:"digest"`
     chunk.Chunk                 // inline: text, span
     Index       int             `json:"index"`
@@ -144,6 +145,7 @@ type Line struct {
     Part        dispatch.Part   `json:"part"`
     Source      docinfer.Source `json:"source"` // its part index 0: Part is inline
 }
+type Inference struct { Input string; docinfer.Inference } // "input", then the inference inline
 ```
 
 `outdir` owns its whole-file write, its run list, and its id check, each `Dir` method refusing an
@@ -152,19 +154,14 @@ the lines it made, and a reader of a run whose manifest has no `end` drops a las
 newline, as `rundir`'s does (C12). The report hashes each text it reads from `texts/`, and renders
 one whose SHA-256 isn't its name as damaged: `ReadText`'s digest check is kept, in the report
 (C10, C23). The manifest's capabilities tie it to its held results by the same `Identity` (C14),
-and its inputs list each input's SHA-256, since a chunk line's part is the part it was cut from,
-not the input. A refused or failed image or window is found in `inferences.jsonl`, by its part's
-ID and content SHA-256 (C15).
+and each line's `input` is the path `run` resolved from docproc's record, a part two inputs share
+going to the later. A refused or failed image or window is found in `inferences.jsonl`, by its
+input, part ID, and content SHA-256 (C15).
 
 ## The report
 
-The report follows "The report's shape": per run, `report/index.html` and a `<sha256>.html` per
-input content, the name docproc's page for the same content has, so the cross link is one relative
-path; an input with no SHA-256 keeps its row, its error, and its metadata chunk on the index; each
-vision text inline and whole with its outcome and an `img` at docproc's `rundir.ContentPath`; each
-transcript with its windows, failed windows, and seams; each source once, as its chunks in order,
-grouped by part ID, source kind and text SHA-256, and index (C18), with no vector. It renders from
-docinfer's directory alone, reads no clock, and a test renders it with docproc's directory absent.
-`report.Render(ctx, dir, id)` writes the pages; its golden pages over a committed directory hold a
-long text, a damaged text, and an unended run (C23).
+The report follows "The report's shape", and groups each source's chunks by part ID, source kind
+and text SHA-256, and index (C18). It reads no clock. `report.Render(ctx, dir, id)` writes the
+pages; its golden pages over a committed directory hold a long text, a damaged text, and an
+unended run (C23).
 

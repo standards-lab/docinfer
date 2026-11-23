@@ -11,8 +11,8 @@ them, and turns off mise's automatic install, so a task never fetches a tool mid
 tool is a `mise install` away.
 
 - **Modules.** `GO_MODULES` is the space-separated list of module directories, kept in sync with
-  `go.work`'s use list: `.` is the base module and `postgres` the PostgreSQL cache's;
-  `cmd/docinfer`, the command's, is planned.
+  `go.work`'s use list: `.` is the base module, `postgres` the PostgreSQL cache's, and
+  `cmd/docinfer` the command's.
 - **The live tier's DSN.** `DOCINFER_DSN` names the compose harness's PostgreSQL, whose port
   follows `DOCINFER_POSTGRES_PORT` as `compose/postgres.yml`'s does. Each test creates and drops
   its own database on it.
@@ -35,7 +35,9 @@ tool is a `mise install` away.
   skips, naming it, so with none set the run skips whole and passes. It runs verbose, so the log
   lists each scenario passed or skipped, and it never starts a server. It fills an unset
   `AI_<ROLE>_TOKEN` from the committed `fnox.toml` ([Secrets](#secrets)).
-  [`integration/doc.go`](../integration/doc.go) tells each scenario in full.
+  [`integration/doc.go`](../integration/doc.go) tells each scenario in full. `cmd/docinfer`'s
+  tier runs the built command over the embedding, vision, and transcription or audio roles, as
+  [`cmd/docinfer/integration/doc.go`](../cmd/docinfer/integration/doc.go) tells.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
   its log on a failure. **`integration`** runs every provider's live tier one module at a time,
@@ -81,14 +83,14 @@ CI's check job runs on every pull request into main, every push to main, and on 
 installs only what the check runs: Go, golangci-lint, marathon's lints, and the jq and yq
 `lint-secrets` reads. The integration job runs `mise run integration` on a push to main and on
 demand, never on a pull request, below the per-PR rate by design; it installs only Go, docker
-being the runner's. No job runs the base module's AI tier, `test:integration`, whose models are on
-the organization's own machines.
+being the runner's. No job runs the AI tiers, `test:integration`, whose models are on the
+organization's own machines.
 
 The release workflow runs on a pushed tag; nothing in CI tags. A tag is the base module's,
-`vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z`, and, once the planned command
-module exists, `cmd/docinfer/vX.Y.Z`. The tag's prefix, empty for the base module, picks the module's own
-changelog, `CHANGELOG.md` at the root or `<module>/CHANGELOG.md`, and the release notes are the
-version's section, headed `## [vX.Y.Z] - <date>`. A release has no assets: the module proxy
+`vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z` or `cmd/docinfer/vX.Y.Z`.
+The tag's prefix, empty for the base module, picks the module's own changelog, `CHANGELOG.md` at
+the root or `<module>/CHANGELOG.md`, and the release notes are the version's section, headed
+`## [vX.Y.Z] - <date>`. A release has no assets: the module proxy
 serves the module from the tag, and docinfer builds no system tool.
 
 ## The compose harness
@@ -110,9 +112,9 @@ check, and keeps its data in tmpfs, so every start begins empty.
 ## Workspace
 
 `go.work` spans the modules in `GO_MODULES`, so a change to the base module is seen by the
-postgres module, which requires it, before it is tagged. `go.work` and `go.work.sum` are
-committed: the repository is multi-module by design, and the committed sum keeps the check's tree
-clean.
+postgres and `cmd/docinfer` modules, which require it, before it is tagged. `go.work` and
+`go.work.sum` are committed: the repository is multi-module by design, and the committed sum keeps
+the check's tree clean.
 
 ## Lint configuration
 
@@ -120,8 +122,8 @@ Each module's `.golangci.yml` enables the standard set (errcheck, govet, ineffas
 unused) plus depguard, which holds the module to its allowed imports, testpackage, which keeps
 tests black-box, and nolintlint, which requires each suppression to name its linter and give its
 reason. golangci-lint reads the configuration nearest the directory it runs in, so the root's
-serves the base module and the postgres module carries its own, the root's but for depguard's
-lists.
+serves the base module and the postgres and `cmd/docinfer` modules each carry their own, the
+root's but for depguard's lists.
 
 - Test files are linted with the code they test, so the depguard rules hold them too.
 - testpackage's skip regexp is narrowed to `export_test.go`, the one white-box file allowed.
@@ -132,13 +134,17 @@ lists.
   anchored: the module as itself or a package under it, not a sibling such as `docinfer-extra`.
   The longest match wins, so a deny entry overrides an allow entry's prefix.
 - The base module depends on nothing but the standard library, docproc, and go-ai, in every Go
-  file, tests included; its deny entry keeps the postgres module, which requires the base, out of
-  it.
+  file, tests included; its deny entries keep the postgres and `cmd/docinfer` modules, which
+  require the base, out of it.
 - The postgres module's production files may import the standard library, docinfer's base
   packages, whose `Cache` it implements, sqlate's packages and its PostgreSQL engine, and pgx v5.
   Its tests add sqlate/postgres's `pgtest`. The deny entries keep the `cmd/docinfer` module out
   despite docinfer's prefix, and the test-support packages, `docinfertest`, `sqltest`, and
   `pgtest`, which import `testing`, out of the production files despite their modules' prefixes.
+- The `cmd/docinfer` module's files may import the standard library, docinfer's base packages,
+  docproc's and go-ai's, go-cli-sdk, and go-core's packages. The deny entries keep the postgres
+  module out despite docinfer's prefix, and the test-support packages, `docinfertest`, go-ai's
+  `aitest`, and go-core's `graphtest`, which import `testing`, out of the production files.
 
 `postgres/sqlint.toml` holds the postgres module's SQL conventions; the base module holds no SQL.
 The engine names the native forms a standard-tier file may not use, and the sources name the
