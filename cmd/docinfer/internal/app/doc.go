@@ -1,8 +1,8 @@
 // Package app is docinfer's composition root. [New] describes the program's dependencies as one
 // go-core graph and builds the command tree on go-cli-sdk over it; [App.Run] runs that tree, as a
-// go-cli-sdk cli.Program, on the process arguments. It was started from go-cli-sdk-template's
-// template/v0.3.1. Each architecture layer has one file, which defines the layer's nodes in its
-// define function and owns its mount, so the layer files are the architecture's layer list:
+// go-cli-sdk cli.Program, on the process arguments. Each architecture layer has one file, which
+// defines the layer's nodes in its define function and owns its mount, so the layer files are the
+// architecture's layer list:
 //
 //   - app.go: [App], [New], and [Nodes], which call the layer files' define and mount functions
 //     in layer order, lowest first;

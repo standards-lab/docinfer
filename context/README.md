@@ -7,8 +7,9 @@ Its base module requires docproc and go-ai; its PostgreSQL cache, `docinfer/post
 module; its command, `cmd/docinfer`, is another.
 
 Its goals live in the coordinator's roadmap (`standards-lab/roadmap/index.toml`,
-v1.ai.inference). It is built from spike-ai-pipeline's docinfer at 6a631f1. Its package docs and,
-for `cmd/docinfer`, its command notes settle its boundaries.
+v1.ai.inference). Its lineage is in the workspace's
+[references catalog](https://github.com/standards-lab/org/blob/main/references.md). Its package
+docs and, for `cmd/docinfer`, its command notes settle its boundaries.
 
 ## Capability map
 

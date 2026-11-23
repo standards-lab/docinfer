@@ -7,7 +7,6 @@ import (
 	"testing"
 )
 
-// From spike-ai-pipeline-processing (4402f7c): audio/testdata/speech-levels.truth.json.
 const levelsTruth = "speech-levels.truth.json"
 
 type levelsFixture struct {

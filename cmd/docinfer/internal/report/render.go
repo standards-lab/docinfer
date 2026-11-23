@@ -77,7 +77,6 @@ type contentView struct {
 	Content *content
 }
 
-// Adapted from docproc (6f955e3): over docinfer's model.
 func render(ctx context.Context, v *model) ([]page, error) {
 	var out []page
 	exec := func(name, tmpl string, data any) error {
@@ -102,7 +101,6 @@ func render(ctx context.Context, v *model) ([]page, error) {
 	return out, nil
 }
 
-// Adapted from docproc (6f955e3): unchanged.
 func replace(dst string, files []page) (err error) {
 	parent := filepath.Dir(dst)
 	stale, err := filepath.Glob(filepath.Join(parent, tempPattern))

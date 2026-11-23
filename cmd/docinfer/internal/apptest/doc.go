@@ -1,8 +1,7 @@
 // Package apptest holds the fixtures internal/app's tests share for running docinfer over the
 // composition [app.App] publishes: its graph and its nodes. A test builds its App with [app.New]
 // and applies the fixtures to it before it runs, each an observer or a Replace on the App's
-// graph; a constructor a fixture does not swap stays the production one. It was started from
-// go-cli-sdk-template's template/v0.3.1.
+// graph; a constructor a fixture does not swap stays the production one.
 //
 // [Builds] records the name of every node a run's Build begins, read from the handle
 // graph.Graph.Observe reports, so a test asserts which nodes a command builds from what the graph

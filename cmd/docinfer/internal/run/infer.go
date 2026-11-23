@@ -29,7 +29,6 @@ type target struct {
 	run     string
 }
 
-// Adapted from spike-ai-pipeline (6a631f1): rundir and outdir in place of source and the spike's outdir, the pipeline's results in place of the phases.
 func infer(ctx context.Context, w io.Writer, cfg Config, t target) (string, error) {
 	src, err := rundir.Open(t.docproc)
 	if err != nil {
@@ -289,7 +288,6 @@ func newSpace(cfg Config, pr docinfer.Profile) *space {
 	}
 }
 
-// Adapted from spike-ai-pipeline (6a631f1): measures each batch's distinct vectors as they come.
 func (sp *space) measure(b docinfer.Batch) error {
 	for _, c := range b.Chunks {
 		if c.Vector == "" || sp.seen[c.Digest] {

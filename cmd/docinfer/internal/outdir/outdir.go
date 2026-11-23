@@ -19,8 +19,6 @@ import (
 	"github.com/standards-lab/docinfer"
 )
 
-// Adapted from docproc (ddb1c07): rundir's open, create, schema check, run ids, runs, latest, manifest and record readers, read-only content, and whole-file write, over docinfer's marker, records, and texts.
-
 // Version is the directory's schema: its layout, its marker, its manifest, and its records.
 const Version = "2"
 
