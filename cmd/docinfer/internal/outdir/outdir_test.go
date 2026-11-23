@@ -282,10 +282,12 @@ func TestDir_RefusesAnIDThatIsNoRun(t *testing.T) {
 		if _, err := d.ReportDir(id); !errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("ReportDir(%q) = %v, want an error matching fs.ErrNotExist", id, err)
 		}
+		var errs []error
 		for _, err := range d.Lines(id) {
-			if !errors.Is(err, fs.ErrNotExist) {
-				t.Errorf("Lines(%q) = %v, want an error matching fs.ErrNotExist", id, err)
-			}
+			errs = append(errs, err)
+		}
+		if len(errs) != 1 || !errors.Is(errs[0], fs.ErrNotExist) {
+			t.Errorf("Lines(%q) yielded %v, want one error matching fs.ErrNotExist", id, errs)
 		}
 	}
 }
