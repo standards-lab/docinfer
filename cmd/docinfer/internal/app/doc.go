@@ -12,7 +12,7 @@
 //     ResponseHeaderTimeout; and each capability's own *ai.Client, vision's, transcription's,
 //     and embeddings', in its endpoint's format and with its endpoint's options, transcription's
 //     in its configured mode, a capability the configuration leaves unset having none. A client
-//     go-ai's ai.New refuses is reported named for its endpoint. config.go holds [Config], its
+//     go-ai's ai.New refuses is reported named for its endpoint. It holds [Config] too, with its
 //     starting values, its overrides, and its checks, so a configuration error fails the Build,
 //     labelled "config", before any command reads anything;
 //   - domain.go: defineDomain and mountDomain: the run configuration, internal/run's Config, in
