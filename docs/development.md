@@ -36,7 +36,7 @@ tool is a `mise install` away.
   lists each scenario passed or skipped, and it never starts a server. It fills an unset
   `AI_<ROLE>_TOKEN` from the committed `fnox.toml` ([Secrets](#secrets)).
   [`integration/doc.go`](../integration/doc.go) tells each scenario in full. `cmd/docinfer`'s
-  runs the built command over the embedding, vision, and transcription or audio roles, as
+  tier runs the built command over the embedding, vision, and transcription or audio roles, as
   [`cmd/docinfer/integration/doc.go`](../cmd/docinfer/integration/doc.go) tells.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
@@ -83,13 +83,14 @@ CI's check job runs on every pull request into main, every push to main, and on 
 installs only what the check runs: Go, golangci-lint, marathon's lints, and the jq and yq
 `lint-secrets` reads. The integration job runs `mise run integration` on a push to main and on
 demand, never on a pull request, below the per-PR rate by design; it installs only Go, docker
-being the runner's. No job runs the base module's AI tier, `test:integration`, whose models are on
-the organization's own machines.
+being the runner's. No job runs the AI tiers, `test:integration`, whose models are on the
+organization's own machines.
 
 The release workflow runs on a pushed tag; nothing in CI tags. A tag is the base module's,
-`vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z` or `cmd/docinfer/vX.Y.Z`. The tag's prefix, empty for the base module, picks the module's own
-changelog, `CHANGELOG.md` at the root or `<module>/CHANGELOG.md`, and the release notes are the
-version's section, headed `## [vX.Y.Z] - <date>`. A release has no assets: the module proxy
+`vX.Y.Z`, or a nested module's, `<module>/vX.Y.Z`: `postgres/vX.Y.Z` or `cmd/docinfer/vX.Y.Z`.
+The tag's prefix, empty for the base module, picks the module's own changelog, `CHANGELOG.md` at
+the root or `<module>/CHANGELOG.md`, and the release notes are the version's section, headed
+`## [vX.Y.Z] - <date>`. A release has no assets: the module proxy
 serves the module from the tag, and docinfer builds no system tool.
 
 ## The compose harness
@@ -111,9 +112,9 @@ check, and keeps its data in tmpfs, so every start begins empty.
 ## Workspace
 
 `go.work` spans the modules in `GO_MODULES`, so a change to the base module is seen by the
-postgres and `cmd/docinfer` modules, which require it, before it is tagged. `go.work` and `go.work.sum` are
-committed: the repository is multi-module by design, and the committed sum keeps the check's tree
-clean.
+postgres and `cmd/docinfer` modules, which require it, before it is tagged. `go.work` and
+`go.work.sum` are committed: the repository is multi-module by design, and the committed sum keeps
+the check's tree clean.
 
 ## Lint configuration
 

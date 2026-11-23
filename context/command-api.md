@@ -26,9 +26,9 @@ cmd/docinfer     (module) main.go at the module's root, so go install installs t
 composition root is a graph (C1): a node for the configuration, read from the directory `--config`
 or `DOCINFER_CONFIG` names in the node's constructor; a node per capability's `*ai.Client`, built
 as `ai.New(baseURL, httpClient, wireFormat, ai.Options{…})` and reporting its error named for its
-endpoint (C7); and a node for `run.Config`, holding
-`docinfer.Vision`, `Transcription`, and `Embeddings`; `run.Commands(n.RunConfig)` takes it. A
-configuration error fails the Build, labelled with its node, before the docproc run is read.
+endpoint (C7); and a node for `run.Config`, holding `docinfer.Vision`, `Transcription`, and
+`Embeddings`, which `run.Commands(n.RunConfig)` takes. A configuration error fails the Build,
+labelled with its node, before the docproc run is read.
 
 The configuration ships the operator's starting values, which the library leaves none
 (`docs/no-defaults.md`):
@@ -42,22 +42,20 @@ endpoints.<name>     base_url; format: completions, messages, or responses; prof
                        token and headers in the secrets file (C6)
 vision               endpoint, model, prompt, max_tokens 2048, reasoning none (a
                        protocol.ReasoningEffort, refused by its UnmarshalText, C7), concurrency 4
-transcription        endpoint, model, prompt, language, mode route or chat, set on this
-                       capability's own client as ai.TranscribeRoute or ai.TranscribeChat, chat
-                       for an endpoint with no transcription route and refused without the
-                       completions format (C6),
-                       words_per_second 8, concurrency 4
+transcription        endpoint, model, prompt, language, mode route (the start) or chat, set on
+                       this capability's own client as ai.TranscribeRoute or ai.TranscribeChat,
+                       chat for an endpoint with no transcription route and refused without the
+                       completions format (C6), words_per_second 8, concurrency 4
 embeddings           endpoint, model, dimensions, batch 16, chunk_size 2000, concurrency 4
-run                  pending, batch_bytes 524288
+run                  pending 16, batch_bytes 524288
 ```
 
 Each override is `DOCINFER_` and its setting's path, composed where it is read (C8). `validate`
 keeps what is docinfer's: a capability's endpoint exists, and the counts are at least 1 (C7). Each
 endpoint has one `http.Client` over a cloned default transport with its `ResponseHeaderTimeout`,
-and each capability's client its endpoint's `Options` with `Retry`, `Header`,
-`Query`, `Token`, and, for transcription, `TranscriptionMode`, `ai.TranscribeRoute` for `route`
-and `ai.TranscribeChat` for `chat`. A setting that changes a result is
-in the manifest.
+and each capability's client has its endpoint's `Options` with `Retry`, `Header`, `Query`,
+`Token`, and, for transcription, `TranscriptionMode`: `ai.TranscribeRoute` for `route` and
+`ai.TranscribeChat` for `chat`. A setting that changes a result is in the manifest.
 
 The commands, each with a footer stating that recorded refusals exit 0, what exits 1, and what the
 last line counts (C20):
@@ -100,7 +98,8 @@ The directory is schema "2":
 `main_test.go` sets Asia/Kolkata (C24). `integration` runs the built binary as a subprocess on
 go-core's `processtest`: `run --report` and `report` against the endpoints go-ai's `AI_<ROLE>_*`
 variables name, skipped when they are unset; the check vets and lints it without running it
-(C21). Extraction meets the live gateway in the base module's tier, `integration/extract_test.go`.
+(C21). Extraction meets the live gateway in the base module's tier, `integration/extract_test.go`,
+since the command runs none.
 
 ## Names
 
@@ -140,7 +139,7 @@ Every name of the command's that layers' docinfer sections write, against this A
 | `report` | carried | `internal/report` (C3) |
 
 Names the command adds: `outdir.json`, `inferences.jsonl`, `report/`, `Manifest`'s `Docinfer`,
-`Inputs`, and `Outputs`, `Build`, `Input`, and `integration`.
+`Inputs`, and `Outputs`, `Build`, `Input`, `outdir.Inference`, and `integration`.
 
 ## Release
 

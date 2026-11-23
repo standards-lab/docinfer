@@ -24,8 +24,7 @@ the library's part; `infer/commands.go` and `infer/progress.go`, the run command
 tests; and the spike root's `cmd/docinfer/main.go`, `go.mod`, and `docs/` (`docinfer-schema.md`,
 `findings/docinfer.md`), cited from that root. C1–C24 are the evaluation's; what layers already
 settles for `cmd/docinfer` (schema "2"'s shapes, `Transcript` going, `Failure` by part ID and
-SHA-256, `FileCache` under `results/`) is not repeated. Every finding is accepted, for the docinfer
-task.
+SHA-256, `FileCache` under `results/`) is not repeated.
 
 ### Composition
 
@@ -160,7 +159,7 @@ two stamps, `Time()` in the report, and a `main_test.go` per test package settin
 go-core's `processtest`), with go-ai's `tools/infer/integration` as precedent. **accepted**,
 docinfer: `cmd/docinfer/integration`, tagged, runs `run --report` and `report` against the
 `AI_<ROLE>_*` endpoints or skips; the check vets and lints it without running it. Extraction
-meets the live gateway in `integration/extract_test.go`.
+meets the live gateway in the base module's `integration/extract_test.go`.
 
 **C22. issue: the fixtures depend on what the nested module can't have.** `apptest/apptest.go:24`,
 `apptest/apptest.go:47-81`, `apptest/apptest.go:210-223`, `app/testdata/README.md:3-7`. Against
