@@ -1,11 +1,11 @@
 # Library evaluation
 
-docinfer's library was built from a review of the spikes the workspace's
-[references catalog](https://github.com/standards-lab/org/blob/main/references.md) lists for it.
-Each package's documentation states what the library does; this page keeps the reasoning behind
-the review's findings that has no other home, and the alternatives it rejected.
-[No library defaults](no-defaults.md) and the [join of work in flight](join-of-work-in-flight.md)
-hold their own findings.
+docinfer's library was built from a review of two spikes: spike-ai-pipeline at 6a631f1
+(`internal/docinfer`), which this page calls the spike, and spike-ai-pipeline-processing
+v0.9.0's audio join. Each package's documentation states what the library does; this page keeps
+the reasoning behind the review's findings that has no other home, and the alternatives it
+rejected. [No library defaults](no-defaults.md) and the
+[join of work in flight](join-of-work-in-flight.md) hold their own findings.
 
 ## What was ported
 
