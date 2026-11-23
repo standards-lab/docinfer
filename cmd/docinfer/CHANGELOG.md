@@ -10,6 +10,12 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+## [v0.1.0] - 2026-11-23
+
+The first release, from spike-ai-pipeline's `cmd/docinfer` at
+[6a631f1](https://github.com/JaimeStill/spike-ai-pipeline/tree/6a631f1/cmd/docinfer), rebuilt on
+go-cli-sdk-template template/v0.3.1 to the design in `context/command.md`.
+
 ### Added
 
 - The module, with `main.go` at its root, so
@@ -99,4 +105,5 @@ the postgres module keep their own.
   the report's index to be printed. A role whose variable is unset is left out of the run, and
   with `AI_EMBEDDING_BASE_URL` unset the scenario skips.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/commits/HEAD/cmd/docinfer
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.1.0...HEAD
+[v0.1.0]: https://github.com/standards-lab/docinfer/releases/tag/cmd/docinfer/v0.1.0
