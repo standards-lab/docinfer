@@ -13,8 +13,8 @@ const envPrefix = "DOCINFER_"
 const command = "github.com/standards-lab/docinfer/cmd/docinfer"
 
 // Main is the suite's TestMain: it unsets every DOCINFER_ variable the
-// suite inherited, so each run reads only the program's defaults and the
-// overrides its test passes, then builds the command once, with the race
+// suite inherited, so each run reads only the configuration directory its
+// test writes, then builds the command once, with the race
 // detector so the program runs under it too, runs the tests, and removes
 // the build.
 func Main(m *testing.M) {
