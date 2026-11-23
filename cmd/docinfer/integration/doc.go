@@ -11,4 +11,21 @@
 //
 // The tier runs from `mise run test:integration`. The harness is untagged, so the unit tier
 // type-checks it on every check; the suite files carry the integration tag.
+//
+// TestCLI_RunAndReport runs docinfer run --report and then docinfer report against live
+// endpoints, read from go-ai's tier's variables as the base module's integration tier reads them:
+// AI_EMBEDDING_BASE_URL, which the run needs and without which the scenario skips, naming it;
+// AI_VISION_BASE_URL; and AI_TRANSCRIPTION_BASE_URL, transcribed in route mode, or else
+// AI_AUDIO_BASE_URL, in chat mode. A capability whose variable is unset is left out of the run.
+// Each role's AI_<ROLE>_MODEL names its model, or its endpoint's one listed model is taken, and
+// AI_<ROLE>_TOKEN and AI_<ROLE>_HEADER, "Name: value" lines, its credentials. The suite writes
+// them, with the embedding space's dimensions, which it measures by embedding one probe text,
+// into config.json and secrets.json in a temporary configuration directory that --config names,
+// each role an endpoint of the completions format named for it, so no credential appears on the
+// logged command line. The docproc run directory the suite writes holds a short text input, and
+// an image, the base module's integration/testdata/shapes.png, for vision, and an audio window,
+// its phrase.wav, for transcription. The suite wants run to exit 0 with its run's manifest ended
+// with no error and naming each capability configured, and the report's index, whose path the
+// run prints last; then report over the same directory to exit 0 and print the same path. Each
+// run is bounded by processtest's Failsafe.
 package integration

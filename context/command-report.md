@@ -1,6 +1,6 @@
 # cmd/docinfer's report
 
-This note states cmd/docinfer's planned report and the directory it renders from;
+This note states cmd/docinfer's report and the directory it renders from;
 [command.md](command.md) holds the other findings, and [command-api.md](command-api.md) the layout.
 
 ## The report's shape

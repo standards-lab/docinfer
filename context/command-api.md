@@ -1,6 +1,6 @@
 # cmd/docinfer's API
 
-This note states cmd/docinfer's planned API: layers' docinfer sections at 673ed3d, restated in
+This note states cmd/docinfer's API: layers' docinfer sections at 673ed3d, restated in
 go-ai's and docproc's released names, with [command.md](command.md)'s findings applied. A finding's
 id marks where it changes layers. The directory's `outdir` and the report are
 [command-report.md](command-report.md).
@@ -17,7 +17,7 @@ cmd/docinfer     (module) main.go at the module's root, so go install installs t
   internal/run       the run command: docproc's rundir in, Pipeline.Run, outdir out (C3, C4, C5)
   internal/report    the report command and run --report's render (C16–C19)
   internal/outdir    docinfer's directory at schema "2", the one package run and report share
-  integration        the built-binary tier, tagged, against a real endpoint a variable names (C21)
+  integration        the built-binary tier, tagged, against the endpoints AI_<ROLE>_* name (C21)
 ```
 
 ## The command
@@ -36,10 +36,10 @@ The configuration ships the operator's starting values, which the library leaves
 ```text
 endpoints.<name>     base_url; format: completions, messages, or responses; profile, the format's
                        Options, decoded as tools/infer's formatOptions is (C6); query; retry
-                       {max_attempts, base_delay, max_delay}, the command's starting policy (C6);
-                       response_header_timeout, its starting value above vision's slowest observed
-                       image, 38.9 s, and stream_idle_timeout (C9); token and headers in the
-                       secrets file (C6)
+                       {max_attempts 3, base_delay 500ms, max_delay 30s} (C6);
+                       response_header_timeout 180s, above vision's slowest observed image,
+                       38.9 s, and no stream timeout, the command running no extraction (C9);
+                       token and headers in the secrets file (C6)
 vision               endpoint, model, prompt, max_tokens 2048, reasoning none (a
                        protocol.ReasoningEffort, refused by its UnmarshalText, C7), concurrency 4
 transcription        endpoint, model, prompt, language, mode route or chat, set on this
@@ -54,7 +54,7 @@ run                  pending, batch_bytes 524288
 Each override is `DOCINFER_` and its setting's path, composed where it is read (C8). `validate`
 keeps what is docinfer's: a capability's endpoint exists, and the counts are at least 1 (C7). Each
 endpoint has one `http.Client` over a cloned default transport with its `ResponseHeaderTimeout`,
-and each capability's client its endpoint's `Options` with `StreamIdleTimeout`, `Retry`, `Header`,
+and each capability's client its endpoint's `Options` with `Retry`, `Header`,
 `Query`, `Token`, and, for transcription, `TranscriptionMode`, `ai.TranscribeRoute` for `route`
 and `ai.TranscribeChat` for `chat`. A setting that changes a result is
 in the manifest.
@@ -98,8 +98,9 @@ The directory is schema "2":
 `cmd/docinfer`'s tests write the docproc run directories they read with `rundir.Create` and
 `Begin`, and drive go-ai's `aitest`, its model list included (C22); each test package's
 `main_test.go` sets Asia/Kolkata (C24). `integration` runs the built binary as a subprocess on
-go-core's `processtest`, against the endpoint a variable names, skipped when it is unset; the check
-vets and lints it without running it (C21).
+go-core's `processtest`: `run --report` and `report` against the endpoints go-ai's `AI_<ROLE>_*`
+variables name, skipped when they are unset; the check vets and lints it without running it
+(C21). Extraction meets the live gateway in the base module's tier, `integration/extract_test.go`.
 
 ## Names
 

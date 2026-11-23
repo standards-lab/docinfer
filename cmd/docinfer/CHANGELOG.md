@@ -82,6 +82,11 @@ the postgres module keep their own.
   that rendered nothing; 2 for a usage error, and for help.
 - The built-binary integration tier, under the `integration` build tag, run by
   `mise run test:integration`: it builds `docinfer` and asserts `version`, the root help, and an
-  unknown command's usage error through its arguments, output, and exit status.
+  unknown command's usage error through its arguments, output, and exit status. Against live
+  endpoints, read from go-ai's `AI_<ROLE>_*` variables for the embedding, vision, and
+  transcription or audio roles, it runs `docinfer run --report` over a docproc run directory it
+  writes and then `docinfer report`, wanting each to exit 0, the run's manifest ended, and the
+  report's index printed. A role whose variable is unset is left out of the run, and with
+  `AI_EMBEDDING_BASE_URL` unset the scenario skips.
 
 [Unreleased]: https://github.com/standards-lab/docinfer/commits/HEAD/cmd/docinfer

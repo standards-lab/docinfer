@@ -35,7 +35,9 @@ tool is a `mise install` away.
   skips, naming it, so with none set the run skips whole and passes. It runs verbose, so the log
   lists each scenario passed or skipped, and it never starts a server. It fills an unset
   `AI_<ROLE>_TOKEN` from the committed `fnox.toml` ([Secrets](#secrets)).
-  [`integration/doc.go`](../integration/doc.go) tells each scenario in full.
+  [`integration/doc.go`](../integration/doc.go) tells each scenario in full. `cmd/docinfer`'s
+  runs the built command over the embedding, vision, and transcription or audio roles, as
+  [`cmd/docinfer/integration/doc.go`](../cmd/docinfer/integration/doc.go) tells.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
   its log on a failure. **`integration`** runs every provider's live tier one module at a time,

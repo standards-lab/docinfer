@@ -1,6 +1,6 @@
 # cmd/docinfer's evaluation
 
-v1.ai.inference's docinfer task builds cmd/docinfer to these findings;
+v1.ai.inference's docinfer task built cmd/docinfer to these findings;
 [command-api.md](command-api.md) states its API, [command-report.md](command-report.md) its report
 and C16–C20.
 
@@ -90,9 +90,10 @@ go, each override name is composed where it is read, and the test asserts the ov
 **C9. issue: no inference request has a deadline.** `app/infrastructure.go:28-33`,
 `models/models.go:39`. Against `baseline-standards.md`, `timeouts.md`, and `cmd/docproc`'s
 `DOCPROC_UNIT_TIMEOUT` and `DOCPROC_STREAM_IDLE`. **accepted**, docinfer: each endpoint's transport
-ships a `ResponseHeaderTimeout`, its starting value sized by vision's slowest observed image, 38.9 s
-under mixed load (data-intelligence, "Gateway load"), and its client an `Options.StreamIdleTimeout`
-for extraction's stream; the library adds no deadline (`docs/no-defaults.md`, A request's time).
+ships a `ResponseHeaderTimeout` starting at 180 s, above vision's slowest observed image, 38.9 s
+under mixed load (data-intelligence, "Gateway load"), and its client a retry starting at 3
+attempts, 500 ms, 30 s; the library adds no deadline (`docs/no-defaults.md`, A request's
+time). With no extraction, the command sets no stream timeout.
 Rejected: a deadline the command sets around each call; the host bounds a request at the transport,
 where `docs/no-defaults.md` puts it.
 
@@ -157,8 +158,9 @@ two stamps, `Time()` in the report, and a `main_test.go` per test package settin
 **C21. issue: the integration test runs in process, inside the composition root's package.**
 `app/integration_test.go:1-34`. Against `tests-and-docs.md` (the built binary as a subprocess, on
 go-core's `processtest`), with go-ai's `tools/infer/integration` as precedent. **accepted**,
-docinfer: `cmd/docinfer/integration`, tagged, against a real endpoint a variable names, skipped
-when unset; the check vets and lints it without running it.
+docinfer: `cmd/docinfer/integration`, tagged, runs `run --report` and `report` against the
+`AI_<ROLE>_*` endpoints or skips; the check vets and lints it without running it. Extraction
+meets the live gateway in `integration/extract_test.go`.
 
 **C22. issue: the fixtures depend on what the nested module can't have.** `apptest/apptest.go:24`,
 `apptest/apptest.go:47-81`, `apptest/apptest.go:210-223`, `app/testdata/README.md:3-7`. Against
