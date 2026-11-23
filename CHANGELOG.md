@@ -11,7 +11,8 @@ each nested module keeps its own.
 
 ### Changed
 
-- The module requires docproc v0.4.1, a patch with its exported API unchanged.
+- The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
+  images, with its exported API unchanged.
 
 ## [v0.2.0] - 2026-11-20
 

@@ -14,7 +14,6 @@ import (
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/outdir"
 )
 
-// Adapted from spike-ai-pipeline (6a631f1): the table's error is joined with its flush's.
 func writeModels(w io.Writer, check modelCheck) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	var err error

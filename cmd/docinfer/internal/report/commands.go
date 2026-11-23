@@ -26,7 +26,6 @@ const exitStatus = `Exit status:
   2  a usage error, such as no directory or more than one, or a --run that names no run
 `
 
-// Adapted from docproc (6f955e3): outdir's Open and Latest in place of rundir's.
 func command() *cli.Command {
 	var id string
 	cmd := &cli.Command{

@@ -41,7 +41,6 @@ type listed struct {
 	err    error
 }
 
-// Adapted from spike-ai-pipeline (6a631f1): lists through each client's Models, not a GET of its own.
 func checkModels(ctx context.Context, cfg Config) (modelCheck, error) {
 	ctx, cancel := context.WithTimeout(ctx, modelsTimeout)
 	defer cancel()

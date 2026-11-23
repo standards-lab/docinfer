@@ -509,7 +509,6 @@ func atLeastOne(section, key string, v *int) error {
 
 const formatCompletions = "completions"
 
-// Adapted from go-ai tools/infer (72f1b98): an endpoint's profile, read from its configuration.
 type formatOptions struct {
 	Completions completions.Options `json:"completions,omitzero,case:strict"`
 	Messages    messages.Options    `json:"messages,omitzero,case:strict"`
