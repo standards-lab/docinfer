@@ -114,10 +114,10 @@ type Space struct {
 type Line struct {
 	// Input is the path of the input the chunk's part was found in, as docproc's record gives it,
 	// an [Input]'s Path.
-	Input       string `json:"input"`
-	Digest      string `json:"digest"`
-	chunk.Chunk        // inline: text, span
-	Index       int    `json:"index"`
+	Input  string `json:"input"`
+	Digest string `json:"digest"`
+	chunk.Chunk
+	Index int `json:"index"`
 	// Vector is the chunk's embedding, standard base64 of little-endian float32s; absent when
 	// the chunk was refused or failed, and left out by [Dir.Lines].
 	Vector string          `json:"vector,omitzero"`
