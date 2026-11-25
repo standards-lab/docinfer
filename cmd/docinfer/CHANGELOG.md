@@ -57,6 +57,11 @@ the postgres module keep their own.
 - A text of long white-space runs, such as a multi-column PDF's layout extraction, gave chunks
   within `chunk_size`'s tokens but tens of thousands of characters, which vLLM refused with a 400
   before tokenizing them, recorded as refusals; `chunk_runes` now bounds them.
+- `run` transcribed only the first audio or video input of a docproc run: every input's own part
+  is `/`, so the library grouped all their windows as one and dropped the later inputs' windows
+  uncounted, the run ending 0. `run` names each line's input to the library as its `Origin`, so
+  each input's windows join into its own transcript, and the transcription line counts the windows
+  placed in no transcript, `unplaced`, after `failed`.
 
 ## [v0.1.0] - 2026-11-23
 

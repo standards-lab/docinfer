@@ -12,13 +12,13 @@ import (
 
 const sourceVision = "vision"
 
-func (r *run) describe(ev dispatch.Event, pos int) {
+func (r *run) describe(ev dispatch.Event, origin string, pos int) {
 	start := time.Now()
 	key := Key(*r.p.profile.Vision, ev.Output.SHA256)
 	for {
 		l, own, waits := r.p.claims.claim([]string{key})
 		if len(own) == 1 {
-			r.lead(ev, pos, start, key, l)
+			r.lead(ev, origin, pos, start, key, l)
 			return
 		}
 		a, err := r.p.claims.wait(r.ctx, waits[0].c)
@@ -31,13 +31,13 @@ func (r *run) describe(ev dispatch.Event, pos int) {
 				ev.Output.SHA256, ev.Part.ID, a.err))
 			return
 		case a.held != nil:
-			r.described(ev, pos, start, *a.held, true, 0, Usage{})
+			r.described(ev, origin, pos, start, *a.held, true, 0, Usage{})
 			return
 		}
 	}
 }
 
-func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *lease) {
+func (r *run) lead(ev dispatch.Event, origin string, pos int, start time.Time, key string, l *lease) {
 	defer l.release()
 	values, err := r.p.cfg.Cache.Get(r.ctx, key)
 	if err != nil {
@@ -47,7 +47,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 	}
 	if h, ok := decodeHeld(values[0]); ok && h.Vector == "" {
 		l.answer(key, answer{held: &h})
-		r.described(ev, pos, start, h, true, 0, Usage{})
+		r.described(ev, origin, pos, start, h, true, 0, Usage{})
 		return
 	}
 
@@ -98,7 +98,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		if !r.hold(l, key, "the description of image "+ev.Output.SHA256, h) {
 			return
 		}
-		r.described(ev, pos, start, h, false, requests, usage)
+		r.described(ev, origin, pos, start, h, false, requests, usage)
 		return
 	}
 
@@ -109,7 +109,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		if !r.hold(l, key, "the refusal of image "+ev.Output.SHA256, h) {
 			return
 		}
-		r.described(ev, pos, start, h, false, requests, usage)
+		r.described(ev, origin, pos, start, h, false, requests, usage)
 	case rowPermanent:
 		l.answer(key, answer{err: err})
 		r.fail(wrapped)
@@ -119,7 +119,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 			r.fail(wrapped)
 			return
 		}
-		inf := r.inference(ev, start, OutcomeFailed, usage)
+		inf := r.inference(ev, origin, start, OutcomeFailed, usage)
 		inf.Reason = failureText(err)
 		r.send(inferenceEvent{inf: inf, requests: requests, usage: usage, pos: pos, last: true})
 	default:
@@ -174,17 +174,17 @@ func refusalText(resp *protocol.Response) string {
 	return b.String()
 }
 
-func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, held bool, requests int, usage Usage) {
+func (r *run) described(ev dispatch.Event, origin string, pos int, start time.Time, h Held, held bool, requests int, usage Usage) {
 	var inf *Inference
 	switch {
 	case h.Refused != "":
-		inf = r.inference(ev, start, OutcomeRefused, usage)
+		inf = r.inference(ev, origin, start, OutcomeRefused, usage)
 		inf.Reason = h.Refused
 	case h.Incomplete != "":
-		inf = r.inference(ev, start, OutcomeIncomplete, usage)
+		inf = r.inference(ev, origin, start, OutcomeIncomplete, usage)
 		inf.Reason = h.Incomplete
 	default:
-		inf = r.inference(ev, start, OutcomeDescribed, usage)
+		inf = r.inference(ev, origin, start, OutcomeDescribed, usage)
 	}
 	inf.Held = held
 	if inf.Outcome == OutcomeRefused {
@@ -200,7 +200,7 @@ func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, hel
 	st := &inputState{
 		part:   ev.Part,
 		pos:    pos,
-		source: Source{Kind: sourceVision, SHA256: textSHA, Incomplete: h.Incomplete, Stage: &stage, Output: new(*ev.Output)},
+		source: Source{Kind: sourceVision, Origin: origin, SHA256: textSHA, Incomplete: h.Incomplete, Stage: &stage, Output: new(*ev.Output)},
 	}
 	b, err := marshal(st.part)
 	if err != nil {
@@ -214,10 +214,11 @@ func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, hel
 	r.embed(st, h.Text)
 }
 
-func (r *run) inference(ev dispatch.Event, start time.Time, outcome Outcome, usage Usage) *Inference {
+func (r *run) inference(ev dispatch.Event, origin string, start time.Time, outcome Outcome, usage Usage) *Inference {
 	return &Inference{
 		Capability:    CapabilityVision,
 		Part:          ev.Part.ID,
+		Origin:        origin,
 		ContentSHA256: []string{ev.Output.SHA256},
 		Outcome:       outcome,
 		Usage:         usage,

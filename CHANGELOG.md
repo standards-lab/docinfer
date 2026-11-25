@@ -35,6 +35,15 @@ each nested module keeps its own.
   chunk key. `docinfertest.Cache` checks that a cache holds a spans value and an empty one
   byte for byte, and the same content under each capability is five keys.
 
+- `Origin` on `Input`: the input, as the host names it, that the event's part was found in, so a
+  job of several inputs keeps parts of one ID apart, each input's own part `/`. `Pipeline.Run`
+  echoes it on each `Inference` and `Source` as `Origin`, a local field that doesn't marshal, so a
+  host names each result's input from the result itself. A job of one input may leave it `""`.
+- `Unplaced` on `TranscriptionCounts`, JSON `unplaced`: the windows `Run` places in no transcript,
+  a repeat of an index already placed, past its group's bound, or after its group closed. Each
+  window is counted once, under its outcome or as `Unplaced`, so `Transcribed`, `Incomplete`,
+  `Refused`, `Failed`, and `Unplaced` add up to `Counts.Windows`.
+
 ### Changed
 
 - Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
@@ -89,6 +98,15 @@ each nested module keeps its own.
 - The module requires the go-ai release with embedding input types and `Tokenize`.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.
+
+### Fixed
+
+- A job of several inputs, such as a docproc run fed whole, grouped every input's windows of one
+  part ID and stage as one, each input's own part being `/`: once the first input's group closed,
+  every later input's windows and audio plan were dropped uncounted, and two inputs' windows could
+  join into one transcript. Windows are grouped by the input's `Origin`, the part's ID, and the
+  stage, so each input's part is joined from its own windows alone, and a window placed in no
+  group is counted `Unplaced`, never dropped silently.
 
 ## [v0.2.0] - 2026-11-20
 

@@ -25,15 +25,17 @@ var windowFileNames = map[string]string{
 }
 
 type groupKey struct {
-	part  string
-	stage dispatch.Identity
+	origin string
+	part   string
+	stage  dispatch.Identity
 }
 
 // See docs/internals.md
 type group struct {
-	part  dispatch.Part
-	stage dispatch.Identity
-	start time.Time
+	origin string
+	part   dispatch.Part
+	stage  dispatch.Identity
+	start  time.Time
 
 	windows map[int]*window
 	count   int
@@ -79,8 +81,9 @@ type planEvent struct {
 func (windowEvent) isEvent() {}
 func (planEvent) isEvent()   {}
 
-func (r *run) groupOf(ev dispatch.Event) *group {
-	k := groupKey{ev.Part.ID, ev.Stage}
+func (r *run) groupOf(in Input) *group {
+	ev := in.Event
+	k := groupKey{in.Origin, ev.Part.ID, ev.Stage}
 	if g, ok := r.groups[k]; ok {
 		return g
 	}
@@ -88,7 +91,7 @@ func (r *run) groupOf(ev dispatch.Event) *group {
 		r.groups = map[groupKey]*group{}
 	}
 	g := &group{
-		part: ev.Part, stage: ev.Stage, start: time.Now(),
+		origin: in.Origin, part: ev.Part, stage: ev.Stage, start: time.Now(),
 		windows: map[int]*window{}, count: -1, last: -1, max: -1,
 	}
 	r.groups[k] = g
@@ -96,7 +99,8 @@ func (r *run) groupOf(ev dispatch.Event) *group {
 	return g
 }
 
-func (r *run) admitWindow(ev dispatch.Event, pos int) error {
+func (r *run) admitWindow(in Input, pos int) error {
+	ev := in.Event
 	out := ev.Output
 	if _, ok := windowFileNames[out.MediaType]; !ok {
 		return fmt.Errorf("docinfer: run: window %s of part %s has media type %q, not audio/wav or audio/mpeg: %w",
@@ -127,9 +131,10 @@ func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 		*s.has = true
 	}
 
-	g := r.groupOf(ev)
+	g := r.groupOf(in)
 	r.addMember(g, pos)
 	if g.closed || g.windows[index] != nil || index >= g.bound() {
+		r.counts.Transcription.Unplaced++
 		r.finish()
 		return nil
 	}
@@ -147,8 +152,9 @@ func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 	return nil
 }
 
-func (r *run) admitPlan(ev dispatch.Event, pos int) {
-	g := r.groupOf(ev)
+func (r *run) admitPlan(in Input, pos int) {
+	ev := in.Event
+	g := r.groupOf(in)
 	r.addMember(g, pos)
 	if g.closed || g.plan {
 		r.finish()
@@ -505,6 +511,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	inf := &Inference{
 		Capability:    CapabilityTranscription,
 		Part:          g.part.ID,
+		Origin:        g.origin,
 		ContentSHA256: shas,
 		Failed:        failed,
 		Held:          held,
@@ -544,7 +551,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	stage := g.stage
 	st := &inputState{
 		part:     g.part,
-		source:   Source{Kind: sourceTranscript, SHA256: textSHA, Stage: &stage, Output: first},
+		source:   Source{Kind: sourceTranscript, Origin: g.origin, SHA256: textSHA, Stage: &stage, Output: first},
 		g:        g,
 		slotless: slotless,
 	}

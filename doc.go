@@ -54,12 +54,17 @@
 // ([Options].Final) its items are recorded failed, never held, and the job goes on.
 //
 // A held refusal stays until its key changes, by [Version], a request's version, or the served model, or
-// until the host removes it from its own store. A chunk is identified by its job, its part's ID,
-// its source's kind and text SHA-256, and its index: the same content in two places is two chunks,
-// and a redelivery's repeat is the same one. A transcript that isn't transcribed carries its
-// outcome in its chunks' [Source].Incomplete. A [Batch] carries no index, since its host
-// identifies it. [Counts] counts occurrences, and its Embedded and Rejected add up to the chunks
-// the job's batches hold.
+// until the host removes it from its own store. A part is identified by its input's
+// [Input].Origin and its ID, since docproc gives each input's own part the ID "/": a job of
+// several inputs names each, and a job of one may leave it "". Run echoes the Origin on each
+// [Inference] and [Source], and a transcript joins one input's part's windows alone. A chunk is
+// identified by its job, its input's Origin, its part's ID, its source's kind and text SHA-256,
+// and its index: the same content in two places is two chunks, and a redelivery's repeat is the
+// same one. A transcript that isn't transcribed carries its outcome in its chunks'
+// [Source].Incomplete. A [Batch] carries no index, since its host identifies it. [Counts] counts
+// occurrences, and its Embedded and Rejected add up to the chunks the job's batches hold; its
+// windows are each counted once under an outcome or as Unplaced, never transcribed, so a window is
+// never dropped uncounted.
 //
 // The consumer's contract: Run yields a part's results as they are made, which may be before the
 // part's own event, whatever that event comes to, since holding a part's outputs until its event

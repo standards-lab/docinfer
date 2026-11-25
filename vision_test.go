@@ -596,3 +596,33 @@ func TestRunKeysByServedModel(t *testing.T) {
 		t.Errorf("held under the served model %+v, want the description", h)
 	}
 }
+
+func TestRunEchoesOrigin(t *testing.T) {
+	e := aitest.Serve(t, aitest.Routes{
+		ChatCompletions: chatRoute(t, aitest.ChatReply{Text: description, PromptTokens: 11, CompletionTokens: 7}),
+		Embeddings:      embedAll,
+	})
+	p := newPipeline(t, visionConfig(t, e, nil, nil))
+	content := dispatch.NewMemoryContent()
+	meta, text, image := metadataInput(), outputInput(t, content, inputPart, dispatch.TextOutput, plainText), imageInput(t, content, imageBytes, imageType)
+	meta.Origin, text.Origin, image.Origin = "a.docx", "a.docx", "b.png"
+
+	o := collect(t, p.Run(t.Context(), content, seq(meta, text, image), docinfer.Options{}))
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	if inf := oneInference(t, o); inf.Origin != "b.png" {
+		t.Errorf("the image's inference of origin %q, want b.png", inf.Origin)
+	}
+	want := map[string]string{"metadata": "a.docx", "output": "a.docx", "vision": "b.png"}
+	kinds := map[string]bool{}
+	for _, c := range o.chunks() {
+		kinds[c.source.Kind] = true
+		if c.source.Origin != want[c.source.Kind] {
+			t.Errorf("a chunk of a %s source of origin %q, want %q", c.source.Kind, c.source.Origin, want[c.source.Kind])
+		}
+	}
+	if len(kinds) != len(want) {
+		t.Errorf("chunks of sources %v, want one of each of %v", kinds, want)
+	}
+}

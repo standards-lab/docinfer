@@ -245,7 +245,7 @@ func (f *feed) inputs(record iter.Seq2[schema.Event, error]) iter.Seq2[docinfer.
 }
 
 func (f *feed) take(e schema.Event) docinfer.Input {
-	in := docinfer.Input{Event: e.Event}
+	in := docinfer.Input{Event: e.Event, Origin: e.Input}
 	last := false
 	f.mu.Lock()
 	defer f.mu.Unlock()

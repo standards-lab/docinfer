@@ -87,6 +87,7 @@ const (
 type Inference struct {
 	Capability Capability `json:"capability"` // vision, transcription, or extraction
 	Part       string     `json:"part"`       // its part's ID
+	Origin     string     `json:"-"`          // local: its input's [Input].Origin
 	// ContentSHA256 is the image's, the windows' in order, "" for one never cut, or the source
 	// text's.
 	ContentSHA256 []string `json:"content_sha256"`
@@ -131,7 +132,8 @@ func (b Batch) Digest() string {
 
 // Source is the text a chunk is cut from, and where it sits.
 type Source struct {
-	Kind string `json:"kind"` // output, metadata, vision, or transcript
+	Kind   string `json:"kind"` // output, metadata, vision, or transcript
+	Origin string `json:"-"`    // local: its input's [Input].Origin
 	// SHA256 is the text's; an output's is its Output.SHA256, held there alone.
 	SHA256     string             `json:"sha256,omitzero"`
 	Incomplete string             `json:"incomplete,omitzero"` // why its inference is incomplete
@@ -204,13 +206,17 @@ type VisionCounts struct {
 	Requests   int `json:"requests"`
 }
 
-// TranscriptionCounts counts each window under its outcome, the transcripts joined, and their
-// seams by whether they matched.
+// TranscriptionCounts counts each window under its outcome, or as Unplaced, the transcripts
+// joined, and their seams by whether they matched. An unplaced window is one [Pipeline.Run] places
+// in no transcript, its group's index already placed, past its group's bound, or its group already
+// closed: it is never transcribed, so Transcribed, Incomplete, Refused, Failed, and Unplaced add up
+// to Counts.Windows, and Held counts those of the first four read from the cache or another call.
 type TranscriptionCounts struct {
 	Transcribed    int `json:"transcribed"`
 	Incomplete     int `json:"incomplete"`
 	Refused        int `json:"refused"`
 	Failed         int `json:"failed"`
+	Unplaced       int `json:"unplaced"`
 	Held           int `json:"held"`
 	Requests       int `json:"requests"`
 	Transcripts    int `json:"transcripts"`

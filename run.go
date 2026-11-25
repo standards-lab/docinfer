@@ -34,6 +34,11 @@ type Input struct {
 	Event dispatch.Event
 	// Metadata is the input's metadata text, [MetadataText]'s, read when Event has no Output.
 	Metadata string
+	// Origin names the input, as the host knows it, that Event's part was found in: a part is one
+	// part by its Origin and its ID together, so two inputs' parts of one ID, each "/" for its
+	// input, are apart. Run echoes it on what it derives from the part, each [Inference] and
+	// [Source]. A job of one input may leave it "".
+	Origin string
 }
 
 // Result is one thing [Pipeline.Run] made. One field is set.
@@ -128,8 +133,10 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // A window's transcript is keyed by transcription's Identity and the window's SHA-256, read from
 // the cache, or asked of the model, and held: a refusal, and an incomplete transcript
 // (*ai.IncompleteTranscriptError), are held as the window's outcome. Windows are grouped by their
-// part's ID and their stage, and placed by MetaWindow, the first event of an index winning. A
-// group ends at the first of: the window count of its audio plan record, a record output of
+// input's Origin, their part's ID, and their stage, so a group is one input's part's windows from
+// one stage, and placed by MetaWindow, the first event of an index winning. A window not placed,
+// its index already placed, past its group's bound, or after its group closed, is never
+// transcribed, and is counted Unplaced in [TranscriptionCounts]. A group ends at the first of: the window count of its audio plan record, a record output of
 // dispatch.MediaAudioPlan, whose content is read for it; its last window, the one without
 // MetaSeamAfter, once every index before it is in; and the end of the inputs. A video plan
 // record ends none. Once every window placed in it is in, the group is joined by Config.Join,
@@ -533,7 +540,7 @@ func (r *run) admit(in Input) error {
 		st := &inputState{
 			part:   in.Event.Part,
 			pos:    pos,
-			source: Source{Kind: sourceMetadata, SHA256: sha256Hex([]byte(in.Metadata))},
+			source: Source{Kind: sourceMetadata, Origin: in.Origin, SHA256: sha256Hex([]byte(in.Metadata))},
 		}
 		return r.start(st, func() (string, error) { return in.Metadata, nil })
 	}
@@ -543,7 +550,7 @@ func (r *run) admit(in Input) error {
 		st := &inputState{
 			part:   in.Event.Part,
 			pos:    pos,
-			source: Source{Kind: sourceOutput, Stage: &stage, Output: new(*out)},
+			source: Source{Kind: sourceOutput, Origin: in.Origin, Stage: &stage, Output: new(*out)},
 		}
 		return r.start(st, func() (string, error) { return r.text(in.Event) })
 	case dispatch.ImageOutput:
@@ -552,17 +559,17 @@ func (r *run) admit(in Input) error {
 			if out.MediaType == "" {
 				return fmt.Errorf("docinfer: run: image %s of part %s has no media type: %w", out.SHA256, in.Event.Part.ID, errInputDefect)
 			}
-			r.spawn(func() { r.describe(in.Event, pos) })
+			r.spawn(func() { r.describe(in.Event, in.Origin, pos) })
 			return nil
 		}
 	case dispatch.AudioOutput:
 		r.counts.Windows++
 		if r.p.cfg.Transcription != nil {
-			return r.admitWindow(in.Event, pos)
+			return r.admitWindow(in, pos)
 		}
 	case dispatch.RecordOutput:
 		if r.p.cfg.Transcription != nil && out.MediaType == dispatch.MediaAudioPlan {
-			r.admitPlan(in.Event, pos)
+			r.admitPlan(in, pos)
 			return nil
 		}
 	}

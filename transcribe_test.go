@@ -410,7 +410,120 @@ func TestRunWindowPlacement(t *testing.T) {
 			t.Error("the repeated index was transcribed")
 		}
 	}
-	checkCounts(t, o, transcriptCounts(o, 4, docinfer.TranscriptionCounts{Transcribed: 3, Requests: 3, Transcripts: 1, SeamsMatched: 2}, 3, false))
+	checkCounts(t, o, transcriptCounts(o, 4, docinfer.TranscriptionCounts{Transcribed: 3, Unplaced: 1, Requests: 3, Transcripts: 1, SeamsMatched: 2}, 3, false))
+}
+
+type recording struct {
+	origin  string
+	part    dispatch.Part
+	windows []win
+}
+
+func recordingOf(origin string) recording {
+	part := dispatch.Part{ID: "/", Name: origin, Size: 4096, SHA256: sha(origin)}
+	say := func(said string) string {
+		words := strings.Fields(said)
+		for i, w := range words {
+			words[i] = origin + "-" + w
+		}
+		return strings.Join(words, " ")
+	}
+	windows := []win{win0, win1, win2}
+	for i := range windows {
+		windows[i].clip = origin + " " + windows[i].clip
+		windows[i].said = say(windows[i].said)
+	}
+	return recording{origin: origin, part: part, windows: windows}
+}
+
+func (rc recording) input(t *testing.T, content *dispatch.MemoryContent, stage dispatch.Identity, w win) docinfer.Input {
+	t.Helper()
+	in := windowInput(t, content, w)
+	in.Event.Part, in.Event.Stage, in.Origin = rc.part, stage, rc.origin
+	return in
+}
+
+func TestRunWindowGroupsPerInput(t *testing.T) {
+	stages := map[string]dispatch.Identity{"audio": audioStage, "video": {Name: "video", Version: "1", Config: "v0"}}
+	for name, stage := range stages {
+		t.Run(name, func(t *testing.T) {
+			recordings := []recording{recordingOf("a.wav"), recordingOf("b.wav"), recordingOf("c.wav")}
+			var all []win
+			for _, rc := range recordings {
+				all = append(all, rc.windows...)
+			}
+			again := recordings[1].windows[1]
+			again.clip, again.said = "b.wav clip 1 again", "not this one"
+			all = append(all, again)
+			e := speakerOf(ai.TranscribeRoute, all...).serve(t)
+			cfg := transcriptionConfig(t, e, ai.TranscribeRoute, nil)
+			p := newPipeline(t, cfg)
+			content := dispatch.NewMemoryContent()
+			var inputs []docinfer.Input
+			for i := range 3 {
+				for _, rc := range recordings {
+					inputs = append(inputs, rc.input(t, content, stage, rc.windows[i]))
+					if rc.origin == "b.wav" && i == 1 {
+						inputs = append(inputs, rc.input(t, content, stage, again))
+					}
+				}
+			}
+
+			o := collect(t, p.Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
+			if o.err != nil {
+				t.Fatalf("Run: %v", o.err)
+			}
+			if len(o.inferences) != len(recordings) {
+				t.Fatalf("%d transcripts, want one per input, %d", len(o.inferences), len(recordings))
+			}
+			chunks := o.chunks()
+			for _, rc := range recordings {
+				i := slices.IndexFunc(o.inferences, func(inf docinfer.Inference) bool { return inf.Origin == rc.origin })
+				if i < 0 {
+					t.Errorf("no transcript of input %s", rc.origin)
+					continue
+				}
+				inf := o.inferences[i]
+				if inf.Part != rc.part.ID || !slices.Equal(inf.ContentSHA256, shas(rc.windows[0].clip, rc.windows[1].clip, rc.windows[2].clip)) {
+					t.Errorf("input %s's transcript of part %q, contents %v; want its own three windows", rc.origin, inf.Part, inf.ContentSHA256)
+				}
+				tr := joinedAt(t, []string{rc.windows[0].said, rc.windows[1].said, rc.windows[2].said}, 2, 2)
+				checkTranscript(t, inf, docinfer.OutcomeTranscribed, tr, nil, false)
+				pieces, _ := cfg.Chunker.Split(t.Context(), tr.Text())
+				var own []placed
+				for _, c := range chunks {
+					if c.source.Origin == rc.origin {
+						own = append(own, c)
+					}
+				}
+				if len(own) != len(pieces) {
+					t.Errorf("input %s has %d chunks, want its transcript's %d", rc.origin, len(own), len(pieces))
+					continue
+				}
+				for j, c := range own {
+					if c.chunk.Text != pieces[j].Text || c.part.ID != rc.part.ID || c.part.SHA256 != rc.part.SHA256 || c.source.SHA256 != sha(tr.Text()) || *c.source.Stage != stage {
+						t.Errorf("input %s's chunk %d: %q of part %+v, source %+v; want %q of its own transcript and part",
+							rc.origin, j, c.chunk.Text, c.part, c.source, pieces[j].Text)
+					}
+				}
+			}
+			if len(chunks) == 0 || slices.ContainsFunc(chunks, func(c placed) bool { return c.source.Origin == "" }) {
+				t.Errorf("%d chunks, some of no input", len(chunks))
+			}
+			for _, r := range e.Requests() {
+				if strings.Contains(string(r.Body), again.clip) {
+					t.Error("the repeated index was transcribed")
+				}
+			}
+			want := docinfer.TranscriptionCounts{Transcribed: 9, Unplaced: 1, Requests: 9, Transcripts: 3, SeamsMatched: 6}
+			if tc := o.counts.Transcription; o.counts.Windows != 10 || *tc != want {
+				t.Errorf("windows %d, counts %+v; want 10, %+v", o.counts.Windows, *tc, want)
+			}
+			if tc := o.counts.Transcription; tc.Transcribed+tc.Incomplete+tc.Refused+tc.Failed+tc.Unplaced != o.counts.Windows {
+				t.Errorf("counts %+v don't add up to the %d windows", *tc, o.counts.Windows)
+			}
+		})
+	}
 }
 
 func TestRunSeamSeconds(t *testing.T) {

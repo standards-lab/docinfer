@@ -228,6 +228,7 @@ func (r *run) extraction(st *inputState, start time.Time, outcome Outcome, usage
 	return &Inference{
 		Capability:    CapabilityExtraction,
 		Part:          st.part.ID,
+		Origin:        st.source.Origin,
 		ContentSHA256: []string{st.textSHA()},
 		Outcome:       outcome,
 		Usage:         usage,

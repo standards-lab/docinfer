@@ -163,9 +163,9 @@ func writeEnd(w io.Writer, id string, m outdir.Manifest) error {
 	}
 	if t := c.Transcription; t != nil {
 		failures += t.Incomplete + t.Refused + t.Failed
-		lines = append(lines, fmt.Sprintf("transcription: windows %d: transcribed %d, incomplete %d, refused %d, failed %d, held %d; requests %d; "+
+		lines = append(lines, fmt.Sprintf("transcription: windows %d: transcribed %d, incomplete %d, refused %d, failed %d, unplaced %d, held %d; requests %d; "+
 			"transcripts %d, seams matched %d, unmatched %d",
-			c.Windows, t.Transcribed, t.Incomplete, t.Refused, t.Failed, t.Held, t.Requests, t.Transcripts, t.SeamsMatched, t.SeamsUnmatched))
+			c.Windows, t.Transcribed, t.Incomplete, t.Refused, t.Failed, t.Unplaced, t.Held, t.Requests, t.Transcripts, t.SeamsMatched, t.SeamsUnmatched))
 	} else {
 		lines = append(lines, fmt.Sprintf("transcription: skipped, %s; windows %d", notConfigured, c.Windows))
 	}
