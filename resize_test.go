@@ -3,6 +3,7 @@ package docinfer_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/gif"
@@ -16,22 +17,31 @@ import (
 	"github.com/standards-lab/go-ai/aitest"
 )
 
-func TestBoxResize(t *testing.T) {
+func sentImage(t *testing.T, src image.Image, maxPixels int) image.Image {
+	t.Helper()
+	sent := describeImage(t, encoded(t, "png", src), "image/png", maxPixels)
+	img, format, err := image.Decode(bytes.NewReader(sent))
+	if err != nil || format != "png" {
+		t.Fatalf("the image sent: a %s (%v), want a png", format, err)
+	}
+	return img
+}
+
+func TestRunAveragesImage(t *testing.T) {
 	checker := image.NewGray(image.Rect(0, 0, 4, 2))
 	for i := range checker.Pix {
 		if (i%4+i/4)%2 == 0 {
 			checker.Pix[i] = 255
 		}
 	}
-	got := docinfer.BoxResize(checker, 2, 1).(*image.Gray)
-	if want := []uint8{128, 128}; !bytes.Equal(got.Pix, want) || got.Bounds() != image.Rect(0, 0, 2, 1) {
-		t.Errorf("a 4×2 checkerboard to 2×1: %v of %v, want %v", got.Pix, got.Bounds(), want)
+	if got := sentImage(t, checker, 2).(*image.Gray); !bytes.Equal(got.Pix, []uint8{128, 128}) || got.Bounds() != image.Rect(0, 0, 2, 1) {
+		t.Errorf("a 4×2 checkerboard within 2 pixels: %v of %v, want [128 128] of 2×1", got.Pix, got.Bounds())
 	}
 
-	ramp := image.NewGray(image.Rect(5, 5, 8, 6))
+	ramp := image.NewGray(image.Rect(0, 0, 3, 1))
 	copy(ramp.Pix, []uint8{0, 90, 180})
-	if got := docinfer.BoxResize(ramp, 2, 1).(*image.Gray); !bytes.Equal(got.Pix, []uint8{30, 150}) {
-		t.Errorf("0, 90, 180 to two pixels: %v, want each 1.5 pixels' average, 30 and 150", got.Pix)
+	if got := sentImage(t, ramp, 2).(*image.Gray); !bytes.Equal(got.Pix, []uint8{30, 150}) {
+		t.Errorf("0, 90, 180 within 2 pixels: %v, want each 1.5 pixels' average, 30 and 150", got.Pix)
 	}
 
 	colors := image.NewNRGBA(image.Rect(0, 0, 4, 2))
@@ -46,34 +56,32 @@ func TestBoxResize(t *testing.T) {
 		}
 	}
 	purple := color.RGBA{128, 0, 128, 255}
-	rgba := docinfer.BoxResize(colors, 2, 1).(*image.RGBA)
+	rgba := sentImage(t, colors, 2)
 	for x := range 2 {
-		if c := rgba.RGBAAt(x, 0); c != purple {
+		if c := color.RGBAModel.Convert(rgba.At(x, 0)); c != purple {
 			t.Errorf("a red and blue checkerboard's pixel %d: %v, want %v", x, c, purple)
 		}
 	}
 }
 
-func TestFitSize(t *testing.T) {
+func TestRunDownscaleSize(t *testing.T) {
 	cases := []struct {
 		w, h, bound, wantW, wantH int
 	}{
-		{8358, 5339, 2580480, 2010, 1283},
-		{5339, 8358, 2580480, 1283, 2010},
-		{300, 200, 6000, 95, 63},
+		{106, 40, 2000, 74, 27},
+		{40, 106, 2000, 27, 74},
 		{4, 2, 2, 2, 1},
 		{1000, 1, 10, 10, 1},
 		{1, 1000, 10, 1, 10},
 		{100, 100, 1, 1, 1},
 	}
 	for _, tc := range cases {
-		w, h := docinfer.FitSize(tc.w, tc.h, tc.bound)
-		if w != tc.wantW || h != tc.wantH {
-			t.Errorf("%d×%d within %d: %d×%d, want %d×%d", tc.w, tc.h, tc.bound, w, h, tc.wantW, tc.wantH)
-		}
-		if w*h > tc.bound {
-			t.Errorf("%d×%d within %d: %d×%d is %d pixels", tc.w, tc.h, tc.bound, w, h, w*h)
-		}
+		t.Run(fmt.Sprintf("%d×%d within %d", tc.w, tc.h, tc.bound), func(t *testing.T) {
+			b := sentImage(t, image.NewGray(image.Rect(0, 0, tc.w, tc.h)), tc.bound).Bounds()
+			if b.Dx() != tc.wantW || b.Dy() != tc.wantH {
+				t.Errorf("sent %d×%d, want %d×%d", b.Dx(), b.Dy(), tc.wantW, tc.wantH)
+			}
+		})
 	}
 }
 
@@ -137,7 +145,7 @@ func (s *sentImages) one(t *testing.T) []byte {
 	return s.sent[0]
 }
 
-func describeImage(t *testing.T, data []byte, mediaType string, maxPixels int) (docinfer.Config, []byte) {
+func describeImage(t *testing.T, data []byte, mediaType string, maxPixels int) []byte {
 	t.Helper()
 	var s sentImages
 	cfg := visionConfig(t, s.serve(t), nil, func(c *docinfer.Config) { c.Vision.MaxPixels = maxPixels })
@@ -153,14 +161,14 @@ func describeImage(t *testing.T, data []byte, mediaType string, maxPixels int) (
 	if values[0] == nil {
 		t.Error("the description isn't held under the source image's SHA-256")
 	}
-	return cfg, s.one(t)
+	return s.one(t)
 }
 
 func TestRunDownscalesImage(t *testing.T) {
 	for _, format := range []string{"png", "jpeg"} {
 		t.Run(format, func(t *testing.T) {
 			src := encoded(t, format, picture(300, 200))
-			_, sent := describeImage(t, src, "image/"+format, 6000)
+			sent := describeImage(t, src, "image/"+format, 6000)
 			cfg, got, err := image.DecodeConfig(bytes.NewReader(sent))
 			if err != nil {
 				t.Fatalf("the image sent: %v", err)
@@ -190,7 +198,7 @@ func TestRunSendsImageAsIs(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, sent := describeImage(t, tc.data, tc.mediaType, tc.maxPixels); !bytes.Equal(sent, tc.data) {
+			if sent := describeImage(t, tc.data, tc.mediaType, tc.maxPixels); !bytes.Equal(sent, tc.data) {
 				t.Errorf("sent %d bytes, want the image's %d as they are", len(sent), len(tc.data))
 			}
 		})

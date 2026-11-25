@@ -133,7 +133,7 @@ func TestRunCarriesJPEGMetadata(t *testing.T) {
 	icc1 := jpegSegment(0xe2, append([]byte("ICC_PROFILE\x00\x01\x02"), profile[:70]...))
 	icc2 := jpegSegment(0xe2, append([]byte("ICC_PROFILE\x00\x02\x02"), profile[70:]...))
 	src := withSegments(encoded(t, "jpeg", picture(300, 200)), icc1, exif, icc2)
-	_, sent := describeImage(t, src, "image/jpeg", 6000)
+	sent := describeImage(t, src, "image/jpeg", 6000)
 	sentWithin(t, sent, "jpeg", 6000)
 	if got, want := jpegCarried(t, sent), [][]byte{exif, icc1, icc2}; !slices.EqualFunc(got, want, bytes.Equal) {
 		t.Errorf("sent %d Exif and ICC segments, want the source's Exif then its 2 ICC chunks in order, byte for byte", len(got))
@@ -149,7 +149,7 @@ func TestRunCarriesPNGMetadata(t *testing.T) {
 	exif := pngChunk("eXIf", exifOrientation(6))
 	other := pngChunk("tEXt", []byte("Comment\x00kept out"))
 	src := withChunks(encoded(t, "png", picture(300, 200)), iccp, gama, other, exif)
-	_, sent := describeImage(t, src, "image/png", 6000)
+	sent := describeImage(t, src, "image/png", 6000)
 	sentWithin(t, sent, "png", 6000)
 	if got, want := pngCarried(sent), [][]byte{iccp, gama, exif}; !slices.EqualFunc(got, want, bytes.Equal) {
 		t.Errorf("sent %d color and Exif chunks before IDAT, want the source's iCCP, gAMA, and eXIf, byte for byte", len(got))
@@ -177,7 +177,7 @@ func TestRunMetadataEdges(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, sent := describeImage(t, tc.src, "image/"+tc.format, 6000)
+			sent := describeImage(t, tc.src, "image/"+tc.format, 6000)
 			sentWithin(t, sent, tc.format, 6000)
 			got := pngCarried(sent)
 			if tc.format == "jpeg" {
@@ -193,7 +193,7 @@ func TestRunMetadataEdges(t *testing.T) {
 func TestRunSendsMetadataImageAsIs(t *testing.T) {
 	exif := jpegSegment(0xe1, append([]byte("Exif\x00\x00"), exifOrientation(6)...))
 	src := withSegments(encoded(t, "jpeg", picture(300, 200)), exif)
-	if _, sent := describeImage(t, src, "image/jpeg", 300*200); !bytes.Equal(sent, src) {
+	if sent := describeImage(t, src, "image/jpeg", 300*200); !bytes.Equal(sent, src) {
 		t.Errorf("sent %d bytes, want the image's %d as they are", len(sent), len(src))
 	}
 }
