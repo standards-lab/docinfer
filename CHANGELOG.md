@@ -48,7 +48,7 @@ each nested module keeps its own.
   bounds a chat-mode reply. 0 sends none; docinfer ships no default. go-ai refuses any other in
   route mode, where the route's max_tokens goes through its Native. `New` refuses a negative one,
   matching `ErrRequest`. A reply cut off at the bound is the window's outcome incomplete, held,
-  its reason `max_output_tokens`, as any incomplete transcript is.
+  its reason `max_output_tokens`, as any incomplete transcript is, its partial text kept.
 - `Native` on `Transcription`: go-ai's native tier, a JSON object of members the endpoint defines,
   such as temperature, sent on every request as `ai.TranscriptionRequest.ChatNative`, which chat
   mode sends as the chat request's `protocol.Request.Native`. Empty sends none; docinfer ships no
@@ -73,11 +73,19 @@ each nested module keeps its own.
 
 ### Changed
 
-- Transcription's request version is "2" and its identity settings gain `"max_tokens"` after
+- Transcription's request version is "3" and its identity settings gain `"max_tokens"` after
   `"language"`, and `"native"` after that when `Native` is set:
   `{"request","mode","prompt","language","max_tokens","native"}`. Its keys and
-  `Pipeline.Profile` change, so every transcript held under "1" misses; `Version` stays "1", since
-  `Held`'s shape is unchanged.
+  `Pipeline.Profile` change, so every transcript held under "1" or "2" misses; `Version` stays
+  "1", since `Held`'s shape is unchanged.
+- A window's incomplete transcript, an `*ai.IncompleteTranscriptError`, is held with the error's
+  `Text`, the reply's unfinished text, and joins as it, in place of `""`; one with no text still
+  joins as `""`. A text cut off at `max_output_tokens` that ends in a loop is held trimmed after
+  the loop's first copy, its `Held.Incomplete` `"repetition"`, by vision's rule. The window's
+  outcome stays incomplete, counted in `TranscriptionCounts.Incomplete` and listed in the
+  transcript's `Failed`, and the transcript's `Source.Incomplete` stays its outcome. A replay from
+  the cache joins the same text. Transcription's request version "3" keeps a transcript held
+  empty under "2" from replaying.
 - Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
 - A vision or extraction reply cut off at `protocol.ReasonMaxOutputTokens` whose text ends in a
   loop, a line, a sentence, or a short cycle repeated to the bound, is held trimmed after the

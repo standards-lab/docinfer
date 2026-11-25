@@ -133,5 +133,23 @@
     },
     "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
     "key": "transcription/233f616d919145e6ce658bebc0e989e7c18bc363bc4f2e3c305e1d3f76341dd0"
+  },
+  {
+    "identity": {
+      "capability": "transcription",
+      "model": "whisper-1",
+      "settings": "{\"request\":\"3\",\"mode\":\"route\",\"prompt\":\"\",\"language\":\"en\",\"max_tokens\":0}"
+    },
+    "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
+    "key": "transcription/cf9c0b22e26ca77f9f776239f30d09a2443deb5e9389ac0f5934d5e63c9c20ec"
+  },
+  {
+    "identity": {
+      "capability": "transcription",
+      "model": "google/gemma-4-E4B-it",
+      "settings": "{\"request\":\"3\",\"mode\":\"chat\",\"prompt\":\"\",\"language\":\"\",\"max_tokens\":512,\"native\":{\"temperature\":0}}"
+    },
+    "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
+    "key": "transcription/5d0f5eed3d39da59f26a2d563e41961d7b9f693ecd9abd5903eb4d010e7f3bf2"
   }
 ]

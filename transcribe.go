@@ -343,7 +343,7 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 		return
 	}
 	if inc, ok := errors.AsType[*ai.IncompleteTranscriptError](err); ok {
-		h := Held{Incomplete: incompleteReason(inc)}
+		h := trimLoop(Held{Text: inc.Text, Incomplete: incompleteReason(inc)})
 		if !r.hold(l, key, "the incomplete transcript of "+what, h) {
 			return
 		}
@@ -400,7 +400,7 @@ func (r *run) windowDone(e windowEvent, yield func(Result, error) bool) (bool, e
 		w.outcome = OutcomeRefused
 		tc.Refused++
 	case e.h.Incomplete != "":
-		w.outcome = OutcomeIncomplete
+		w.outcome, w.text = OutcomeIncomplete, e.h.Text
 		tc.Incomplete++
 	default:
 		w.outcome, w.text = OutcomeTranscribed, e.h.Text
@@ -517,6 +517,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 		case OutcomeRefused:
 			failed, anyRefused = append(failed, i), true
 		default:
+			texts[i] = w.text
 			failed = append(failed, i)
 		}
 	}

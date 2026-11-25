@@ -131,6 +131,20 @@ var goldenKeys = []goldenKey{
 		},
 		Content: sha("a window"),
 	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityTranscription, Model: "whisper-1",
+			Settings: `{"request":"3","mode":"route","prompt":"","language":"en","max_tokens":0}`,
+		},
+		Content: sha("a window"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityTranscription, Model: "google/gemma-4-E4B-it",
+			Settings: `{"request":"3","mode":"chat","prompt":"","language":"","max_tokens":512,"native":{"temperature":0}}`,
+		},
+		Content: sha("a window"),
+	},
 }
 
 func TestGoldenKeys(t *testing.T) {

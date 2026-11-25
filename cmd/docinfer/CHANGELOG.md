@@ -44,7 +44,8 @@ the postgres module keep their own.
 - `transcription.max_tokens`, override `DOCINFER_TRANSCRIPTION_MAX_TOKENS`: the most tokens a
   chat-mode transcription reply takes, sent as the request's `MaxOutputTokens` and keyed into
   transcription's identity, starting at 512 in chat mode and at 0, sending none, in route mode. A
-  window cut off at it is recorded incomplete, reason `max_output_tokens`. A nonzero
+  window cut off at it is recorded incomplete, reason `max_output_tokens`, its partial text joined
+  into the transcript, or trimmed before a loop, reason `repetition`. A nonzero
   `max_tokens` in route mode, which has no field for it, or a negative one, fails the
   configuration's Build before docproc's run is read, naming the fix: `max_tokens` 0, or `mode`
   chat.
@@ -71,7 +72,8 @@ the postgres module keep their own.
 - **Breaking:** `embeddings.chunk_size` is in tokens, as the tokenizer counts them, its document
   prefix included, starting at 480, in place of 2,000 characters.
 - Transcription's identity settings gain `"max_tokens"`, and `"native"` when one is sent, and its
-  request version is "2", so every transcript held before misses and is transcribed again.
+  request version is "3", so every transcript held before misses and is transcribed again, a
+  window held incomplete with no text among them.
 - A vision reply that loops to `max_tokens`, a line, a sentence, or a short cycle repeated to the
   bound, is trimmed to before the repeat and recorded incomplete, reason `repetition`, in place of
   `max_output_tokens` and the whole looping text.

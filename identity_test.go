@@ -49,7 +49,7 @@ func TestIdentity(t *testing.T) {
 			docinfer.Transcription{Client: route, Model: "alias", Served: "w", Prompt: "Names: Ada.", Language: "en"}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
-				Settings: `{"request":"2","mode":"route","prompt":"Names: Ada.","language":"en","max_tokens":0}`,
+				Settings: `{"request":"3","mode":"route","prompt":"Names: Ada.","language":"en","max_tokens":0}`,
 			},
 		},
 		{
@@ -57,7 +57,7 @@ func TestIdentity(t *testing.T) {
 			docinfer.Transcription{Client: chat, Model: "alias", Served: "w"}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
-				Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":0}`,
+				Settings: `{"request":"3","mode":"chat","prompt":"","language":"","max_tokens":0}`,
 			},
 		},
 		{
@@ -65,7 +65,7 @@ func TestIdentity(t *testing.T) {
 			docinfer.Transcription{Client: chat, Model: "alias", Served: "w", MaxTokens: 512}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
-				Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":512}`,
+				Settings: `{"request":"3","mode":"chat","prompt":"","language":"","max_tokens":512}`,
 			},
 		},
 		{
@@ -75,7 +75,7 @@ func TestIdentity(t *testing.T) {
 			}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
-				Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":512,"native":{"temperature":0}}`,
+				Settings: `{"request":"3","mode":"chat","prompt":"","language":"","max_tokens":512,"native":{"temperature":0}}`,
 			},
 		},
 		{
@@ -181,7 +181,7 @@ func TestProfile(t *testing.T) {
 		},
 		Transcription: &docinfer.Identity{
 			Capability: docinfer.CapabilityTranscription, Model: "org/transcription-1",
-			Settings: `{"request":"2","mode":"route","prompt":"","language":"en","max_tokens":0}`,
+			Settings: `{"request":"3","mode":"route","prompt":"","language":"en","max_tokens":0}`,
 		},
 		Extraction: &docinfer.Identity{
 			Capability: docinfer.CapabilityExtraction, Model: "org/extraction-1",

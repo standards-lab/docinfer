@@ -222,7 +222,7 @@ func TestProfileHoldsNative(t *testing.T) {
 	if want := `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low","max_pixels":0,"native":{"temperature":0.2,"top_k":64}}`; pr.Vision.Settings != want {
 		t.Errorf("Profile.Vision's settings %s, want %s", pr.Vision.Settings, want)
 	}
-	if want := `{"request":"2","mode":"route","prompt":"","language":"en","max_tokens":0,"native":{"temperature":0}}`; pr.Transcription.Settings != want {
+	if want := `{"request":"3","mode":"route","prompt":"","language":"en","max_tokens":0,"native":{"temperature":0}}`; pr.Transcription.Settings != want {
 		t.Errorf("Profile.Transcription's settings %s, want %s", pr.Transcription.Settings, want)
 	}
 	if want := `{"request":"2","max_tokens":2,"effort":"medium","native":{"temperature":0}}`; pr.Extraction.Settings != want {

@@ -144,8 +144,8 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // inputs. A video plan record ends none. Once every window placed in it is in, the group is joined
 // by Config.Join, each seam's seconds the earlier window's MetaSeamAfter or else the later one's
 // MetaSeamBefore, and its transcript is yielded as one [Inference], then chunked as a source of
-// kind transcript. A window refused, failed, incomplete, or never cut joins as "" and is listed in
-// the inference's Failed; the transcript is outcome transcribed when every window was, else failed
+// kind transcript. A window incomplete joins as its held text, "" when it has none, and a window
+// refused, failed, or never cut joins as ""; each is listed in the inference's Failed; the transcript is outcome transcribed when every window was, else failed
 // when one failed, refused when one was refused, and incomplete otherwise. A window holds its
 // input's slot only until its own transcript is in, so a group of more windows than Config.Pending
 // never waits on inputs it can't pull.
