@@ -22,8 +22,8 @@
 // on each request as it is, and held in the settings canonically, so a change to it misses and a
 // change of whitespace or member order alone doesn't. [Vision] takes a MaxPixels, an area bound:
 // a PNG or JPEG image larger is downscaled by an area average, its aspect ratio kept, and
-// re-encoded in its own format before it is sent; any other image, or one within the bound, is
-// sent as it is.
+// re-encoded in its own format before it is sent, carrying the source's orientation and color
+// metadata as it is; any other image, or one within the bound, is sent as it is.
 //
 // The host declares the embedding model's input-type conventions on the embeddings' client, in
 // go-ai's ai.Options.Embedding, such as e5's "passage: " and "query: " prefixes; docinfer ships

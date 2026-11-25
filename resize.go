@@ -37,7 +37,11 @@ func fit(data []byte, maxPixels int) []byte {
 	if err != nil {
 		return data
 	}
-	return b.Bytes()
+	_, gray := dst.(*image.Gray)
+	if format == "png" {
+		return carryPNG(data, b.Bytes(), gray)
+	}
+	return carryJPEG(data, b.Bytes(), gray)
 }
 
 func fitSize(w, h, maxPixels int) (int, int) {

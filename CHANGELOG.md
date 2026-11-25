@@ -59,7 +59,13 @@ each nested module keeps its own.
 - `MaxPixels` on `Vision`: an area bound on the image sent. A PNG or JPEG whose width × height
   exceeds it is downscaled before the request, its aspect ratio kept, to the largest whole size
   within it, by an area average over the standard library's `image` packages, and re-encoded in
-  its own format, JPEG at quality 95; its header is read first, so an image within the bound is
+  its own format, JPEG at quality 95. The downscaled copy carries the source's orientation and
+  color metadata byte for byte, its fields not rewritten: a JPEG's Exif APP1 segments, then its
+  ICC_PROFILE APP2 chunks in order, right after SOI, and a PNG's `iCCP`, `sRGB`, `gAMA`, `cHRM`,
+  and `eXIf` chunks, in order, right after IHDR; no other segment or chunk is carried. An ICC
+  profile whose color space isn't the copy's, GRAY for a grayscale copy and RGB otherwise, or that
+  can't be read, is left out, and a JPEG whose segments don't parse is sent without metadata;
+  neither fails the request. Its header is read first, so an image within the bound is
   never decoded and is sent byte for byte. An image of another format, GIF among them, or one the
   standard library can't decode, is sent as it is, and the endpoint's refusal classifies it as
   before. 0 sends every image as it is; docinfer ships no default. `New` refuses a negative one,

@@ -32,7 +32,13 @@ type Vision struct {
 	Reasoning protocol.ReasoningEffort // "" sends none
 	// MaxPixels bounds the area of the image sent: one whose width × height exceeds it is
 	// downscaled, its aspect ratio kept, to the largest whole size within it by an area average,
-	// and re-encoded in its own format, a PNG as PNG and a JPEG as JPEG at quality 95. An image
+	// and re-encoded in its own format, a PNG as PNG and a JPEG as JPEG at quality 95. The copy
+	// sent carries, byte for byte, the source's metadata that changes how its pixels are seen: a
+	// JPEG's Exif APP1 segments, then its ICC_PROFILE APP2 chunks in order, right after SOI; a
+	// PNG's iCCP, sRGB, gAMA, cHRM, and eXIf chunks, in order, right after IHDR. Their fields are
+	// not rewritten, so Exif keeps the source's dimensions. An ICC profile whose color space isn't
+	// the copy's, GRAY for a grayscale one and RGB otherwise, or that can't be read, is left out,
+	// and a JPEG whose segments don't parse carries nothing; neither fails the request. An image
 	// within it is sent as it is, as is one of another format or one the standard library can't
 	// decode, which the endpoint's refusal classifies. 0 sends every image as it is; [New] refuses
 	// a negative one.
