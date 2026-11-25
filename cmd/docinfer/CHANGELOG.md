@@ -37,6 +37,13 @@ the postgres module keep their own.
   chunker's `Runes` is `chunk_runes` less the document prefix's characters, 8,183 under e5's
   `"passage: "`; a `chunk_runes` below 1, or not over the prefix's characters, fails the
   configuration's Build before docproc's run is read.
+- `transcription.max_tokens`, override `DOCINFER_TRANSCRIPTION_MAX_TOKENS`: the most tokens a
+  chat-mode transcription reply takes, sent as the request's `MaxOutputTokens` and keyed into
+  transcription's identity, starting at 512 in chat mode and at 0, sending none, in route mode. A
+  window cut off at it is recorded incomplete, reason `max_output_tokens`. A nonzero
+  `max_tokens` in route mode, which has no field for it, or a negative one, fails the
+  configuration's Build before docproc's run is read, naming the fix: `max_tokens` 0, or `mode`
+  chat.
 
 ### Changed
 
@@ -47,6 +54,8 @@ the postgres module keep their own.
 - `vision.native` starts at `{"temperature":0}`, so a page's text is the same on every run. A
   configured `vision.native` replaces it whole, and `{}` sends no native member, vision's identity
   then carrying none.
+- Transcription's identity settings gain `"max_tokens"` and its request version is "2", so every
+  transcript held before misses and is transcribed again.
 - The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held
   under the former settings miss and are recut.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg

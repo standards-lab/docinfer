@@ -50,11 +50,12 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 		}
 		if t := cfg.Transcription; t != nil {
 			rc.Transcription = &docinfer.Transcription{
-				Client:   s.Use(n.TranscriptionClient),
-				Model:    t.Model,
-				Served:   t.ServedModel,
-				Prompt:   t.Prompt,
-				Language: t.Language,
+				Client:    s.Use(n.TranscriptionClient),
+				Model:     t.Model,
+				Served:    t.ServedModel,
+				Prompt:    t.Prompt,
+				Language:  t.Language,
+				MaxTokens: *t.MaxTokens,
 			}
 			rc.Endpoints[docinfer.CapabilityTranscription] = endpoint(cfg, t.Endpoint)
 			rc.Concurrency[docinfer.CapabilityTranscription] = *t.Concurrency

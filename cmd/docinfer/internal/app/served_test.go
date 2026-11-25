@@ -12,12 +12,14 @@ import (
 
 	"github.com/standards-lab/go-core/process"
 
+	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/aitest"
 
 	"github.com/standards-lab/docproc/dispatch"
 
 	"github.com/standards-lab/docinfer"
 
+	"github.com/standards-lab/docinfer/cmd/docinfer/internal/app"
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/outdir"
 )
 
@@ -240,6 +242,50 @@ func TestRun_VisionSendsItsNative(t *testing.T) {
 			settings := capabilityOf(t, m, docinfer.CapabilityVision).Settings
 			if tt.want == "" && strings.Contains(settings, `"native"`) || tt.want != "" && !strings.Contains(settings, `"native":`+tt.want) {
 				t.Errorf("vision settings = %s, want native %q", settings, tt.want)
+			}
+		})
+	}
+}
+
+func TestRun_TranscriptionKeysItsMaxTokens(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		maxTokens *int
+		want      string
+	}{
+		{"unset starts at 512 in chat mode", nil, `"max_tokens":512`},
+		{"configured", new(256), `"max_tokens":256`},
+		{"0 configured", new(0), `"max_tokens":0`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			e := aitest.Serve(t, aitest.Routes{
+				Models: modelList(
+					`{"id":"embed-model","object":"model","status":{"value":"loaded"}}`,
+					`{"id":"audio-model","object":"model","status":{"value":"loaded"}}`,
+				),
+				Embeddings: unitVectors,
+				Tokenize:   wordTokens,
+			})
+			cfg := inferConfig(e.URL(), false)
+			chat := ai.TranscribeChat
+			cfg.Transcription = &app.Transcription{
+				Endpoint: "gb10", Model: "audio-model", ServedModel: "audio-model",
+				Mode:      &chat,
+				MaxTokens: tt.maxTokens,
+			}
+			root := t.TempDir()
+			docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
+			textRun(t, docproc, "alpha text")
+			a, stderr := inferApp(t, cfg, new(bytes.Buffer))
+
+			code := a.Run(context.Background(), []string{"run", docproc, "--out", out})
+
+			if code != process.ExitOK {
+				t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
+			}
+			_, m := openOut(t, out)
+			if settings := capabilityOf(t, m, docinfer.CapabilityTranscription).Settings; !strings.Contains(settings, tt.want) {
+				t.Errorf("transcription settings = %s, want %s", settings, tt.want)
 			}
 		})
 	}

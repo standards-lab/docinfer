@@ -95,6 +95,7 @@ func TestConfig_StartingValues(t *testing.T) {
 		"vision max_tokens":              {*v.MaxTokens, 2048},
 		"vision concurrency":             {*v.Concurrency, 4},
 		"transcription words_per_second": {*tr.WordsPerSecond, 8},
+		"transcription max_tokens":       {*tr.MaxTokens, 0},
 		"transcription concurrency":      {*tr.Concurrency, 4},
 		"embeddings batch":               {*em.Batch, 16},
 		"embeddings chunk_size":          {*em.ChunkSize, 480},
@@ -140,6 +141,7 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 		"DOCINFER_TRANSCRIPTION_ENDPOINT":            "gb10",
 		"DOCINFER_TRANSCRIPTION_MODEL":               "audio-model",
 		"DOCINFER_TRANSCRIPTION_MODE":                "chat",
+		"DOCINFER_TRANSCRIPTION_MAX_TOKENS":          "256",
 		"DOCINFER_VISION_SERVED_MODEL":               "org/vision",
 		"DOCINFER_VISION_NATIVE":                     `{"temperature":0}`,
 		"DOCINFER_EMBEDDINGS_BATCH":                  "32",
@@ -161,6 +163,9 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	}
 	if p.transcription == nil || p.transcription.TranscriptionMode() != ai.TranscribeChat {
 		t.Errorf("transcription client = %v, want one in chat mode", p.transcription)
+	}
+	if got := *p.cfg.Transcription.MaxTokens; got != 256 {
+		t.Errorf("transcription max_tokens = %d, want the override's 256", got)
 	}
 	if got := *p.cfg.Embeddings.Batch; got != 32 {
 		t.Errorf("embeddings batch = %d, want 32", got)
@@ -211,6 +216,9 @@ func TestConfig_ChatModeIsTranscriptionsOwn(t *testing.T) {
 	}
 	if got := p.vision.TranscriptionMode(); got != ai.TranscribeRoute {
 		t.Errorf("vision client's mode = %v, want route", got)
+	}
+	if got := *p.cfg.Transcription.MaxTokens; got != 512 {
+		t.Errorf("transcription max_tokens = %d, want chat mode's starting 512", got)
 	}
 }
 
@@ -281,6 +289,9 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "unknown format", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"grpc"}`, embeddings), want: `endpoints "gb10": format "grpc" is not completions, messages, or responses`},
 		{name: "unknown profile member", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"completions","profile":{"completions":{"bogus":true}}}`, embeddings), want: `endpoints "gb10": profile: `},
 		{name: "chat without completions", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"messages"}`, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"chat"}`), want: `transcription: mode chat needs the completions format, and endpoint "gb10"'s is "messages"`},
+		{name: "route with max_tokens", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","max_tokens":512}`), want: "transcription: max_tokens 512 bounds a chat-mode reply, and mode is route, which has no field for it: set max_tokens to 0, or mode to chat"},
+		{name: "route with a max_tokens override", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a"}`), env: map[string]string{"DOCINFER_TRANSCRIPTION_MAX_TOKENS": "64"}, want: "transcription: max_tokens 64 bounds a chat-mode reply, and mode is route"},
+		{name: "negative max_tokens", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"chat","max_tokens":-1}`), want: "transcription: max_tokens -1 is below zero"},
 		{name: "unknown mode", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"stream"}`), want: "stream"},
 		{name: "unknown reasoning", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","reasoning":"extreme"}`), want: "extreme"},
 		{name: "override not a count", config: withEndpoint(completions, embeddings), env: map[string]string{"DOCINFER_RUN_PENDING": "many"}, want: "DOCINFER_RUN_PENDING"},

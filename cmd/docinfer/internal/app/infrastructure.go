@@ -175,13 +175,15 @@ type Vision struct {
 
 // Transcription is the transcription capability: its prompt and language, empty sending none;
 // its mode, route or chat, starting at route, which its own client transcribes in, chat needing
-// its endpoint's format to be completions; and the words a second of speech holds at most,
-// words_per_second, starting at 8.
+// its endpoint's format to be completions; max_tokens, the most tokens a chat-mode reply takes,
+// starting at 512 in chat mode and at 0, sending none, in route mode, which refuses any other;
+// and the words a second of speech holds at most, words_per_second, starting at 8.
 type Transcription struct {
 	Capability
 	Prompt         string                `json:"prompt"`
 	Language       string                `json:"language"`
 	Mode           *ai.TranscriptionMode `json:"mode"`
+	MaxTokens      *int                  `json:"max_tokens"`
 	WordsPerSecond *int                  `json:"words_per_second"`
 }
 
@@ -224,6 +226,7 @@ const (
 	startVisionMaxTokens       = 2048
 	startVisionReasoning       = protocol.ReasoningEffortNone
 	startVisionNative          = `{"temperature":0}`
+	startTranscriptionTokens   = 512
 	startWordsPerSecond        = 8
 	startEmbeddingsBatch       = 16
 	startChunkSize             = 480
@@ -301,6 +304,7 @@ func (t *Transcription) merge(src *Transcription) {
 	set(&t.Prompt, src.Prompt)
 	set(&t.Language, src.Language)
 	set(&t.Mode, src.Mode)
+	set(&t.MaxTokens, src.MaxTokens)
 	set(&t.WordsPerSecond, src.WordsPerSecond)
 }
 
@@ -341,10 +345,11 @@ func mergeMap(dst, src map[string]string) map[string]string {
 // value, and checks what is docinfer's to check: each endpoint's format and profile and a
 // response_header_timeout not below zero, each capability's endpoint among endpoints, each count at
 // least 1, chunk_runes over the document prefix's characters, chat transcription on the completions
-// format, the embeddings' input_types set and their tokenizer among endpoints, vision's native a
-// JSON object with unique member names, and no two endpoint names composing the same overrides.
-// What ai.New refuses, such as a base URL or a retry policy, the client nodes report, named for
-// their endpoint. An empty prefix reads no override.
+// format, transcription's max_tokens not below zero and 0 in route mode, the embeddings'
+// input_types set and their tokenizer among endpoints, vision's native a JSON object with unique
+// member names, and no two endpoint names composing the same overrides. What ai.New refuses, such
+// as a base URL or a retry policy, the client nodes report, named for their endpoint. An empty
+// prefix reads no override.
 func (c *Config) Finalize(prefix string) error {
 	overrides, err := c.overrides(prefix)
 	c.Merge(overrides)
@@ -399,6 +404,7 @@ func (c *Config) overrides(prefix string) (*Config, error) {
 		setFromEnv(&t.Prompt, config.EnvName(prefix, "transcription", "prompt"), parseString),
 		setFromEnv(&t.Language, config.EnvName(prefix, "transcription", "language"), parseString),
 		config.SetFromEnv(&t.Mode, config.EnvName(prefix, "transcription", "mode"), parseMode),
+		config.SetFromEnv(&t.MaxTokens, config.EnvName(prefix, "transcription", "max_tokens"), parseCount),
 		config.SetFromEnv(&t.WordsPerSecond, config.EnvName(prefix, "transcription", "words_per_second"), parseCount),
 	)
 	if t != (Transcription{}) {
@@ -502,6 +508,10 @@ func (c *Config) start() {
 	if t := c.Transcription; t != nil {
 		startAt(&t.Concurrency, startConcurrency)
 		startAt(&t.Mode, ai.TranscribeRoute)
+		if *t.Mode == ai.TranscribeChat {
+			startAt(&t.MaxTokens, startTranscriptionTokens)
+		}
+		startAt(&t.MaxTokens, 0)
 		startAt(&t.WordsPerSecond, startWordsPerSecond)
 	}
 	startAt(&c.Embeddings.Concurrency, startConcurrency)
@@ -540,6 +550,13 @@ func (c *Config) validate() error {
 		if e := c.Endpoints[t.Endpoint]; *t.Mode == ai.TranscribeChat && e != nil && e.Format != formatCompletions {
 			errs = append(errs, fmt.Errorf("transcription: mode chat needs the %s format, and endpoint %q's is %q",
 				formatCompletions, t.Endpoint, e.Format))
+		}
+		switch n := *t.MaxTokens; {
+		case n < 0:
+			errs = append(errs, fmt.Errorf("transcription: max_tokens %d is below zero", n))
+		case n > 0 && *t.Mode == ai.TranscribeRoute:
+			errs = append(errs, fmt.Errorf("transcription: max_tokens %d bounds a chat-mode reply, and mode is route, "+
+				"which has no field for it: set max_tokens to 0, or mode to chat", n))
 		}
 	}
 	errs = append(errs, c.checkCapability("embeddings", c.Embeddings.Capability),
