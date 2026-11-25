@@ -148,7 +148,7 @@ func heldReply(resp *protocol.Response) Held {
 		if d := resp.IncompleteDetails; d != nil && d.Reason != "" {
 			h.Incomplete = string(d.Reason)
 		}
-		return h
+		return trimLoop(h)
 	}
 	if text == "" {
 		if refusal := refusalText(resp); refusal != "" {

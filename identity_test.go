@@ -2,6 +2,7 @@ package docinfer_test
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"testing"
 
 	"github.com/standards-lab/docinfer"
@@ -24,7 +25,7 @@ func TestIdentity(t *testing.T) {
 			docinfer.Vision{Client: route, Model: "alias", Served: "v", Prompt: "Describe <this> & that.", MaxTokens: 7, Reasoning: protocol.ReasoningEffortHigh}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityVision, Model: "v",
-				Settings: `{"request":"1","prompt":"Describe <this> & that.","max_tokens":7,"effort":"high"}`,
+				Settings: `{"request":"2","prompt":"Describe <this> & that.","max_tokens":7,"effort":"high"}`,
 			},
 		},
 		{
@@ -32,7 +33,7 @@ func TestIdentity(t *testing.T) {
 			docinfer.Vision{Client: route, Model: "alias", Served: "v", MaxTokens: 7}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityVision, Model: "v",
-				Settings: `{"request":"1","prompt":"","max_tokens":7,"effort":""}`,
+				Settings: `{"request":"2","prompt":"","max_tokens":7,"effort":""}`,
 			},
 		},
 		{
@@ -57,7 +58,7 @@ func TestIdentity(t *testing.T) {
 				docinfer.Extract{Name: "invoice", Prompt: "Extract the invoice.", Schema: schema}),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityExtraction, Model: "x",
-				Settings: `{"request":"1","name":"invoice","prompt_sha256":"` + sha("Extract the invoice.") +
+				Settings: `{"request":"2","name":"invoice","prompt_sha256":"` + sha("Extract the invoice.") +
 					`","schema_sha256":"` + sha(string(schema)) + `","max_tokens":9,"effort":"medium"}`,
 			},
 		},
@@ -129,12 +130,9 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 		}.Identity(),
 		chunkIdentity(chunk.Splitter{Bound: 512, Model: "intfloat/multilingual-e5-large"}),
 	}
-	if len(ids) != len(goldenKeys) {
-		t.Fatalf("%d identities for %d golden keys", len(ids), len(goldenKeys))
-	}
-	for i, g := range goldenKeys {
-		if g.Identity != ids[i] {
-			t.Errorf("golden %s identity %d\n %+v, the capability's\n %+v", g.Identity.Capability, i, g.Identity, ids[i])
+	for i, id := range ids {
+		if !slices.ContainsFunc(goldenKeys, func(g goldenKey) bool { return g.Identity == id }) {
+			t.Errorf("identity %d, %+v, has no golden key", i, id)
 		}
 	}
 }
@@ -148,7 +146,7 @@ func TestProfile(t *testing.T) {
 	want := docinfer.Profile{
 		Vision: &docinfer.Identity{
 			Capability: docinfer.CapabilityVision, Model: "org/vision-1",
-			Settings: `{"request":"1","prompt":"Describe the image.","max_tokens":2,"effort":"low"}`,
+			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low"}`,
 		},
 		Transcription: &docinfer.Identity{
 			Capability: docinfer.CapabilityTranscription, Model: "org/transcription-1",
@@ -156,7 +154,7 @@ func TestProfile(t *testing.T) {
 		},
 		Extraction: &docinfer.Identity{
 			Capability: docinfer.CapabilityExtraction, Model: "org/extraction-1",
-			Settings: `{"request":"1","max_tokens":2,"effort":"medium"}`,
+			Settings: `{"request":"2","max_tokens":2,"effort":"medium"}`,
 		},
 		Embeddings: docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "org/embedding-1"},
 		Dimensions: 2,

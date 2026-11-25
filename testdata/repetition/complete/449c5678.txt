@@ -1,0 +1,186 @@
+276
+Karim et al. / Food Research 8 (1) (2024) 273 - 280
+
+RESEARCH PAPER
+
+Table 4. Intentional microbiota test results of the control group (CG).
+Microbiota
+Mean (log DNA copies/g) ± SD
+Pre-Test (D-0)
+Post Test I (D-35)
+Post Test II (D-42)
+Δ Average %
+Day 0 and 35
+Day 35 and 42
+p Value*
+Day 0 and 35
+Day 35 and 42
+Microbiota
+Bifidobacterium
+Bacteroides
+Clostridium
+Lactobacillus
+E. coli
+Bifidobacterium
+4.79±0.37
+0.00±0.00
+6.73±0.46
+6.79±0.54
+5.48±1.22
+↑0.5%
+↑3.0%
+↑2%
+↑0.6%
+↑2.8%
+↑0.8%
+↑1.9%
+↑0.1%
+↑0.6%
+↑2.7%
+0.8
+0.43
+0.432
+0.884
+0.774
+0.84
+0.043
+0.822
+0.914
+0.38
+0.35
+CG: Control Group - standard feed only
+*p<0.05 significantly different.
+
+Table 5. Intentional microbiota statistics test results treatment group I.
+Microbiota
+Mean (log DNA copies/g) ± SD
+Pre-Test (D-0)
+Post Test I (D-35)
+Post Test II (D-42)
+Δ Average %
+Day 0 and 35
+Day 35 and 42
+p Value*
+Day 0 and 35
+Day 35 and 42
+Microbiota
+Bifidobacterium
+Bacteroides
+Clostridium
+Lactobacillus
+E. coli
+Bifidobacterium
+5.36±0.53
+0.53±0.73
+6.17±0.81
+6.89±0.71
+3.71±1.24
+↑22.9%
+↑11.0%
+↑19.9%
+↑13.7%
+↑86.4%
+↑1.2%
+↑0%
+↑4.6%
+↑2.5%
+↑5.4%
+0.003
+0.180
+0.013
+0.034
+0.043
+0.665
+1.000
+0.095
+0.480
+0.138
+TG I: Treatment Group I - standard feed I and HFD intervention
+*p<0.05 is significantly different
+
+Table 6. Statistical test results of intentional microbiota treatment group II.
+Microbiota
+Mean (log DNA copies/g) ± SD
+Pre-Test (D-0)
+Post Test I (D-35)
+Post Test II (D-42)
+Δ Average %
+Day 0 and 35
+Day 35 and 42
+p Value*
+Day 0 and 35
+Day 35 and 42
+Microbiota
+Bifidobacterium
+Bacteroides
+Clostridium
+Lactobacillus
+E. coli
+Bifidobacterium
+5.07±0.33
+1.19±1.54
+6.16±0.81
+7.74±0.72
+3.64±1.10
+↑16.2%
+↑100%
+↑30.4%
+↑6.3%
+↑198.4
+↑41%
+↑1%
+↑6.3%
+↑7.6%
+↑22.5%
+0.011
+0.068
+0.012
+0.006
+0.043
+0.013
+0.043
+0.036
+0.043
+0.043
+TG II: Treatment Group II - standard feed, HFD, and ADE intervention
+*p<0.05 is significantly different
+
+Figure 1. Microbiota profile of all groups.
+
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+0
+Pre-test
+Post I
+Post II
+Bifidobacterium
+Pre-test
+Post I
+Post II
+Bacteroides fragilis
+Pre-test
+Post I
+Post II
+Clostridium
+Pre-test
+Post I
+Post II
+Lactobacillus
+Pre-test
+Post I
+Post II
+Escherichia coli
+■ Control Group
+■ Treatment Group I
+■ Treatment Group II
+
+https://doi.org/10.26656/fr.2017.8(1).080
+© 2024 The Authors. Published by Runye Lin Resources

@@ -79,6 +79,37 @@ var goldenKeys = []goldenKey{
 		},
 		Content: sha("a source text"),
 	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityVision, Model: "gpt-4.1-mini",
+			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":1024,"effort":"low"}`,
+		},
+		Content: sha("an image"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityExtraction, Model: "gpt-4.1",
+			Settings: `{"request":"2","name":"invoice","prompt_sha256":"` + sha("prompt") + `","schema_sha256":"` +
+				sha("schema") + `","max_tokens":4096,"effort":"medium"}`,
+		},
+		Content: sha("a source text"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityVision, Model: "gpt-4.1-mini",
+			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":1024,"effort":"low",` +
+				`"native":{"temperature":0.2,"top_k":64,"top_p":0.95}}`,
+		},
+		Content: sha("an image"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityExtraction, Model: "gpt-4.1",
+			Settings: `{"request":"2","name":"invoice","prompt_sha256":"` + sha("prompt") + `","schema_sha256":"` +
+				sha("schema") + `","max_tokens":4096,"effort":"medium","native":{"temperature":0}}`,
+		},
+		Content: sha("a source text"),
+	},
 }
 
 func TestGoldenKeys(t *testing.T) {

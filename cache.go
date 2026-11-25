@@ -37,7 +37,7 @@ func Key(id Identity, content string) string {
 type Held struct {
 	Text       string `json:"text,omitzero"`       // vision, transcription, extraction: inline
 	Vector     string `json:"vector,omitzero"`     // embeddings: as Chunk.Vector
-	Incomplete string `json:"incomplete,omitzero"` // why the model stopped: max_output_tokens
+	Incomplete string `json:"incomplete,omitzero"` // why the model stopped: max_output_tokens, or repetition
 	Refused    string `json:"refused,omitzero"`    // the refusal's text, or the refusing reply's
 	// Spans is chunking's: each chunk's [start, end) bytes of the source text, in order, [] for a
 	// text of no chunks.

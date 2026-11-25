@@ -171,7 +171,8 @@ loads the zone without the host's zoneinfo.
 The golden keys pin `Key`'s form under `docinfer.Version`, which names their file. Rewrite them
 with `go test . -run TestGoldenKeys -update` only with a new `Version`, never to make a changed
 key pass under the old one: a changed key misses every result held under the old, and a key of
-the old form over a new shape decodes wrong.
+the old form over a new shape decodes wrong. A capability's new request version adds its identities'
+golden keys beside the old ones, whose keys stay as they were.
 
 The golden corpus of chunks, `chunk/testdata/chunks-v<Version>.json`, pins how texts are cut under
 `chunk.Version`. Rewrite it with `go test ./chunk -run TestGoldenCorpus -update` only with a new

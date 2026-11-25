@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	visionRequest        = "1"
+	visionRequest        = "2"
 	transcriptionRequest = "1"
-	extractionRequest    = "1"
+	extractionRequest    = "2"
 	embeddingRequest     = "1"
 )
 

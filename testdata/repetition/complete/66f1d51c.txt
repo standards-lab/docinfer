@@ -1,0 +1,35 @@
+Office of the Secretary of Defense
+
+§22.205
+
+*Development.* The systematic use of scientific and technical knowledge in the design, development, creation, evaluation of potential new products, processes, or services to meet specific performance requirements or objectives. It includes the functions of research, design engineering, prototyping, and engineering testing.
+
+*Electronic commerce.* The conduct of business through the use of automation and electronic media, in lieu of paper transactions, direct personal contact, telephone, or other means. For grants and cooperative agreements, electronic commerce can include the use of electronic data interchange, electronic mail, electronic bulletin boards, websites, and electronic funds transfer for: program announcements or solicitations; terms, applications or proposals; award documents; recipients' requests for payment; payment authorizations; and payments.
+
+*Electronic data interchange.* The exchange of standardized data communications electronically between business partners, typically between computers. It is DoD policy that Component EDI applications conform to the American National Standards Institute (ANSI), Accredited Standards Committee (ASC) X-12 standard.
+
+*Electronic funds transfer.* A system that provides the authority to transfer credit accounts in financial institutions by electronic means rather than through source documents (e.g., a paper check). Processing typically occurs through the Federal Reserve System or the Automated Clearing House (ACH) computer network. It is DoD policy that DoD Component EFT transactions conform to the American National Standards Institute (ANSI), Accredited Standards Committee (ASC) X-12 standard.
+
+*Historically Black colleges and universities.* Institutions of higher education determined by the Secretary of Education to meet the requirements of 34 CFR 608.2. Each DoD Component's contracting activities and grants officers may obtain a list of historically Black colleges and universities from that Component's Small and Disadvantaged Business Utilization office.
+
+*Institution of higher education.* An educational institution that meets the criteria in section 120(a) of the Higher Education Act of 1965 (20 U.S.C. 1114(a)). However, institutions of higher education that has a different meaning in §22.520, as given in §22.520(b)(2).
+
+*Minority institutions.* Institutions of higher education that meet the criteria for minority institutions specified in §22.205. Each DoD Component's contracting activities and grants officers may obtain copies of a list of minority institutions that qualify as minority institutions under 10 U.S.C. 2323 from that DoD Component's Small and Disadvantaged Business Utilization office (the list of minority institutions changes periodically, based on Department of Education data on institutions' enrollments of minority students).
+
+*Research, basic, applied, and advanced research.* As defined in this section.
+
+*Subaward.* An award of financial assistance in the form of money, or property in lieu of money, made under a DoD grant or cooperative agreement by a recipient to an eligible subrecipient. The terms include financial assistance for substantive program performance by a subrecipient of a portion of the program for which the DoD grant or cooperative agreement was made. It may also include the recipient's procurement of goods and services needed to carry out the program.
+
+[63 FR 12384, Mar. 12, 1988, as amended at 68 FR 57496, Aug. 7, 2003]
+
+**Subpart B—Selecting the Appropriate Instrument**
+
+§22.200 Purpose.
+
+This subpart provides the bases for determining the appropriate type of instrument in a given situation.
+
+§22.205 Distinguishing assistance from procurement.
+
+Before using a grant or cooperative agreement, the grants officer shall
+
+33

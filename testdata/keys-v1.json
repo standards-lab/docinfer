@@ -70,5 +70,41 @@
     },
     "content": "526b017302033df79011f6698d73be884c8d7c0b07787ce1e6835187a2fa63e6",
     "key": "chunk/3b958359c33fd47c622f57a9b875bb387b05d75d4b41af93768614169d11b075"
+  },
+  {
+    "identity": {
+      "capability": "vision",
+      "model": "gpt-4.1-mini",
+      "settings": "{\"request\":\"2\",\"prompt\":\"Describe the image.\",\"max_tokens\":1024,\"effort\":\"low\"}"
+    },
+    "content": "a5df3fde7b200c3fa2791144c7e05c5c2bced4c6ad863d3a4cf76c972c1712f9",
+    "key": "vision/710c2c26fec517b7fe00a92f6154641638ac2d0d11561662a5ec9f06cc826914"
+  },
+  {
+    "identity": {
+      "capability": "extraction",
+      "model": "gpt-4.1",
+      "settings": "{\"request\":\"2\",\"name\":\"invoice\",\"prompt_sha256\":\"cf07194ee232eb531e15f690000d19846dea69cf05504782658afcfacb9228a2\",\"schema_sha256\":\"df0ad6e43880f09c90ebf95f19110178aba6890df0010ebda7485029e2b543b4\",\"max_tokens\":4096,\"effort\":\"medium\"}"
+    },
+    "content": "526b017302033df79011f6698d73be884c8d7c0b07787ce1e6835187a2fa63e6",
+    "key": "extraction/5cfa71b47f855bd8ef710d7072c0a60def69ec6e6552b304daec7bf10b1e6908"
+  },
+  {
+    "identity": {
+      "capability": "vision",
+      "model": "gpt-4.1-mini",
+      "settings": "{\"request\":\"2\",\"prompt\":\"Describe the image.\",\"max_tokens\":1024,\"effort\":\"low\",\"native\":{\"temperature\":0.2,\"top_k\":64,\"top_p\":0.95}}"
+    },
+    "content": "a5df3fde7b200c3fa2791144c7e05c5c2bced4c6ad863d3a4cf76c972c1712f9",
+    "key": "vision/b8be601b3cb6602a1c0abef6aa56490eae926838fc98780d0068bcf55fcf72b1"
+  },
+  {
+    "identity": {
+      "capability": "extraction",
+      "model": "gpt-4.1",
+      "settings": "{\"request\":\"2\",\"name\":\"invoice\",\"prompt_sha256\":\"cf07194ee232eb531e15f690000d19846dea69cf05504782658afcfacb9228a2\",\"schema_sha256\":\"df0ad6e43880f09c90ebf95f19110178aba6890df0010ebda7485029e2b543b4\",\"max_tokens\":4096,\"effort\":\"medium\",\"native\":{\"temperature\":0}}"
+    },
+    "content": "526b017302033df79011f6698d73be884c8d7c0b07787ce1e6835187a2fa63e6",
+    "key": "extraction/3609ee57d60ab2abb3eca455603f755d571377eded94c925c9cd99bd9cc77685"
   }
 ]

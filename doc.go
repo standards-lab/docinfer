@@ -115,7 +115,8 @@
 //     described or extracted, held.
 //   - A reply in protocol.StatusIncomplete is outcome incomplete, its text kept, held:
 //     Response.IncompleteDetails.Reason is its [Held].Incomplete, [Inference].Reason, and
-//     [Source].Incomplete.
+//     [Source].Incomplete. A reply cut off at protocol.ReasonMaxOutputTokens whose text ends in a
+//     loop is held trimmed, its reason "repetition", by the rule under Repetition below.
 //   - A completed reply with a protocol.Refusal part and no output text is outcome refused, held,
 //     the refusal's text its Held.Refused and Inference.Reason.
 //   - An *ai.IncompleteTranscriptError is the window's outcome incomplete, joined as empty, held
@@ -151,4 +152,20 @@
 // redelivers it after RetryAfter, and the cache replays what it finished, since such a status is
 // the gateway's or an upstream's, never the item's. Only the last delivery records an item failed,
 // so one item a model can't answer never holds the rest back.
+//
+// # Repetition
+//
+// A model that degenerates can repeat a line, a sentence, or a short cycle of characters until it
+// reaches its output bound, and the loop is no part of the page. So a vision or extraction reply
+// cut off at protocol.ReasonMaxOutputTokens has its text's tail examined, in runes: for each period
+// p from 1 to 1000, the tail's run is the longest suffix in which each rune, but the last p,
+// equals the rune p after it. The shortest p whose run holds at least 2 copies of its unit and at least 200 runes is
+// the loop, and the text is cut after the run's first copy, so a line the page holds once stays,
+// and the cut is on a rune boundary. That text is held, so a rerun replays the same one, and its
+// [Held].Incomplete, [Inference].Reason, and [Source].Incomplete are "repetition". A reply whose
+// tail doesn't loop is held whole, its reason max_output_tokens, and a reply that finishes, or
+// stops for any other reason, is never examined, so a page that repeats rows or list items and
+// ends is held as it is. An extraction's [Progress] streams the text as the model writes it, the
+// loop included; its [Inference] carries the trimmed text. These bounds are docinfer's behavior,
+// not a host's setting: a transcript cut off holds no text, so it has none to trim.
 package docinfer

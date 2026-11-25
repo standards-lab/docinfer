@@ -38,6 +38,15 @@ each nested module keeps its own.
 ### Changed
 
 - Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
+- A vision or extraction reply cut off at `protocol.ReasonMaxOutputTokens` whose text ends in a
+  loop, a line, a sentence, or a short cycle repeated to the bound, is held trimmed after the
+  loop's first copy, and its `Held.Incomplete`, `Inference.Reason`, and `Source.Incomplete` are
+  `"repetition"`. The loop is the shortest period, 1 to 1000 runes, whose run at the text's end
+  holds at least 2 copies and 200 runes. A reply whose tail doesn't loop, and every reply that
+  finishes or stops for another reason, is held as before. An extraction's `Progress` still
+  streams the whole text. Vision's and extraction's request versions are "2", so their identity
+  settings, keys, and `Pipeline.Profile` change and every result held under "1", an untrimmed
+  loop among them, misses; `Version` stays "1", since `Held`'s shape is unchanged.
 - Each capability's `Identity`, and so each cache `Key` and `Pipeline.Profile`, names the served
   model, `Served`, not `Model`: another model served under the same name misses, and the same
   model served under another name hits. A caller sets `Served` on every capability it configures,
