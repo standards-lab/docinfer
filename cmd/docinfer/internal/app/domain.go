@@ -56,6 +56,7 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 				Prompt:    t.Prompt,
 				Language:  t.Language,
 				MaxTokens: *t.MaxTokens,
+				Native:    native(t.Native),
 			}
 			rc.Endpoints[docinfer.CapabilityTranscription] = endpoint(cfg, t.Endpoint)
 			rc.Concurrency[docinfer.CapabilityTranscription] = *t.Concurrency

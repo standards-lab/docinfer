@@ -247,15 +247,18 @@ func TestRun_VisionSendsItsNative(t *testing.T) {
 	}
 }
 
-func TestRun_TranscriptionKeysItsMaxTokens(t *testing.T) {
+func TestRun_TranscriptionKeysItsMaxTokensAndNative(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		maxTokens *int
+		native    string
 		want      string
 	}{
-		{"unset starts at 512 in chat mode", nil, `"max_tokens":512`},
-		{"configured", new(256), `"max_tokens":256`},
-		{"0 configured", new(0), `"max_tokens":0`},
+		{"unset starts at 512 and temperature 0 in chat mode", nil, "", `"max_tokens":512,"native":{"temperature":0}}`},
+		{"max_tokens configured", new(256), "", `"max_tokens":256,"native":{"temperature":0}}`},
+		{"max_tokens 0 configured", new(0), "", `"max_tokens":0,"native":{"temperature":0}}`},
+		{"native configured replaces the start", nil, `{"top_p": 0.5}`, `"max_tokens":512,"native":{"top_p":0.5}}`},
+		{"native {} sends none", nil, `{}`, `"max_tokens":512}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			e := aitest.Serve(t, aitest.Routes{
@@ -273,6 +276,9 @@ func TestRun_TranscriptionKeysItsMaxTokens(t *testing.T) {
 				Mode:      &chat,
 				MaxTokens: tt.maxTokens,
 			}
+			if tt.native != "" {
+				cfg.Transcription.Native = json.RawMessage(tt.native)
+			}
 			root := t.TempDir()
 			docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
 			textRun(t, docproc, "alpha text")
@@ -284,7 +290,7 @@ func TestRun_TranscriptionKeysItsMaxTokens(t *testing.T) {
 				t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
 			}
 			_, m := openOut(t, out)
-			if settings := capabilityOf(t, m, docinfer.CapabilityTranscription).Settings; !strings.Contains(settings, tt.want) {
+			if settings := capabilityOf(t, m, docinfer.CapabilityTranscription).Settings; !strings.HasSuffix(settings, tt.want) {
 				t.Errorf("transcription settings = %s, want %s", settings, tt.want)
 			}
 		})

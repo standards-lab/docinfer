@@ -120,6 +120,9 @@ func TestConfig_StartingValues(t *testing.T) {
 	if got := p.transcription.TranscriptionMode(); got != ai.TranscribeRoute {
 		t.Errorf("transcription client's mode = %v, want route", got)
 	}
+	if tr.Native != nil {
+		t.Errorf("transcription native = %s, want none in route mode", tr.Native)
+	}
 }
 
 func TestConfig_ResponseHeaderTimeoutOverride(t *testing.T) {
@@ -142,6 +145,7 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 		"DOCINFER_TRANSCRIPTION_MODEL":               "audio-model",
 		"DOCINFER_TRANSCRIPTION_MODE":                "chat",
 		"DOCINFER_TRANSCRIPTION_MAX_TOKENS":          "256",
+		"DOCINFER_TRANSCRIPTION_NATIVE":              `{"temperature":0.1}`,
 		"DOCINFER_VISION_SERVED_MODEL":               "org/vision",
 		"DOCINFER_VISION_NATIVE":                     `{"temperature":0}`,
 		"DOCINFER_EMBEDDINGS_BATCH":                  "32",
@@ -166,6 +170,9 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	}
 	if got := *p.cfg.Transcription.MaxTokens; got != 256 {
 		t.Errorf("transcription max_tokens = %d, want the override's 256", got)
+	}
+	if got := string(p.cfg.Transcription.Native); got != `{"temperature":0.1}` {
+		t.Errorf("transcription native = %s, want the override's", got)
 	}
 	if got := *p.cfg.Embeddings.Batch; got != 32 {
 		t.Errorf("embeddings batch = %d, want 32", got)
@@ -219,6 +226,19 @@ func TestConfig_ChatModeIsTranscriptionsOwn(t *testing.T) {
 	}
 	if got := *p.cfg.Transcription.MaxTokens; got != 512 {
 		t.Errorf("transcription max_tokens = %d, want chat mode's starting 512", got)
+	}
+	if got := string(p.cfg.Transcription.Native); got != `{"temperature":0}` {
+		t.Errorf("transcription native = %s, want chat mode's starting {\"temperature\":0}", got)
+	}
+}
+
+func TestConfig_RouteModeTakesAnEmptyNative(t *testing.T) {
+	p := probeConfig(t, `{"endpoints":{"gb10":{"base_url":"`+unusedURL+`","format":"completions"}},
+		"transcription":{"endpoint":"gb10","model":"audio-model","native":{}},
+		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`)
+
+	if got := string(p.cfg.Transcription.Native); got != `{}` {
+		t.Errorf("transcription native = %s, want the configured {}", got)
 	}
 }
 
@@ -291,6 +311,9 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "chat without completions", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"messages"}`, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"chat"}`), want: `transcription: mode chat needs the completions format, and endpoint "gb10"'s is "messages"`},
 		{name: "route with max_tokens", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","max_tokens":512}`), want: "transcription: max_tokens 512 bounds a chat-mode reply, and mode is route, which has no field for it: set max_tokens to 0, or mode to chat"},
 		{name: "route with a max_tokens override", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a"}`), env: map[string]string{"DOCINFER_TRANSCRIPTION_MAX_TOKENS": "64"}, want: "transcription: max_tokens 64 bounds a chat-mode reply, and mode is route"},
+		{name: "route with native", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","native":{"temperature":0}}`), want: `transcription: native {"temperature":0} is sent in a chat-mode request, and mode is route, which sends no JSON body: set native to {}, or mode to chat`},
+		{name: "route with a native override", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a"}`), env: map[string]string{"DOCINFER_TRANSCRIPTION_NATIVE": `{"top_p":0.5}`}, want: `transcription: native {"top_p":0.5} is sent in a chat-mode request, and mode is route`},
+		{name: "transcription native not an object", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"chat","native":[1]}`), want: "transcription: native [1] is not a JSON object with unique member names"},
 		{name: "negative max_tokens", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"chat","max_tokens":-1}`), want: "transcription: max_tokens -1 is below zero"},
 		{name: "unknown mode", config: withEndpoint(completions, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"stream"}`), want: "stream"},
 		{name: "unknown reasoning", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","reasoning":"extreme"}`), want: "extreme"},

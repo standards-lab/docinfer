@@ -49,7 +49,9 @@ transcription        endpoint, model, served_model, prompt, language, mode route
                        ai.TranscribeChat, chat for an endpoint with no transcription route and
                        refused without the completions format (C6), max_tokens 512 in chat
                        mode and 0, sending none, in route mode, a nonzero one refused there,
-                       words_per_second 8, concurrency 4
+                       native {"temperature":0} in chat mode and none in route mode, replaced
+                       whole when set, {} sending none, a non-empty one refused in route
+                       mode, words_per_second 8, concurrency 4
 embeddings           endpoint, model, served_model, dimensions, input_types (required, no
                        starting value), tokenizer (required, no starting value), batch 16,
                        chunk_size 480 tokens, chunk_runes 8192 characters (vLLM's 16 a token

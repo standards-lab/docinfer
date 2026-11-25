@@ -44,6 +44,14 @@ the postgres module keep their own.
   `max_tokens` in route mode, which has no field for it, or a negative one, fails the
   configuration's Build before docproc's run is read, naming the fix: `max_tokens` 0, or `mode`
   chat.
+- `transcription.native`, override `DOCINFER_TRANSCRIPTION_NATIVE`: a JSON object of members the
+  endpoint defines, sent in every chat-mode transcription request and keyed into transcription's
+  identity, starting at `{"temperature":0}` in chat mode, so a window's transcript is the same on
+  every run, and at none in route mode. A configured `transcription.native` replaces it whole, and
+  `{}` sends no native member, transcription's identity then carrying none. One that isn't a JSON
+  object with unique member names, or a non-empty one in route mode, which sends no JSON body,
+  fails the configuration's Build before docproc's run is read, naming the fix: `native` `{}`, or
+  `mode` chat.
 
 ### Changed
 
@@ -54,8 +62,8 @@ the postgres module keep their own.
 - `vision.native` starts at `{"temperature":0}`, so a page's text is the same on every run. A
   configured `vision.native` replaces it whole, and `{}` sends no native member, vision's identity
   then carrying none.
-- Transcription's identity settings gain `"max_tokens"` and its request version is "2", so every
-  transcript held before misses and is transcribed again.
+- Transcription's identity settings gain `"max_tokens"`, and `"native"` when one is sent, and its
+  request version is "2", so every transcript held before misses and is transcribed again.
 - The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held
   under the former settings miss and are recut.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg

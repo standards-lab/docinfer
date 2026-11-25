@@ -177,13 +177,17 @@ type Vision struct {
 // its mode, route or chat, starting at route, which its own client transcribes in, chat needing
 // its endpoint's format to be completions; max_tokens, the most tokens a chat-mode reply takes,
 // starting at 512 in chat mode and at 0, sending none, in route mode, which refuses any other;
-// and the words a second of speech holds at most, words_per_second, starting at 8.
+// native, a JSON object of members the endpoint defines, sent in every chat-mode request,
+// starting at {"temperature":0} in chat mode and at none in route mode, which refuses any other; a
+// configured native replaces it whole, and {} sends none; and the words a second of speech holds
+// at most, words_per_second, starting at 8.
 type Transcription struct {
 	Capability
 	Prompt         string                `json:"prompt"`
 	Language       string                `json:"language"`
 	Mode           *ai.TranscriptionMode `json:"mode"`
 	MaxTokens      *int                  `json:"max_tokens"`
+	Native         json.RawMessage       `json:"native"`
 	WordsPerSecond *int                  `json:"words_per_second"`
 }
 
@@ -227,6 +231,7 @@ const (
 	startVisionReasoning       = protocol.ReasoningEffortNone
 	startVisionNative          = `{"temperature":0}`
 	startTranscriptionTokens   = 512
+	startTranscriptionNative   = `{"temperature":0}`
 	startWordsPerSecond        = 8
 	startEmbeddingsBatch       = 16
 	startChunkSize             = 480
@@ -305,6 +310,9 @@ func (t *Transcription) merge(src *Transcription) {
 	set(&t.Language, src.Language)
 	set(&t.Mode, src.Mode)
 	set(&t.MaxTokens, src.MaxTokens)
+	if src.Native != nil {
+		t.Native = src.Native
+	}
 	set(&t.WordsPerSecond, src.WordsPerSecond)
 }
 
@@ -346,8 +354,9 @@ func mergeMap(dst, src map[string]string) map[string]string {
 // response_header_timeout not below zero, each capability's endpoint among endpoints, each count at
 // least 1, chunk_runes over the document prefix's characters, chat transcription on the completions
 // format, transcription's max_tokens not below zero and 0 in route mode, the embeddings'
-// input_types set and their tokenizer among endpoints, vision's native a JSON object with unique
-// member names, and no two endpoint names composing the same overrides. What ai.New refuses, such
+// input_types set and their tokenizer among endpoints, vision's and transcription's native a JSON
+// object with unique member names, transcription's none or {} in route mode, and no two endpoint
+// names composing the same overrides. What ai.New refuses, such
 // as a base URL or a retry policy, the client nodes report, named for their endpoint. An empty
 // prefix reads no override.
 func (c *Config) Finalize(prefix string) error {
@@ -405,9 +414,10 @@ func (c *Config) overrides(prefix string) (*Config, error) {
 		setFromEnv(&t.Language, config.EnvName(prefix, "transcription", "language"), parseString),
 		config.SetFromEnv(&t.Mode, config.EnvName(prefix, "transcription", "mode"), parseMode),
 		config.SetFromEnv(&t.MaxTokens, config.EnvName(prefix, "transcription", "max_tokens"), parseCount),
+		setFromEnv(&t.Native, config.EnvName(prefix, "transcription", "native"), parseRaw),
 		config.SetFromEnv(&t.WordsPerSecond, config.EnvName(prefix, "transcription", "words_per_second"), parseCount),
 	)
-	if t != (Transcription{}) {
+	if !reflect.ValueOf(t).IsZero() {
 		o.Transcription = &t
 	}
 
@@ -510,6 +520,9 @@ func (c *Config) start() {
 		startAt(&t.Mode, ai.TranscribeRoute)
 		if *t.Mode == ai.TranscribeChat {
 			startAt(&t.MaxTokens, startTranscriptionTokens)
+			if t.Native == nil {
+				t.Native = json.RawMessage(startTranscriptionNative)
+			}
 		}
 		startAt(&t.MaxTokens, 0)
 		startAt(&t.WordsPerSecond, startWordsPerSecond)
@@ -557,6 +570,12 @@ func (c *Config) validate() error {
 		case n > 0 && *t.Mode == ai.TranscribeRoute:
 			errs = append(errs, fmt.Errorf("transcription: max_tokens %d bounds a chat-mode reply, and mode is route, "+
 				"which has no field for it: set max_tokens to 0, or mode to chat", n))
+		}
+		if err := checkNative("transcription", t.Native); err != nil {
+			errs = append(errs, err)
+		} else if *t.Mode == ai.TranscribeRoute && len(native(t.Native)) > 0 {
+			errs = append(errs, fmt.Errorf("transcription: native %s is sent in a chat-mode request, and mode is route, "+
+				"which sends no JSON body: set native to {}, or mode to chat", t.Native))
 		}
 	}
 	errs = append(errs, c.checkCapability("embeddings", c.Embeddings.Capability),
