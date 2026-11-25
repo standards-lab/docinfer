@@ -122,11 +122,39 @@ func TestRunSendsExtractionNative(t *testing.T) {
 	}
 }
 
+func TestRunSendsTranscriptionNative(t *testing.T) {
+	for _, native := range []jsontext.Value{sampling, nil} {
+		t.Run(string(native), func(t *testing.T) {
+			s := speakerOf(ai.TranscribeChat, win0)
+			s.bodies = new(bodies)
+			e := s.serve(t)
+			cfg := transcriptionConfig(t, e, ai.TranscribeChat, func(c *docinfer.Config) { c.Transcription.Native = native })
+			o := runWindow(t, cfg, docinfer.Options{})
+			if o.err != nil {
+				t.Fatal(o.err)
+			}
+			checkSampling(t, s.bodies.one(t), native)
+
+			values, err := cfg.Cache.Get(t.Context(), docinfer.Key(cfg.Transcription.Identity(), sha(win0.clip)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if values[0] == nil {
+				t.Error("the transcript isn't held under the identity with Native")
+			}
+		})
+	}
+}
+
 func TestNativeKeys(t *testing.T) {
 	route := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
+	chat := newClient(t, "http://localhost/v1", ai.TranscribeChat)
 	identities := map[docinfer.Capability]func(native jsontext.Value) docinfer.Identity{
 		docinfer.CapabilityVision: func(native jsontext.Value) docinfer.Identity {
 			return docinfer.Vision{Client: route, Model: "m", Served: "s", MaxTokens: 1, Native: native}.Identity()
+		},
+		docinfer.CapabilityTranscription: func(native jsontext.Value) docinfer.Identity {
+			return docinfer.Transcription{Client: chat, Model: "m", Served: "s", MaxTokens: 1, Native: native}.Identity()
 		},
 		docinfer.CapabilityExtraction: func(native jsontext.Value) docinfer.Identity {
 			return docinfer.Extraction{Client: route, Model: "m", Served: "s", MaxTokens: 1, Native: native}.Identity(theExtract)
@@ -181,16 +209,21 @@ func TestIdentityLeavesNativeAsGiven(t *testing.T) {
 func TestProfileHoldsNative(t *testing.T) {
 	cfg := validConfig(t)
 	vision, extraction := jsontext.Value(`{"top_k": 64, "temperature": 0.2}`), jsontext.Value(`{"temperature":0}`)
-	cfg.Vision.Native, cfg.Extraction.Native = vision, extraction
+	transcription := jsontext.Value(`{"temperature":0}`)
+	cfg.Vision.Native, cfg.Transcription.Native, cfg.Extraction.Native = vision, transcription, extraction
 	p, err := docinfer.New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	copy(vision, `{"top_k": 32`)
+	copy(transcription, `{"temperature":1}`)
 	copy(extraction, `{"temperature":1}`)
 	pr := p.Profile()
 	if want := `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low","native":{"temperature":0.2,"top_k":64}}`; pr.Vision.Settings != want {
 		t.Errorf("Profile.Vision's settings %s, want %s", pr.Vision.Settings, want)
+	}
+	if want := `{"request":"2","mode":"route","prompt":"","language":"en","max_tokens":0,"native":{"temperature":0}}`; pr.Transcription.Settings != want {
+		t.Errorf("Profile.Transcription's settings %s, want %s", pr.Transcription.Settings, want)
 	}
 	if want := `{"request":"2","max_tokens":2,"effort":"medium","native":{"temperature":0}}`; pr.Extraction.Settings != want {
 		t.Errorf("Profile.Extraction's settings %s, want %s", pr.Extraction.Settings, want)
@@ -204,6 +237,7 @@ func TestNewRefusesNative(t *testing.T) {
 		set   func(*docinfer.Config, jsontext.Value)
 	}{
 		{"Vision.Native", func(c *docinfer.Config, v jsontext.Value) { c.Vision.Native = v }},
+		{"Transcription.Native", func(c *docinfer.Config, v jsontext.Value) { c.Transcription.Native = v }},
 		{"Extraction.Native", func(c *docinfer.Config, v jsontext.Value) { c.Extraction.Native = v }},
 	}
 	for _, f := range fields {

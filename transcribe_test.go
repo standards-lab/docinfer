@@ -111,6 +111,7 @@ type speaker struct {
 	replies   map[string]aitest.Reply
 	gate      *aitest.Gate
 	maxTokens int
+	bodies    *bodies
 }
 
 func speakerOf(mode ai.TranscriptionMode, windows ...win) *speaker {
@@ -155,6 +156,9 @@ func (s *speaker) serve(t *testing.T) *aitest.Endpoint {
 			}
 			if req.MaxTokens != s.maxTokens {
 				t.Errorf("chat transcription capped at %d tokens, want %d", req.MaxTokens, s.maxTokens)
+			}
+			if s.bodies != nil {
+				s.bodies.record(t, req)
 			}
 			return s.reply(ctx, t, string(m.Audio[0].Data))
 		}

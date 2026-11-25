@@ -69,6 +69,11 @@ type Transcription struct {
 	// none, and go-ai refuses any other in route mode, where the route's max_tokens goes through
 	// its Native.
 	MaxTokens int
+	// Native is the native tier, sent as every request's ChatNative, which chat mode sends as the
+	// chat request's protocol.Request.Native: a JSON object whose members the endpoint defines,
+	// such as temperature. Empty sends none; go-ai refuses any other in route mode, and [New]
+	// refuses one that isn't a JSON object with unique member names.
+	Native jsontext.Value
 }
 
 type transcriptionSettings struct {
@@ -77,18 +82,21 @@ type transcriptionSettings struct {
 	Prompt    string               `json:"prompt"`
 	Language  string               `json:"language"`
 	MaxTokens int                  `json:"max_tokens"`
+	Native    jsontext.Value       `json:"native,omitempty"`
 }
 
 // Identity returns transcription's identity: its capability, Served, and settings, the JSON
-// {"request","mode","prompt","language","max_tokens"} in that member order. The mode is the Client's
+// {"request","mode","prompt","language","max_tokens","native"} in that member order, "native"
+// there only when Native is set, canonical as in [Vision.Identity]. The mode is the Client's
 // TranscriptionMode, "route" or "chat", read from the client so the key can't disagree with how
-// the client transcribes; Client must be set.
+// the client transcribes; Client must be set. Native must be one [New] accepts.
 func (t Transcription) Identity() Identity {
 	return Identity{
 		Capability: CapabilityTranscription,
 		Model:      t.Served,
 		Settings: encodeSettings(transcriptionSettings{
 			transcriptionRequest, t.Client.TranscriptionMode(), t.Prompt, t.Language, t.MaxTokens,
+			canonical(t.Native),
 		}),
 	}
 }

@@ -304,6 +304,7 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 		Language:        t.Language,
 		Prompt:          t.Prompt,
 		MaxOutputTokens: t.MaxTokens,
+		ChatNative:      t.Native,
 	}
 	var (
 		reply *ai.Transcription

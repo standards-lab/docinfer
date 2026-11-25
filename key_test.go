@@ -127,7 +127,7 @@ var goldenKeys = []goldenKey{
 	{
 		Identity: docinfer.Identity{
 			Capability: docinfer.CapabilityTranscription, Model: "google/gemma-4-E4B-it",
-			Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":512}`,
+			Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":512,"native":{"temperature":0}}`,
 		},
 		Content: sha("a window"),
 	},

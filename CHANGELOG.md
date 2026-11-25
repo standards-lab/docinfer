@@ -50,11 +50,18 @@ each nested module keeps its own.
   route mode, where the route's max_tokens goes through its Native. `New` refuses a negative one,
   matching `ErrRequest`. A reply cut off at the bound is the window's outcome incomplete, held,
   its reason `max_output_tokens`, as any incomplete transcript is.
+- `Native` on `Transcription`: go-ai's native tier, a JSON object of members the endpoint defines,
+  such as temperature, sent on every request as `ai.TranscriptionRequest.ChatNative`, which chat
+  mode sends as the chat request's `protocol.Request.Native`. Empty sends none; docinfer ships no
+  default. go-ai refuses any other in route mode. It enters transcription's identity settings as a
+  `"native"` member after `"max_tokens"`, omitted when empty and canonical as `Vision`'s is. `New`
+  refuses one that isn't a JSON object with unique member names, matching `ErrRequest`.
 
 ### Changed
 
 - Transcription's request version is "2" and its identity settings gain `"max_tokens"` after
-  `"language"`: `{"request","mode","prompt","language","max_tokens"}`. Its keys and
+  `"language"`, and `"native"` after that when `Native` is set:
+  `{"request","mode","prompt","language","max_tokens","native"}`. Its keys and
   `Pipeline.Profile` change, so every transcript held under "1" misses; `Version` stays "1", since
   `Held`'s shape is unchanged.
 

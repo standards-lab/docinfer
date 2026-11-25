@@ -129,9 +129,9 @@
     "identity": {
       "capability": "transcription",
       "model": "google/gemma-4-E4B-it",
-      "settings": "{\"request\":\"2\",\"mode\":\"chat\",\"prompt\":\"\",\"language\":\"\",\"max_tokens\":512}"
+      "settings": "{\"request\":\"2\",\"mode\":\"chat\",\"prompt\":\"\",\"language\":\"\",\"max_tokens\":512,\"native\":{\"temperature\":0}}"
     },
     "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
-    "key": "transcription/eac40369ea3e8b4e18147b3b12dcb8e743f2cbe25da625b8c93a7a2588a26e72"
+    "key": "transcription/233f616d919145e6ce658bebc0e989e7c18bc363bc4f2e3c305e1d3f76341dd0"
   }
 ]

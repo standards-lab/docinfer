@@ -43,8 +43,8 @@ type Pipeline struct {
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
 // Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each
 // MaxTokens but Transcription's), a negative Transcription.MaxTokens, a nil Chunker.Count, an
-// empty Model, Served, or Chunker.Model, and a Vision or Extraction Native that isn't a JSON
-// object with unique member names. It copies the capabilities cfg points to, so a later change to
+// empty Model, Served, or Chunker.Model, and a Vision, Transcription, or Extraction Native that
+// isn't a JSON object with unique member names. It copies the capabilities cfg points to, so a later change to
 // them changes nothing.
 func New(cfg Config) (*Pipeline, error) {
 	if cfg.Cache == nil {
@@ -93,6 +93,7 @@ func New(cfg Config) (*Pipeline, error) {
 	if t := cfg.Transcription; t != nil {
 		models = append(models, model{"Transcription.Model", t.Model}, model{"Transcription.Served", t.Served})
 		cfg.Transcription = new(*t)
+		cfg.Transcription.Native = t.Native.Clone()
 	}
 	if x := cfg.Extraction; x != nil {
 		counts = append(counts, count{"Extraction.MaxTokens", x.MaxTokens})
@@ -118,6 +119,11 @@ func New(cfg Config) (*Pipeline, error) {
 	}
 	if v := cfg.Vision; v != nil {
 		if err := probeNative("Vision.Native", v.Native); err != nil {
+			return nil, err
+		}
+	}
+	if t := cfg.Transcription; t != nil {
+		if err := probeNative("Transcription.Native", t.Native); err != nil {
 			return nil, err
 		}
 	}

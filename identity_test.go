@@ -61,6 +61,16 @@ func TestIdentity(t *testing.T) {
 			},
 		},
 		{
+			"transcription by chat with a cap and sampling",
+			docinfer.Transcription{
+				Client: chat, Model: "alias", Served: "w", MaxTokens: 512, Native: jsontext.Value(`{ "temperature": 0 }`),
+			}.Identity(),
+			docinfer.Identity{
+				Capability: docinfer.CapabilityTranscription, Model: "w",
+				Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":512,"native":{"temperature":0}}`,
+			},
+		},
+		{
 			"extraction",
 			docinfer.Extraction{Client: route, Model: "alias", Served: "x", MaxTokens: 9, Reasoning: protocol.ReasoningEffortMedium}.Identity(
 				docinfer.Extract{Name: "invoice", Prompt: "Extract the invoice.", Schema: schema}),
@@ -130,7 +140,7 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 		docinfer.Transcription{Client: route, Model: "audio", Served: "whisper-1", Language: "en"}.Identity(),
 		docinfer.Transcription{
 			Client: newClient(t, "http://localhost/v1", ai.TranscribeChat), Model: "audio", Served: "google/gemma-4-E4B-it",
-			MaxTokens: 512,
+			MaxTokens: 512, Native: jsontext.Value(`{"temperature": 0}`),
 		}.Identity(),
 		extraction.Identity(extract),
 		docinfer.Embeddings{Client: route, Model: "embedding", Served: "text-embedding-3-small"}.Identity(),
