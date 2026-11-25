@@ -16,10 +16,10 @@ each nested module keeps its own.
 - `Native` on `Vision` and `Extraction`: go-ai's native tier, a JSON object of members the
   endpoint defines, such as temperature, sent on every request as `protocol.Request.Native`. Empty
   sends none. It enters the capability's identity settings, and so its `Key` and
-  `Pipeline.Profile`, as a `"native"` member after `"effort"`, canonical: whitespace stripped,
-  strings in their shortest form, and each object's members sorted by name, numbers as given. An
-  identity with no `Native` keeps its settings and key, so `Version` stays "1". `New` refuses a
-  `Native` that isn't a JSON object with unique member names, matching `ErrRequest`.
+  `Pipeline.Profile`, as a last `"native"` member, omitted when empty, canonical: whitespace
+  stripped, strings in their shortest form, and each object's members sorted by name, numbers as
+  given. `New` refuses a `Native` that isn't a JSON object with unique member names, matching
+  `ErrRequest`.
 - `EmbeddingQuery` on `Profile`, JSON `embedding_query`: the query convention, an
   `ai.InputConvention`, the embeddings' client declares in `ai.Options.Embedding`, which a consumer
   applies to its search queries so they land in the space the chunks were embedded in. It is
@@ -34,7 +34,6 @@ each nested module keeps its own.
   grows by addition, every held value keeps its key, and a release before this one never asks for a
   chunk key. `docinfertest.Cache` checks that a cache holds a spans value and an empty one
   byte for byte, and the same content under each capability is five keys.
-
 - `Origin` on `Input`: the input, as the host names it, that the event's part was found in, so a
   job of several inputs keeps parts of one ID apart, each input's own part `/`. `Pipeline.Run`
   echoes it on each `Inference` and `Source` as `Origin`, a local field that doesn't marshal, so a
@@ -70,8 +69,7 @@ each nested module keeps its own.
   standard library can't decode, is sent as it is, and the endpoint's refusal classifies it as
   before. 0 sends every image as it is; docinfer ships no default. `New` refuses a negative one,
   matching `ErrRequest`. It enters vision's identity settings as `"max_pixels"` after `"effort"`,
-  always present; vision's request 2 is unreleased, so its settings gain it in place and the
-  request-1 keys are unchanged.
+  always present, within vision's request version "2".
 
 ### Changed
 
@@ -80,7 +78,6 @@ each nested module keeps its own.
   `{"request","mode","prompt","language","max_tokens","native"}`. Its keys and
   `Pipeline.Profile` change, so every transcript held under "1" misses; `Version` stays "1", since
   `Held`'s shape is unchanged.
-
 - Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
 - A vision or extraction reply cut off at `protocol.ReasonMaxOutputTokens` whose text ends in a
   loop, a line, a sentence, or a short cycle repeated to the bound, is held trimmed after the

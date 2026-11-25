@@ -63,10 +63,10 @@ again on `Get`.
 
 The spike read a part's window count from a Meta key docproc never sets, so nothing told a streaming
 pipeline the windows were all in; a group now ends at its audio plan record's count, at its last
-window, or at the end of the inputs. Windows are grouped by the input's `Origin`, `Part.ID`, and the event's stage, and
-kinds and Meta are read by `dispatch`'s constants, not literals. The spike's `mediaType` fallbacks
-were dead against docproc, which gives every image output a `MediaType`, so an image output without
-one is the input's defect.
+window, or at the end of the inputs. Windows are grouped by the input's `Origin`, `Part.ID`, and the
+event's stage, and kinds and Meta are read by `dispatch`'s constants, not literals. The spike's
+`mediaType` fallbacks were dead against docproc, which gives every image output a `MediaType`, so an
+image output without one is the input's defect.
 
 ## Chunking
 

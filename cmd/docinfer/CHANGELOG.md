@@ -25,10 +25,14 @@ the postgres module keep their own.
 - `embeddings.tokenizer`, the endpoint whose tokenize route counts a chunk's tokens, built as its
   own client with the embeddings' `input_types`, so a document's count takes its prefix: through a
   gateway the embeddings' own endpoint, straight to vLLM an endpoint whose `base_url` is the
-  server's root, such as `http://framework-2:8003`.
-- `vision.native`, a JSON object of members the endpoint defines, such as `{"temperature":0}`,
-  sent in every vision request and keyed into vision's identity; one that isn't a JSON object with
-  unique member names fails the configuration.
+  server's root, such as `http://framework-2:8003`. It must front the same deployment as the
+  embeddings' endpoint: the chunker's identity names the embeddings' served model, and nothing
+  checks the tokenizer's, since a vLLM server's root has no model listing.
+- `vision.native`, a JSON object of members the endpoint defines, sent in every vision request
+  and keyed into vision's identity, starting at Gemma 4's card sampling,
+  `{"temperature":1.0,"top_p":0.95,"top_k":64}`, sent explicitly so it is keyed. A configured
+  `vision.native` replaces it whole, and `{}` sends no native member, vision's identity then
+  carrying none. One that isn't a JSON object with unique member names fails the configuration.
 - The manifest's capabilities gain `request_model`, the model the requests named, beside the
   identity's `model`, now the served model.
 - `embeddings.chunk_runes`, override `DOCINFER_EMBEDDINGS_CHUNK_RUNES`: the most characters,
@@ -66,10 +70,6 @@ the postgres module keep their own.
   starting value; a configuration without them fails its Build before docproc's run is read.
 - **Breaking:** `embeddings.chunk_size` is in tokens, as the tokenizer counts them, its document
   prefix included, starting at 480, in place of 2,000 characters.
-- `vision.native` starts at Gemma 4's card sampling, `{"temperature":1.0,"top_p":0.95,"top_k":64}`,
-  sent explicitly so it is keyed into vision's identity; temperature 0 made real pages loop at the
-  vision row's image budget. A configured `vision.native` replaces it whole, and `{}` sends no
-  native member, vision's identity then carrying none.
 - Transcription's identity settings gain `"max_tokens"`, and `"native"` when one is sent, and its
   request version is "2", so every transcript held before misses and is transcribed again.
 - The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held

@@ -27,16 +27,18 @@ tool is a `mise install` away.
 - **`test:integration`** runs each module's `integration/` package, where one exists, against the
   endpoints go-ai's tier's variables name, which pass through from the caller's environment:
   `AI_EMBEDDING_BASE_URL`, which every scenario needs, `AI_VISION_BASE_URL`,
-  `AI_TRANSCRIPTION_BASE_URL` (route mode), `AI_AUDIO_BASE_URL` (chat mode), and
-  `AI_AGENT_BASE_URL` (extraction), each an API root including `/v1`. Each role may add
-  `AI_<ROLE>_TOKEN`, a bearer token, and `AI_<ROLE>_HEADER`, one or more `Name: value` lines;
-  unset, none is sent, and no failing scenario prints a token or header value. `AI_<ROLE>_MODEL`
-  names the model of an endpoint that lists more than one. A scenario whose variable is unset
-  skips, naming it, so with none set the run skips whole and passes. It runs verbose, so the log
-  lists each scenario passed or skipped, and it never starts a server. It fills an unset
-  `AI_<ROLE>_TOKEN` from the committed `fnox.toml` ([Secrets](#secrets)).
-  [`integration/doc.go`](../integration/doc.go) tells each scenario in full. `cmd/docinfer`'s
-  tier runs the built command over the embedding, vision, and transcription or audio roles, as
+  `AI_TRANSCRIPTION_BASE_URL` (route mode), `AI_AUDIO_BASE_URL` (chat mode), and `AI_AGENT_BASE_URL`
+  (extraction), each an API root including `/v1`, and `AI_TOKENIZE_BASE_URL`, the root an embedding
+  endpoint serves `tokenize` at, such as `http://localhost:8000`, which every scenario counts tokens
+  through, or through `AI_EMBEDDING_BASE_URL` when it is unset. Each role may add `AI_<ROLE>_TOKEN`,
+  a bearer token, and `AI_<ROLE>_HEADER`, one or more `Name: value` lines; unset, none is sent, and
+  no failing scenario prints a token or header value. `AI_<ROLE>_MODEL` names the model of an
+  endpoint that lists more than one. A scenario whose variable is unset skips, naming it, so with
+  none set the run skips whole and passes. It runs verbose, so the log lists each scenario passed or
+  skipped, and it never starts a server. It fills an unset `AI_<ROLE>_TOKEN` from the committed
+  `fnox.toml` ([Secrets](#secrets)). [`integration/doc.go`](../integration/doc.go) tells each
+  scenario in full. `cmd/docinfer`'s tier runs the built command over the embedding, vision, and
+  transcription or audio roles, as
   [`cmd/docinfer/integration/doc.go`](../cmd/docinfer/integration/doc.go) tells.
 - **`integration:postgres`** starts the compose harness's PostgreSQL alone, runs the postgres
   module's integration suite, and stops the service whether the suite passes or fails, printing
@@ -168,11 +170,11 @@ Every package's `TestMain` sets `time.Local` to Asia/Kolkata, whose offset is ne
 time the code leaves unconverted to UTC reads differently from one it converts; `time/tzdata`
 loads the zone without the host's zoneinfo.
 
-The golden keys pin `Key`'s form under `docinfer.Version`, which names their file. Rewrite them
-with `go test . -run TestGoldenKeys -update` only with a new `Version`, never to make a changed
-key pass under the old one: a changed key misses every result held under the old, and a key of
-the old form over a new shape decodes wrong. A capability's new request version adds its identities'
-golden keys beside the old ones, whose keys stay as they were.
+The golden keys pin `Key`'s form under `docinfer.Version`, which names their file. Rewrite them with
+`go test . -run TestGoldenKeys -update` only with a new `Version`, never to make a changed key pass
+under the old one: a changed key misses every result held under the old, and a key of the old form
+over a new shape decodes wrong. A capability's new request version adds its identities' golden keys
+beside the old ones, whose keys stay as they were.
 
 The golden corpus of chunks, `chunk/testdata/chunks-v<Version>.json`, pins how texts are cut under
 `chunk.Version`. Rewrite it with `go test ./chunk -run TestGoldenCorpus -update` only with a new

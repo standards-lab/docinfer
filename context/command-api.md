@@ -57,7 +57,9 @@ transcription        endpoint, model, served_model, prompt, language, mode route
                        whole when set, {} sending none, a non-empty one refused in route
                        mode, words_per_second 8, concurrency 4
 embeddings           endpoint, model, served_model, dimensions, input_types (required, no
-                       starting value), tokenizer (required, no starting value), batch 16,
+                       starting value), tokenizer (required, no starting value; it must front
+                       the embeddings' deployment, which no listing checks, since the chunker's
+                       identity names the embeddings' served model), batch 16,
                        chunk_size 480 tokens, chunk_runes 8192 characters (vLLM's 16 a token
                        at max_model_len 512), each with the document prefix, the chunker's
                        Runes chunk_runes less the prefix's characters, concurrency 4
