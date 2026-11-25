@@ -107,7 +107,7 @@ them CFR (`real-incomplete.shas`).
 
 At temperature 0, 11 of the 13 are CFR loops; at the row default the 2 are `old_scans-70` and
 `old_scans-71`, 8,000-pixel newspaper scans past 2,048 tokens, and no CFR page loops. Where both
-described a page, the texts' median similarity is 0.996. The sample's incomplete images are
+described a page, 97 pages, the texts' median similarity is 0.996, 1 below 0.5. The sample's incomplete images are
 OneNote synthetic pages either way.
 
 ### Image bound
@@ -133,6 +133,11 @@ Gemma 4's card sampling (`temperature` 1.0, `top_p` 0.95, `top_k` 64), `max_pixe
 10 of the 11 CFR pages are described; one table page loops (described at the row default in the
 re-probe, so a sampling draw). The 4,375 × 5,389 scan is described; both 8,000-pixel newspaper
 scans stay incomplete past 2,048 tokens. The sample's 3 incomplete are OneNote synthetic pages.
+
+Downscaling cuts the newspaper scans' time six-fold. Sent whole at the row default in the
+re-probe, `a136d2a1…` took 1,193.9 s and `42a7e670…` 1,213.9 s
+(`~/runs/docinfer/tools/sweep/texts-real-default/index.jsonl`, `took_ms`); downscaled here, 190.4 s
+and 188.2 s (`texts-confirm-pages/index.jsonl`).
 
 ### Decisions
 
@@ -161,6 +166,10 @@ scans stay incomplete past 2,048 tokens. The sample's 3 incomplete are OneNote s
 - **Repeatability.** At the row default, 19 of 602 texts are equal across `max512` and `max0`
   (median similarity 0.97, 36 below 0.5); at temperature 0, 477 of 602 are equal across `t0-a`
   and `t0-b` (4 below 0.5).
+- **Similarity.** Here and in [the re-probe](#re-probe-at-1120-image-tokens), difflib's
+  `SequenceMatcher` ratio, `autojunk` off, over each window's or page's two texts (`*.txt` but
+  `*.reply.txt`), pairs both empty skipped, the page pairs those both runs described per their
+  `index.jsonl`.
 - **Error against references.** 28 single-window clips with truth files, WER, or CER for zh, ja,
   and ko, from `python3 -I score.py results.jsonl texts t0-a t0-b max512 max0`:
 
@@ -188,7 +197,8 @@ scans stay incomplete past 2,048 tokens. The sample's 3 incomplete are OneNote s
 | Tier | Commit | Result on the rows |
 |---|---|---|
 | go-ai root tier, input-type and tokenize scenarios | go-ai `00dbfdb` | pass |
-| go-ai transcription scenarios after `e6bd824` and `e375fbd` | | TODO: the rerun on the rows is not yet recorded |
+| go-ai `TestTranscribeChat`, after the cap and card instruction | go-ai `e6bd824`, before `e375fbd` | pass on `framework:8002`; `TestTranscribeRoute` skips, the row has no route |
+| go-ai transcription scenarios after `ChatNative` | go-ai `e375fbd` | TODO: rerun after run 3 |
 | docinfer base tier, extraction on the agent row included | `8103538`, `3a43d3d` | pass |
 | cmd's `TestCLI_RunAndReport` | `8103538`, `3a43d3d` | pass |
 

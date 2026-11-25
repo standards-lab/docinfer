@@ -220,6 +220,7 @@ which `DOCINFER_POSTGRES_PORT` moves.
   library default.
 - [`docs/library-evaluation.md`](docs/library-evaluation.md): the reasoning behind the review the
   library was built from.
+- [`docs/acceptance.md`](docs/acceptance.md): the evidence from the live rows.
 
 ## License
 

@@ -72,6 +72,11 @@ the postgres module keep their own.
   prefix included, starting at 480, in place of 2,000 characters.
 - Transcription's identity settings gain `"max_tokens"`, and `"native"` when one is sent, and its
   request version is "2", so every transcript held before misses and is transcribed again.
+- A vision reply that loops to `max_tokens`, a line, a sentence, or a short cycle repeated to the
+  bound, is trimmed to before the repeat and recorded incomplete, reason `repetition`, in place of
+  `max_output_tokens` and the whole looping text.
+- Vision's request version is "2" and its identity settings gain `"max_pixels"`, so every image
+  description held before misses and is described again.
 - The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held
   under the former settings miss and are recut.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg

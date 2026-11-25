@@ -164,5 +164,6 @@ The tag, the module it versions, and the task of v1.ai.inference that releases i
 | Tag | Module | Task | Requires |
 | --- | --- | --- | --- |
 | `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module and docproc, go-ai, go-cli-sdk, and go-core at their latest |
+| `cmd/docinfer/v0.2.0` | `cmd/docinfer` | acceptance | docinfer v0.3.0 and go-ai v0.5.0 |
 
 `cmd/docinfer`'s first CHANGELOG entry links spike-ai-pipeline 6a631f1.

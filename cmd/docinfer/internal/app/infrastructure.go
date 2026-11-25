@@ -206,7 +206,10 @@ type Transcription struct {
 // chunk_size, starting at 480; and the most characters, Unicode code points, a chunk holds, its
 // document prefix included, chunk_runes, starting at 8192, the length vLLM refuses an input over
 // at a max_model_len of 512, 16 characters a token, before tokenizing it. The chunker's own bound
-// is chunk_runes less the document prefix's characters, which must leave it at least 1.
+// is chunk_runes less the document prefix's characters, which must leave it at least 1. The
+// tokenizer must front the same deployment as the embeddings' endpoint, which no model listing
+// checks: the chunker's identity names the embeddings' served model, and a vLLM server's root has
+// no model listing.
 type Embeddings struct {
 	Capability
 	Dimensions *int                                `json:"dimensions"`
