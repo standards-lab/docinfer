@@ -127,44 +127,44 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // refusal's text; an incomplete one keeps its text, held, its Reason, and its chunks' Source's
 // Incomplete, why the model stopped.
 //
-// With Config.Transcription set, an audio output is a window, transcribed from its content, sent
-// as window.wav for audio/wav or window.mp3 for audio/mpeg, its content opened by each attempt;
-// a window of another media type, or one without a MetaWindow index, stops the job, [Permanent].
-// A window's transcript is keyed by transcription's Identity and the window's SHA-256, read from
-// the cache, or asked of the model, and held: a refusal, and an incomplete transcript
+// With Config.Transcription set, an audio output is a window, transcribed from its content, sent as
+// window.wav for audio/wav or window.mp3 for audio/mpeg, its content opened by each attempt; a
+// window of another media type, or one without a MetaWindow index, stops the job, [Permanent]. A
+// window's transcript is keyed by transcription's Identity and the window's SHA-256, read from the
+// cache, or asked of the model, and held: a refusal, and an incomplete transcript
 // (*ai.IncompleteTranscriptError), are held as the window's outcome. Windows are grouped by their
 // input's Origin, their part's ID, and their stage, so a group is one input's part's windows from
 // one stage, and placed by MetaWindow, the first event of an index winning. A window not placed,
 // its index already placed, past its group's bound, or after its group closed, is never
 // transcribed, and is counted Unplaced in [TranscriptionCounts]; so is a window placed before its
-// group's plan record whose index is at or past the plan's count, once the group is joined
-// without it, its request and tokens still counted. A group ends at the first of: the window count of its audio plan record, a record output of
-// dispatch.MediaAudioPlan, whose content is read for it; its last window, the one without
-// MetaSeamAfter, once every index before it is in; and the end of the inputs. A video plan
-// record ends none. Once every window placed in it is in, the group is joined by Config.Join,
-// each seam's seconds the earlier window's MetaSeamAfter or else the later one's MetaSeamBefore,
-// and its transcript is yielded as one [Inference], then chunked as a source of kind transcript.
-// A window refused, failed, incomplete, or never cut joins as "" and is listed in the
-// inference's Failed; the transcript is outcome transcribed when every window was, else failed
+// group's plan record whose index is at or past the plan's count, once the group is joined without
+// it, its request and tokens still counted. A group ends at the first of: the window count of its
+// audio plan record, a record output of dispatch.MediaAudioPlan, whose content is read for it; its
+// last window, the one without MetaSeamAfter, once every index before it is in; and the end of the
+// inputs. A video plan record ends none. Once every window placed in it is in, the group is joined
+// by Config.Join, each seam's seconds the earlier window's MetaSeamAfter or else the later one's
+// MetaSeamBefore, and its transcript is yielded as one [Inference], then chunked as a source of
+// kind transcript. A window refused, failed, incomplete, or never cut joins as "" and is listed in
+// the inference's Failed; the transcript is outcome transcribed when every window was, else failed
 // when one failed, refused when one was refused, and incomplete otherwise. A window holds its
-// input's slot only until its own transcript is in, so a group of more windows than
-// Config.Pending never waits on inputs it can't pull.
+// input's slot only until its own transcript is in, so a group of more windows than Config.Pending
+// never waits on inputs it can't pull.
 //
-// With Options.Extract set, Run refuses, matching [ErrRequest], an Extract whose prompt is empty
-// or isn't UTF-8, or whose name or schema go-ai's json_schema format refuses, and stops,
-// [Permanent], when the pipeline has no Config.Extraction, each before it reads an input. Each source text but
+// With Options.Extract set, Run refuses, matching [ErrRequest], an Extract whose prompt is empty or
+// isn't UTF-8, or whose name or schema go-ai's json_schema format refuses, and stops, [Permanent],
+// when the pipeline has no Config.Extraction, each before it reads an input. Each source text but
 // metadata, an output's text, an image's description, and a transcript, is then extracted once,
 // unless it is empty: keyed by extraction's Identity for the Extract and the text's SHA-256, read
 // from the cache, or streamed from the model by GenerateStream with the prompt as instructions and
 // the text as the user message, the Extract's name and schema a strict json_schema format, and
-// folded by a protocol.Accumulator. Each text delta is yielded as [Progress] as it streams, at
-// most one a second per source text, each carrying the text since the last; the text a stream ends
-// with unsent is its inference's. A held extraction yields no progress. The folded reply is held
-// before its [Inference] is yielded: a completed one is outcome extracted, its text the reply's
-// JSON, which nothing decodes; an incomplete one keeps its partial text, its Reason why the model
+// folded by a protocol.Accumulator. Each text delta is yielded as [Progress] as it streams, at most
+// one a second per source text, each carrying the text since the last; the text a stream ends with
+// unsent is its inference's. A held extraction yields no progress. The folded reply is held before
+// its [Inference] is yielded: a completed one is outcome extracted, its text the reply's JSON,
+// which nothing decodes; an incomplete one keeps its partial text, its Reason why the model
 // stopped; one with a refusal and no text is refused. A stream that breaks part way holds nothing
-// and stops the job, transient, the progress it yielded standing. An input finishes once its
-// chunks are complete and its extraction is in.
+// and stops the job, transient, the progress it yielded standing. An input finishes once its chunks
+// are complete and its extraction is in.
 //
 // Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
 // from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything
@@ -561,7 +561,7 @@ func (r *run) admit(in Input) error {
 			if out.MediaType == "" {
 				return fmt.Errorf("docinfer: run: image %s of part %s has no media type: %w", out.SHA256, in.Event.Part.ID, errInputDefect)
 			}
-			r.spawn(func() { r.describe(in.Event, in.Origin, pos) })
+			r.spawn(func() { r.describe(in, pos) })
 			return nil
 		}
 	case dispatch.AudioOutput:

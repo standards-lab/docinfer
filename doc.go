@@ -3,13 +3,14 @@
 // result in a [Cache].
 //
 // The cache holds one result per [Key], a [Held] as JSON: a model's result, or a text's chunk
-// spans. A key hashes [Version], the result's [Identity], and its content's SHA-256, so a new shape of a held value, a new model, or new
-// settings misses rather than decoding wrong. An identity's model is the one the deployment serves,
-// each capability's Served, which the host resolves, not Model, the name its request sends: another
-// model served under the same name misses, and the same model served under another name hits. A
-// held value that doesn't decode as Held is a miss: the model is asked again, and its Put replaces
-// the value. docinfer never removes a value. [FileCache] and [MemoryCache] are the module's caches,
-// and package docinfertest holds the contract every cache passes.
+// spans. A key hashes [Version], the result's [Identity], and its content's SHA-256, so a new shape
+// of a held value, a new model, or new settings misses rather than decoding wrong. An identity's
+// model is the one the deployment serves, each capability's Served, which the host resolves, not
+// Model, the name its request sends: another model served under the same name misses, and the same
+// model served under another name hits. A held value that doesn't decode as Held is a miss: the
+// model is asked again, and its Put replaces the value. docinfer never removes a value. [FileCache]
+// and [MemoryCache] are the module's caches, and package docinfertest holds the contract every
+// cache passes.
 //
 // A [Pipeline] is built by [New] from a [Config]: a go-ai client and settings per capability
 // ([Vision], [Transcription], [Extraction], and [Embeddings]), the chunker, the cache, and a
@@ -29,18 +30,18 @@
 // The query convention is never keyed, since docinfer embeds no queries; [Profile] carries it as
 // EmbeddingQuery, for a consumer to apply to its search queries so they land in the same space.
 //
-// The chunker measures in the embedding model's tokens, by the host's count: Config.Chunker's
-// Count gives a text's tokens as the embedding of that text would take them, such as a closure
-// over the embeddings' client's Tokenize with ai.InputDocument, and its Model names the served
-// model whose tokenizer counts. docinfer builds no client for it. Each text is split with the
-// job's context, and [Profile].Chunker reports the chunker's Settings, its version, bound, runes,
-// and model. Its Runes bounds a chunk's characters as its Bound does its tokens, for a server that
-// refuses an input by its length before tokenizing; the input on the wire is the chunk's text
-// after any document prefix, so a host leaves the prefix room. Each text's chunk spans are held under [CapabilityChunk], keyed by those Settings, the
-// Model, and the text's SHA-256, so a rerun over the same cache rebuilds its chunks with no count;
-// a held value whose spans don't fit the text, out of range, empty, out of order, overlapping, or
-// cutting a character, is a miss. A text of no chunks holds its empty spans, and a count's
-// failure holds nothing.
+// The chunker measures in the embedding model's tokens, by the host's count: Config.Chunker's Count
+// gives a text's tokens as the embedding of that text would take them, such as a closure over the
+// embeddings' client's Tokenize with ai.InputDocument, and its Model names the served model whose
+// tokenizer counts. docinfer builds no client for it. Each text is split with the job's context,
+// and [Profile].Chunker reports the chunker's Settings, its version, bound, runes, and model. Its
+// Runes bounds a chunk's characters as its Bound does its tokens, for a server that refuses an
+// input by its length before tokenizing; the input on the wire is the chunk's text after any
+// document prefix, so a host leaves the prefix room. Each text's chunk spans are held under
+// [CapabilityChunk], keyed by those Settings, the Model, and the text's SHA-256, so a rerun over
+// the same cache rebuilds its chunks with no count; a held value whose spans don't fit the text,
+// out of range, empty, out of order, overlapping, or cutting a character, is a miss. A text of no
+// chunks holds its empty spans, and a count's failure holds nothing.
 //
 // [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
 // Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
@@ -53,18 +54,17 @@
 // apart for the host; and a failed call stops it too, but on the job's last delivery
 // ([Options].Final) its items are recorded failed, never held, and the job goes on.
 //
-// A held refusal stays until its key changes, by [Version], a request's version, or the served model, or
-// until the host removes it from its own store. A part is identified by its input's
-// [Input].Origin and its ID, since docproc gives each input's own part the ID "/": a job of
-// several inputs names each, and a job of one may leave it "". Run echoes the Origin on each
-// [Inference] and [Source], and a transcript joins one input's part's windows alone. A chunk is
-// identified by its job, its input's Origin, its part's ID, its source's kind and text SHA-256,
-// and its index: the same content in two places is two chunks, and a redelivery's repeat is the
-// same one. A transcript that isn't transcribed carries its outcome in its chunks'
-// [Source].Incomplete. A [Batch] carries no index, since its host identifies it. [Counts] counts
-// occurrences, and its Embedded and Rejected add up to the chunks the job's batches hold; its
-// windows are each counted once under an outcome or as Unplaced, never transcribed, so a window is
-// never dropped uncounted.
+// A held refusal stays until its key changes, by [Version], a request's version, or the served
+// model, or until the host removes it from its own store. A part is identified by its input's
+// [Input].Origin and its ID, since docproc gives each input's own part the ID "/": a job of several
+// inputs names each, and a job of one may leave it "". Run echoes the Origin on each [Inference]
+// and [Source], and a transcript joins one input's part's windows alone. A chunk is identified by
+// its job, its input's Origin, its part's ID, its source's kind and text SHA-256, and its index:
+// the same content in two places is two chunks, and a redelivery's repeat is the same one. A
+// transcript that isn't transcribed carries its outcome in its chunks' [Source].Incomplete. A
+// [Batch] carries no index, since its host identifies it. [Counts] counts occurrences, and its
+// Embedded and Rejected add up to the chunks the job's batches hold; its windows are each counted
+// once under an outcome or as Unplaced, never transcribed, so a window is never dropped uncounted.
 //
 // The consumer's contract: Run yields a part's results as they are made, which may be before the
 // part's own event, whatever that event comes to, since holding a part's outputs until its event
@@ -88,8 +88,8 @@
 //   - [Bounds] and [NewBounds], the requests in flight per capability
 //   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client, the
 //     model its request names and the model served under it, and settings, Vision's and
-//     Extraction's among them a Native, the native tier, and each one's
-//     Identity, Embeddings' keyed on its client's document convention, [Vision.Identity], [Transcription.Identity],
+//     Extraction's among them a Native, the native tier, and each one's Identity, Embeddings' keyed
+//     on its client's document convention, [Vision.Identity], [Transcription.Identity],
 //     [Extraction.Identity], and [Embeddings.Identity]; [Extract], a caller's prompt and schema
 //   - [Cache], its Get and Put, and its two implementations, [FileCache] from [NewFileCache] and
 //     [MemoryCache] from [NewMemoryCache], each with its [FileCache.Get] and [FileCache.Put], and
@@ -165,14 +165,14 @@
 // A model that degenerates can repeat a line, a sentence, or a short cycle of characters until it
 // reaches its output bound, and the loop is no part of the page. So a vision or extraction reply
 // cut off at protocol.ReasonMaxOutputTokens has its text's tail examined, in runes: for each period
-// p from 1 to 1000, the tail's run is the longest suffix in which each rune, but the last p,
-// equals the rune p after it. The shortest p whose run holds at least 2 copies of its unit and at least 200 runes is
-// the loop, and the text is cut after the run's first copy, so a line the page holds once stays,
-// and the cut is on a rune boundary. That text is held, so a rerun replays the same one, and its
-// [Held].Incomplete, [Inference].Reason, and [Source].Incomplete are "repetition". A reply whose
-// tail doesn't loop is held whole, its reason max_output_tokens, and a reply that finishes, or
-// stops for any other reason, is never examined, so a page that repeats rows or list items and
-// ends is held as it is. An extraction's [Progress] streams the text as the model writes it, the
-// loop included; its [Inference] carries the trimmed text. These bounds are docinfer's behavior,
-// not a host's setting: a transcript cut off holds no text, so it has none to trim.
+// p from 1 to 1000, the tail's run is the longest suffix in which each rune, but the last p, equals
+// the rune p after it. The shortest p whose run holds at least 2 copies of its unit and at least
+// 200 runes is the loop, and the text is cut after the run's first copy, so a line the page holds
+// once stays, and the cut is on a rune boundary. That text is held, so a rerun replays the same
+// one, and its [Held].Incomplete, [Inference].Reason, and [Source].Incomplete are "repetition". A
+// reply whose tail doesn't loop is held whole, its reason max_output_tokens, and a reply that
+// finishes, or stops for any other reason, is never examined, so a page that repeats rows or list
+// items and ends is held as it is. An extraction's [Progress] streams the text as the model writes
+// it, the loop included; its [Inference] carries the trimmed text. These bounds are docinfer's
+// behavior, not a host's setting: a transcript cut off holds no text, so it has none to trim.
 package docinfer

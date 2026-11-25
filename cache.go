@@ -11,9 +11,9 @@ import (
 )
 
 // Cache holds one result per [Key]: an image's, a window's, a chunk's, or an extraction's model
-// result, or a text's chunk spans, each a [Held] as JSON. docinfer reads and replaces values and never removes one; a host removes
-// what it no longer wants from its own store. docinfertest.Cache is the contract every
-// implementation passes.
+// result, or a text's chunk spans, each a [Held] as JSON. docinfer reads and replaces values and
+// never removes one; a host removes what it no longer wants from its own store. docinfertest.Cache
+// is the contract every implementation passes.
 type Cache interface {
 	// Get returns keys' values in one call, values[i] keys[i]'s, nil for a miss; a held value is
 	// never empty.

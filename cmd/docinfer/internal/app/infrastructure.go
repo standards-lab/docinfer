@@ -339,11 +339,12 @@ func mergeMap(dst, src map[string]string) map[string]string {
 
 // Finalize applies the overrides prefix composes, gives each setting still unset its starting
 // value, and checks what is docinfer's to check: each endpoint's format and profile and a
-// response_header_timeout not below zero, each capability's endpoint among endpoints, each
-// count at least 1, chunk_runes over the document prefix's characters, chat transcription on the completions format, the embeddings' input_types
-// set and their tokenizer among endpoints, vision's native a JSON object with unique member
-// names, and no two endpoint names composing the same overrides. What ai.New refuses, such as a base URL or a retry policy, the
-// client nodes report, named for their endpoint. An empty prefix reads no override.
+// response_header_timeout not below zero, each capability's endpoint among endpoints, each count at
+// least 1, chunk_runes over the document prefix's characters, chat transcription on the completions
+// format, the embeddings' input_types set and their tokenizer among endpoints, vision's native a
+// JSON object with unique member names, and no two endpoint names composing the same overrides.
+// What ai.New refuses, such as a base URL or a retry policy, the client nodes report, named for
+// their endpoint. An empty prefix reads no override.
 func (c *Config) Finalize(prefix string) error {
 	overrides, err := c.overrides(prefix)
 	c.Merge(overrides)

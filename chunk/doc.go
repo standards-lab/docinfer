@@ -18,37 +18,38 @@
 // text's own, never collapsed. Unlike the count, Runes holds no document prefix: a host that
 // prepends one leaves it room.
 //
-// A text is cut along its structure, coarsest first. A text within both bounds is one chunk. A
-// unit "over the bound" below is over either. Otherwise it is cut before each Markdown heading, an ATX heading line ("#" to "######"
-// and a space) outside a fenced code block, into sections, each measured once. The sections are
-// packed greedily, a run of whole sections one chunk while the sum of their counts, less the empty
-// text's count for each join, is within the bound and its characters within Runes; a run of more than one is measured, and one
-// over the bound gives up its last section until it fits. A section over the bound alone is cut
-// the same way at the next level: at blank lines into paragraphs, then into sentences, after ".",
-// "!", or "?" and any closing quote or bracket before whitespace, or "。", "！", or "？", and at
-// each line break, so a list's items part without punctuation. Last, a stretch over the bound
-// with no such cut is cut hard: each chunk the longest run of whole characters, at most Runes of
-// them, the search finds within the bound, by measuring, its end interpolated from the counts and
-// bisected. A character that alone measures over the bound is refused with [ErrRequest].
+// A text is cut along its structure, coarsest first. A text within both bounds is one chunk. A unit
+// "over the bound" below is over either. Otherwise it is cut before each Markdown heading, an ATX
+// heading line ("#" to "######" and a space) outside a fenced code block, into sections, each
+// measured once. The sections are packed greedily, a run of whole sections one chunk while the sum
+// of their counts, less the empty text's count for each join, is within the bound and its
+// characters within Runes; a run of more than one is measured, and one over the bound gives up its
+// last section until it fits. A section over the bound alone is cut the same way at the next level:
+// at blank lines into paragraphs, then into sentences, after ".", "!", or "?" and any closing quote
+// or bracket before whitespace, or "。", "！", or "？", and at each line break, so a list's items part
+// without punctuation. Last, a stretch over the bound with no such cut is cut hard: each chunk the
+// longest run of whole characters, at most Runes of them, the search finds within the bound, by
+// measuring, its end interpolated from the counts and bisected. A character that alone measures
+// over the bound is refused with [ErrRequest].
 //
-// A text within both bounds takes one count, and a stretch over Runes none of its own. One over it takes one count for the text, one for the
-// empty text, one for each unit at each level it is cut at, and one for each packed run, and a
-// rare one more for each unit a run gives up: a text of paragraphs that fit takes about its
-// paragraphs and its chunks in counts. A hard cut takes a handful of counts for each chunk, and
-// one for a chunk Runes ends within the Bound.
+// A text within both bounds takes one count, and a stretch over Runes none of its own. One over it
+// takes one count for the text, one for the empty text, one for each unit at each level it is cut
+// at, and one for each packed run, and a rare one more for each unit a run gives up: a text of
+// paragraphs that fit takes about its paragraphs and its chunks in counts. A hard cut takes a
+// handful of counts for each chunk, and one for a chunk Runes ends within the Bound.
 //
-// Each chunk is trimmed of the white space at its ends, and its [Span] is that of the trimmed
-// text, so a chunk's Text is always the text's [Start, End) bytes. The chunks come in the text's
-// order, none overlaps another, and together they cover the text but its trimmed white space. No
-// cut falls inside a UTF-8 character: an invalid byte counts as one character, as range over a
-// string has it. An empty or white-space-only text, or stretch of one, yields no chunk. Nothing has
-// a default: a Bound or Runes below 1 or a nil Count is refused with [ErrRequest]. A count's error stops the
+// Each chunk is trimmed of the white space at its ends, and its [Span] is that of the trimmed text,
+// so a chunk's Text is always the text's [Start, End) bytes. The chunks come in the text's order,
+// none overlaps another, and together they cover the text but its trimmed white space. No cut falls
+// inside a UTF-8 character: an invalid byte counts as one character, as range over a string has it.
+// An empty or white-space-only text, or stretch of one, yields no chunk. Nothing has a default: a
+// Bound or Runes below 1 or a nil Count is refused with [ErrRequest]. A count's error stops the
 // text's splitting and is returned wrapped.
 //
 // [Version] names the splitting, and [Splitter.Settings] reports it with the Bound, the Runes, and
-// the Model, the served model whose tokenizer Count measures by: the chunker's identity, which docinfer
-// reports in its Profile. A golden corpus of chunks, testdata/chunks-v<Version>.json, pins it
-// under a deterministic count, each case with its Bound and Runes, so a change to how texts are
+// the Model, the served model whose tokenizer Count measures by: the chunker's identity, which
+// docinfer reports in its Profile. A golden corpus of chunks, testdata/chunks-v<Version>.json, pins
+// it under a deterministic count, each case with its Bound and Runes, so a change to how texts are
 // cut must change it.
 //
 // The package exports:

@@ -41,10 +41,10 @@ type Pipeline struct {
 // New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
-// Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens), a nil
-// Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision or Extraction Native that isn't a JSON object with unique
-// member names. It copies the capabilities cfg points to, so a later change to them changes
-// nothing.
+// Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each
+// MaxTokens), a nil Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision or
+// Extraction Native that isn't a JSON object with unique member names. It copies the capabilities
+// cfg points to, so a later change to them changes nothing.
 func New(cfg Config) (*Pipeline, error) {
 	if cfg.Cache == nil {
 		panic("docinfer: New: nil Cache")
@@ -144,12 +144,11 @@ func New(cfg Config) (*Pipeline, error) {
 
 // Profile returns the pipeline's resolved identity: each capability's [Identity], the query
 // convention the embeddings' client declares, the embeddings' Dimensions, and the Chunker's
-// Settings, known before any job runs. Each identity's
-// Model is the capability's Served, the model the deployment serves, not the one its request
-// names, so a consumer recording the embedding space records the model. An unset
-// capability's identity is nil, and the extraction's settings are {"request","max_tokens",
-// "effort","native"}, "native" there only when Native is set, less the name, prompt, and schema
-// each run's [Extract] gives.
+// Settings, known before any job runs. Each identity's Model is the capability's Served, the model
+// the deployment serves, not the one its request names, so a consumer recording the embedding space
+// records the model. An unset capability's identity is nil, and the extraction's settings are
+// {"request","max_tokens", "effort","native"}, "native" there only when Native is set, less the
+// name, prompt, and schema each run's [Extract] gives.
 func (p *Pipeline) Profile() Profile {
 	pr := p.profile
 	for _, id := range []**Identity{&pr.Vision, &pr.Transcription, &pr.Extraction} {
