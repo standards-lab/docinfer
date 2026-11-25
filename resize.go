@@ -92,9 +92,9 @@ func boxResize(src image.Image, w, h int) image.Image {
 	b := src.Bounds()
 	sw := b.Dx()
 	gray, isGray := src.(*image.Gray)
-	ch := 4
+	ch, unit := 4, 257.0
 	if isGray {
-		ch = 1
+		ch, unit = 1, 1
 	}
 	rgba64, isRGBA64 := src.(image.RGBA64Image)
 	row := make([]float64, sw*ch)
@@ -130,10 +130,6 @@ func boxResize(src image.Image, w, h int) image.Image {
 	} else {
 		r := image.NewRGBA(image.Rect(0, 0, w, h))
 		pix, stride, dst = r.Pix, r.Stride, r
-	}
-	unit := 257.0
-	if isGray {
-		unit = 1
 	}
 	for dy, ty := range ys {
 		clear(acc)
