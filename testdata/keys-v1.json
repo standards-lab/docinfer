@@ -115,5 +115,23 @@
     },
     "content": "526b017302033df79011f6698d73be884c8d7c0b07787ce1e6835187a2fa63e6",
     "key": "chunk/47a12a0ff0117166d876d57086bd7add2371b88baaed3715a26b3ee403512201"
+  },
+  {
+    "identity": {
+      "capability": "transcription",
+      "model": "whisper-1",
+      "settings": "{\"request\":\"2\",\"mode\":\"route\",\"prompt\":\"\",\"language\":\"en\",\"max_tokens\":0}"
+    },
+    "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
+    "key": "transcription/8171613bfd023779a1bdad3bc0e5183fc51542b95075f9c970df753e121ea7aa"
+  },
+  {
+    "identity": {
+      "capability": "transcription",
+      "model": "google/gemma-4-E4B-it",
+      "settings": "{\"request\":\"2\",\"mode\":\"chat\",\"prompt\":\"\",\"language\":\"\",\"max_tokens\":512}"
+    },
+    "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
+    "key": "transcription/eac40369ea3e8b4e18147b3b12dcb8e743f2cbe25da625b8c93a7a2588a26e72"
   }
 ]

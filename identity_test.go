@@ -41,7 +41,7 @@ func TestIdentity(t *testing.T) {
 			docinfer.Transcription{Client: route, Model: "alias", Served: "w", Prompt: "Names: Ada.", Language: "en"}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
-				Settings: `{"request":"1","mode":"route","prompt":"Names: Ada.","language":"en"}`,
+				Settings: `{"request":"2","mode":"route","prompt":"Names: Ada.","language":"en","max_tokens":0}`,
 			},
 		},
 		{
@@ -49,7 +49,15 @@ func TestIdentity(t *testing.T) {
 			docinfer.Transcription{Client: chat, Model: "alias", Served: "w"}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
-				Settings: `{"request":"1","mode":"chat","prompt":"","language":""}`,
+				Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":0}`,
+			},
+		},
+		{
+			"transcription by chat with a cap",
+			docinfer.Transcription{Client: chat, Model: "alias", Served: "w", MaxTokens: 512}.Identity(),
+			docinfer.Identity{
+				Capability: docinfer.CapabilityTranscription, Model: "w",
+				Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":512}`,
 			},
 		},
 		{
@@ -120,6 +128,10 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 	ids := []docinfer.Identity{
 		vision.Identity(),
 		docinfer.Transcription{Client: route, Model: "audio", Served: "whisper-1", Language: "en"}.Identity(),
+		docinfer.Transcription{
+			Client: newClient(t, "http://localhost/v1", ai.TranscribeChat), Model: "audio", Served: "google/gemma-4-E4B-it",
+			MaxTokens: 512,
+		}.Identity(),
 		extraction.Identity(extract),
 		docinfer.Embeddings{Client: route, Model: "embedding", Served: "text-embedding-3-small"}.Identity(),
 		sampledVision.Identity(),
@@ -150,7 +162,7 @@ func TestProfile(t *testing.T) {
 		},
 		Transcription: &docinfer.Identity{
 			Capability: docinfer.CapabilityTranscription, Model: "org/transcription-1",
-			Settings: `{"request":"1","mode":"route","prompt":"","language":"en"}`,
+			Settings: `{"request":"2","mode":"route","prompt":"","language":"en","max_tokens":0}`,
 		},
 		Extraction: &docinfer.Identity{
 			Capability: docinfer.CapabilityExtraction, Model: "org/extraction-1",

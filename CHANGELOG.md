@@ -45,8 +45,18 @@ each nested module keeps its own.
   outcome, and from `Held`, when the group is joined, its request and tokens kept. Each
   window is counted once, under its outcome or as `Unplaced`, so `Transcribed`, `Incomplete`,
   `Refused`, `Failed`, and `Unplaced` add up to `Counts.Windows`.
+- `MaxTokens` on `Transcription`: the request's `ai.TranscriptionRequest.MaxOutputTokens`, which
+  bounds a chat-mode reply. 0 sends none; docinfer ships no default. go-ai refuses any other in
+  route mode, where the route's max_tokens goes through its Native. `New` refuses a negative one,
+  matching `ErrRequest`. A reply cut off at the bound is the window's outcome incomplete, held,
+  its reason `max_output_tokens`, as any incomplete transcript is.
 
 ### Changed
+
+- Transcription's request version is "2" and its identity settings gain `"max_tokens"` after
+  `"language"`: `{"request","mode","prompt","language","max_tokens"}`. Its keys and
+  `Pipeline.Profile` change, so every transcript held under "1" misses; `Version` stays "1", since
+  `Held`'s shape is unchanged.
 
 - Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
 - A vision or extraction reply cut off at `protocol.ReasonMaxOutputTokens` whose text ends in a

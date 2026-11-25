@@ -106,10 +106,11 @@ func planInput(t *testing.T, content *dispatch.MemoryContent, mediaType string, 
 }
 
 type speaker struct {
-	mode    ai.TranscriptionMode
-	said    map[string]string
-	replies map[string]aitest.Reply
-	gate    *aitest.Gate
+	mode      ai.TranscriptionMode
+	said      map[string]string
+	replies   map[string]aitest.Reply
+	gate      *aitest.Gate
+	maxTokens int
 }
 
 func speakerOf(mode ai.TranscriptionMode, windows ...win) *speaker {
@@ -151,6 +152,9 @@ func (s *speaker) serve(t *testing.T) *aitest.Endpoint {
 			m := req.Messages[0]
 			if m.Text != ai.TranscriptionInstruction(transcriptionLang) || m.Audio[0].Format != "wav" {
 				t.Errorf("chat transcription of text %q, format %q; want the instruction and wav", m.Text, m.Audio[0].Format)
+			}
+			if req.MaxTokens != s.maxTokens {
+				t.Errorf("chat transcription capped at %d tokens, want %d", req.MaxTokens, s.maxTokens)
 			}
 			return s.reply(ctx, t, string(m.Audio[0].Data))
 		}
@@ -941,6 +945,30 @@ func TestRunWindowIncomplete(t *testing.T) {
 	o = collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), seq(windowInput(t, nil, only)), docinfer.Options{}))
 	checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, tr, []int{0}, true)
 	checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Held: 1, Transcripts: 1}, 0, true))
+}
+
+func TestRunWindowMaxTokens(t *testing.T) {
+	for _, n := range []int{0, 512} {
+		t.Run(fmt.Sprint(n), func(t *testing.T) {
+			s := speakerOf(ai.TranscribeChat)
+			s.maxTokens = n
+			s.replies[win0.clip] = aitest.ChatReply{Text: "one two", Finish: "length"}
+			e := s.serve(t)
+			cfg := transcriptionConfig(t, e, ai.TranscribeChat, func(c *docinfer.Config) { c.Transcription.MaxTokens = n })
+			o := runWindow(t, cfg, docinfer.Options{})
+			checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, joinedAt(t, []string{""}), []int{0}, false)
+			key := docinfer.Key(cfg.Transcription.Identity(), sha(win0.clip))
+			values, err := cfg.Cache.Get(t.Context(), key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var h docinfer.Held
+			if err := json.Unmarshal(values[0], &h); err != nil || !reflect.DeepEqual(h, docinfer.Held{Incomplete: "max_output_tokens"}) {
+				t.Errorf("held %s (%v), want the window incomplete for max_output_tokens", values[0], err)
+			}
+			checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Requests: 1, Transcripts: 1}, 0, false))
+		})
+	}
 }
 
 type openCounter struct {

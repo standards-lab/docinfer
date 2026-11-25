@@ -300,9 +300,10 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 			}
 			return rc, nil
 		},
-		FileName: windowFileNames[ev.Output.MediaType],
-		Language: t.Language,
-		Prompt:   t.Prompt,
+		FileName:        windowFileNames[ev.Output.MediaType],
+		Language:        t.Language,
+		Prompt:          t.Prompt,
+		MaxOutputTokens: t.MaxTokens,
 	}
 	var (
 		reply *ai.Transcription

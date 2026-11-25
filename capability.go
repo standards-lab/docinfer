@@ -14,7 +14,7 @@ import (
 
 const (
 	visionRequest        = "2"
-	transcriptionRequest = "1"
+	transcriptionRequest = "2"
 	extractionRequest    = "2"
 	embeddingRequest     = "1"
 )
@@ -65,17 +65,22 @@ type Transcription struct {
 	// it.
 	Served           string
 	Prompt, Language string // "" sends none
+	// MaxTokens is the request's MaxOutputTokens, which bounds the reply in chat mode; 0 sends
+	// none, and go-ai refuses any other in route mode, where the route's max_tokens goes through
+	// its Native.
+	MaxTokens int
 }
 
 type transcriptionSettings struct {
-	Request  string               `json:"request"`
-	Mode     ai.TranscriptionMode `json:"mode"`
-	Prompt   string               `json:"prompt"`
-	Language string               `json:"language"`
+	Request   string               `json:"request"`
+	Mode      ai.TranscriptionMode `json:"mode"`
+	Prompt    string               `json:"prompt"`
+	Language  string               `json:"language"`
+	MaxTokens int                  `json:"max_tokens"`
 }
 
 // Identity returns transcription's identity: its capability, Served, and settings, the JSON
-// {"request","mode","prompt","language"} in that member order. The mode is the Client's
+// {"request","mode","prompt","language","max_tokens"} in that member order. The mode is the Client's
 // TranscriptionMode, "route" or "chat", read from the client so the key can't disagree with how
 // the client transcribes; Client must be set.
 func (t Transcription) Identity() Identity {
@@ -83,7 +88,7 @@ func (t Transcription) Identity() Identity {
 		Capability: CapabilityTranscription,
 		Model:      t.Served,
 		Settings: encodeSettings(transcriptionSettings{
-			transcriptionRequest, t.Client.TranscriptionMode(), t.Prompt, t.Language,
+			transcriptionRequest, t.Client.TranscriptionMode(), t.Prompt, t.Language, t.MaxTokens,
 		}),
 	}
 }

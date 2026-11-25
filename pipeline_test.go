@@ -125,6 +125,11 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 			})
 		}
 	}
+	t.Run("Transcription.MaxTokens=-1", func(t *testing.T) {
+		cfg := validConfig(t)
+		cfg.Transcription.MaxTokens = -1
+		refused(t, cfg, "Transcription.MaxTokens")
+	})
 	models := []struct {
 		field string
 		clear func(*docinfer.Config)

@@ -42,9 +42,10 @@ type Pipeline struct {
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
 // Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each
-// MaxTokens), a nil Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision or
-// Extraction Native that isn't a JSON object with unique member names. It copies the capabilities
-// cfg points to, so a later change to them changes nothing.
+// MaxTokens but Transcription's), a negative Transcription.MaxTokens, a nil Chunker.Count, an
+// empty Model, Served, or Chunker.Model, and a Vision or Extraction Native that isn't a JSON
+// object with unique member names. It copies the capabilities cfg points to, so a later change to
+// them changes nothing.
 func New(cfg Config) (*Pipeline, error) {
 	if cfg.Cache == nil {
 		panic("docinfer: New: nil Cache")
@@ -103,6 +104,9 @@ func New(cfg Config) (*Pipeline, error) {
 		if c.n < 1 {
 			return nil, fmt.Errorf("docinfer: New: %w: %s %d is below 1", ErrRequest, c.field, c.n)
 		}
+	}
+	if t := cfg.Transcription; t != nil && t.MaxTokens < 0 {
+		return nil, fmt.Errorf("docinfer: New: %w: Transcription.MaxTokens %d is negative", ErrRequest, t.MaxTokens)
 	}
 	if cfg.Chunker.Count == nil {
 		return nil, fmt.Errorf("docinfer: New: %w: Chunker.Count is nil", ErrRequest)
