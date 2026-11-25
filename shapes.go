@@ -209,8 +209,11 @@ type VisionCounts struct {
 // TranscriptionCounts counts each window under its outcome, or as Unplaced, the transcripts
 // joined, and their seams by whether they matched. An unplaced window is one [Pipeline.Run] places
 // in no transcript, its group's index already placed, past its group's bound, or its group already
-// closed: it is never transcribed, so Transcribed, Incomplete, Refused, Failed, and Unplaced add up
-// to Counts.Windows, and Held counts those of the first four read from the cache or another call.
+// closed: it is never transcribed. A window placed before its group's bound was known, and past it
+// once the group is joined, such as an index at or past a later plan's count, is moved to Unplaced
+// from its outcome, and from Held, when the group is joined, its Requests and tokens kept, since
+// its text is in no transcript. So Transcribed, Incomplete, Refused, Failed, and Unplaced add up to
+// Counts.Windows, and Held counts those of the first four read from the cache or another call.
 type TranscriptionCounts struct {
 	Transcribed    int `json:"transcribed"`
 	Incomplete     int `json:"incomplete"`

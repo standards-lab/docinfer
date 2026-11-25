@@ -40,7 +40,9 @@ each nested module keeps its own.
   echoes it on each `Inference` and `Source` as `Origin`, a local field that doesn't marshal, so a
   host names each result's input from the result itself. A job of one input may leave it `""`.
 - `Unplaced` on `TranscriptionCounts`, JSON `unplaced`: the windows `Run` places in no transcript,
-  a repeat of an index already placed, past its group's bound, or after its group closed. Each
+  a repeat of an index already placed, past its group's bound, or after its group closed, and a
+  window placed before its plan whose index is at or past the plan's count, moved from its
+  outcome, and from `Held`, when the group is joined, its request and tokens kept. Each
   window is counted once, under its outcome or as `Unplaced`, so `Transcribed`, `Incomplete`,
   `Refused`, `Failed`, and `Unplaced` add up to `Counts.Windows`.
 
@@ -107,6 +109,9 @@ each nested module keeps its own.
   join into one transcript. Windows are grouped by the input's `Origin`, the part's ID, and the
   stage, so each input's part is joined from its own windows alone, and a window placed in no
   group is counted `Unplaced`, never dropped silently.
+- A window placed before its group's plan record whose index was at or past the plan's count was
+  transcribed and counted `Transcribed`, but left out of the transcript. It is still left out,
+  and counted `Unplaced` instead.
 
 ## [v0.2.0] - 2026-11-20
 

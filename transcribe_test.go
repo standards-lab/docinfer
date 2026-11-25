@@ -413,6 +413,29 @@ func TestRunWindowPlacement(t *testing.T) {
 	checkCounts(t, o, transcriptCounts(o, 4, docinfer.TranscriptionCounts{Transcribed: 3, Unplaced: 1, Requests: 3, Transcripts: 1, SeamsMatched: 2}, 3, false))
 }
 
+func TestRunWindowPastPlanCount(t *testing.T) {
+	open2 := win2
+	open2.after = "28-30"
+	e := speakerOf(ai.TranscribeRoute, win0, win1, open2).serve(t)
+	cfg := transcriptionConfig(t, e, ai.TranscribeRoute, nil)
+	p := newPipeline(t, cfg)
+	content := dispatch.NewMemoryContent()
+	inputs := []docinfer.Input{windowInput(t, content, win0), windowInput(t, content, win1), windowInput(t, content, open2),
+		planInput(t, content, dispatch.MediaAudioPlan, 2)}
+
+	o := collect(t, p.Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
+	inf := transcript(t, o, shas(win0.clip, win1.clip)...)
+	checkTranscript(t, inf, docinfer.OutcomeTranscribed, joinedAt(t, []string{said0, said1}, 2), nil, false)
+	if inf.Usage != (docinfer.Usage{Input: 10, Output: 4}) {
+		t.Errorf("transcript's usage %+v, want its two windows'", inf.Usage)
+	}
+	checkCounts(t, o, transcriptCounts(o, 3, docinfer.TranscriptionCounts{Transcribed: 2, Unplaced: 1, Requests: 3, Transcripts: 1, SeamsMatched: 1}, 3, false))
+
+	o = collect(t, p.Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
+	checkTranscript(t, transcript(t, o, shas(win0.clip, win1.clip)...), docinfer.OutcomeTranscribed, joinedAt(t, []string{said0, said1}, 2), nil, true)
+	checkCounts(t, o, transcriptCounts(o, 3, docinfer.TranscriptionCounts{Transcribed: 2, Unplaced: 1, Held: 2, Transcripts: 1, SeamsMatched: 1}, 0, true))
+}
+
 type recording struct {
 	origin  string
 	part    dispatch.Part

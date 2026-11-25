@@ -455,8 +455,31 @@ func (r *run) settle(g *group, slot bool, yield func(Result, error) bool) (bool,
 	return r.joinGroup(g, !slot, yield)
 }
 
+func (r *run) unplace(w *window) {
+	tc := r.counts.Transcription
+	switch w.outcome {
+	case OutcomeFailed:
+		tc.Failed--
+	case OutcomeRefused:
+		tc.Refused--
+	case OutcomeIncomplete:
+		tc.Incomplete--
+	default:
+		tc.Transcribed--
+	}
+	if w.held {
+		tc.Held--
+	}
+	tc.Unplaced++
+}
+
 func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool) (bool, error) {
 	n := g.n
+	for i, w := range g.windows {
+		if i >= n {
+			r.unplace(w)
+		}
+	}
 	if n == 0 {
 		r.finishState(&inputState{g: g, slotless: slotless})
 		return true, nil

@@ -136,7 +136,9 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // input's Origin, their part's ID, and their stage, so a group is one input's part's windows from
 // one stage, and placed by MetaWindow, the first event of an index winning. A window not placed,
 // its index already placed, past its group's bound, or after its group closed, is never
-// transcribed, and is counted Unplaced in [TranscriptionCounts]. A group ends at the first of: the window count of its audio plan record, a record output of
+// transcribed, and is counted Unplaced in [TranscriptionCounts]; so is a window placed before its
+// group's plan record whose index is at or past the plan's count, once the group is joined
+// without it, its request and tokens still counted. A group ends at the first of: the window count of its audio plan record, a record output of
 // dispatch.MediaAudioPlan, whose content is read for it; its last window, the one without
 // MetaSeamAfter, once every index before it is in; and the end of the inputs. A video plan
 // record ends none. Once every window placed in it is in, the group is joined by Config.Join,
