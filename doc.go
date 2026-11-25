@@ -29,6 +29,13 @@
 // The query convention is never keyed, since docinfer embeds no queries; [Profile] carries it as
 // EmbeddingQuery, for a consumer to apply to its search queries so they land in the same space.
 //
+// The chunker measures in the embedding model's tokens, by the host's count: Config.Chunker's
+// Count gives a text's tokens as the embedding of that text would take them, such as a closure
+// over the embeddings' client's Tokenize with ai.InputDocument, and its Model names the served
+// model whose tokenizer counts. docinfer builds no client for it. Each text is split with the
+// job's context, and [Profile].Chunker reports the chunker's Settings, its version, bound, and
+// model, keying nothing.
+//
 // [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
 // Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
 // as their embeddings complete and its [Counts] last. It echoes each input as [Result.Input] as
@@ -128,6 +135,10 @@
 //     io.ErrUnexpectedEOF: the reply arrived whole, and decoded wrong. On the last delivery,
 //     [Options].Final, the item's outcome is failed instead, or the chunk's Error, recorded and
 //     never held, and the job goes on.
+//   - A failure of the chunker's count stops the job with the error, wrapped, by the same rows,
+//     and holds nothing: transient redelivers, and permanent is [Permanent]; a refused status is
+//     Permanent too, and failed stops the job on the last delivery as well, since no chunk holds
+//     either outcome.
 //   - A cancelled context is ctx.Err(), yielded alone and last.
 //
 // docinfer refuses only the statuses that judge the content. A status that judges the caller or

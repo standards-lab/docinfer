@@ -105,7 +105,17 @@ func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*doc
 	}
 	cfg := docinfer.Config{
 		Embeddings: emb,
-		Chunker:    chunk.Splitter{Bound: chunkBound},
+		Chunker: chunk.Splitter{
+			Bound: chunkBound,
+			Count: func(ctx context.Context, text string) (int, error) {
+				tokens, err := emb.Client.Tokenize(ctx, &ai.TokenizeRequest{Model: emb.Model, Text: text, InputType: ai.InputDocument})
+				if err != nil {
+					return 0, err
+				}
+				return tokens.Count, nil
+			},
+			Model: emb.Served,
+		},
 		Dimensions: dims,
 		Cache:      cache,
 		Bounds:     bounds,

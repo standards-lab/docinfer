@@ -41,6 +41,19 @@ each nested module keeps its own.
   A client with no document convention keeps the settings `""` and its keys, so `Version` stays
   "1". The query convention is never keyed: changing it re-embeds nothing. `Embeddings.Identity`
   now needs its `Client` set.
+- Breaking: `chunk.Splitter` measures in tokens, by the host's count. `Bound` is in tokens as its
+  new `Count`, a `chunk.Counter`, measures a text, the tokens its embedding would take, special
+  tokens and any document prefix included, such as a closure over the embeddings' client's
+  `Tokenize` with `ai.InputDocument`; its new `Model` names the served model whose tokenizer
+  counts. Every chunk measures within the bound, cut by structure as before with no overlap,
+  and a stretch with no cut is cut hard by measuring. `Split` takes a context, which docinfer
+  passes the job's, and returns the count's error wrapped; a character that alone measures over the
+  bound is refused with `chunk.ErrRequest`. `chunk.Version` is "2", its golden corpus
+  `chunks-v2.json`, and `Settings`, which `Pipeline.Profile` reports as `Chunker`, is
+  `{"version","bound","model"}`. No cache key moves: the chunker keys nothing. `New` refuses a nil
+  `Chunker.Count` and an empty `Chunker.Model`, matching `ErrRequest`. A failure of the count
+  stops the job, nothing held: `Permanent` reports a permanent status and a refused one, which no
+  chunk can hold, and `chunk.ErrRequest`.
 - The module requires the go-ai release with embedding input types and `Tokenize`.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.

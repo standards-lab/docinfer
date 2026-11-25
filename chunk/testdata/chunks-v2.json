@@ -1,0 +1,350 @@
+[
+  {
+    "name": "empty",
+    "bound": 10,
+    "text": "",
+    "chunks": null
+  },
+  {
+    "name": "white space only",
+    "bound": 10,
+    "text": " \n\n\t  \r\n ",
+    "chunks": null
+  },
+  {
+    "name": "fits",
+    "bound": 100,
+    "text": "\n  Hello, world.  \n",
+    "chunks": [
+      {
+        "text": "Hello, world.",
+        "span": {
+          "start": 3,
+          "end": 16
+        }
+      }
+    ]
+  },
+  {
+    "name": "headings",
+    "bound": 60,
+    "text": "# Intro\nA short opening line.\n\n## Background\nSome context that matters here.\n### Detail\nMore.\n# Code\n```\n# not a heading\nprint(1)\n```\n#tag is no heading\n####### nor is seven\n## Last\nThe end.",
+    "chunks": [
+      {
+        "text": "# Intro\nA short opening line.\n\n## Background\nSome context that matters here.\n### Detail\nMore.",
+        "span": {
+          "start": 0,
+          "end": 93
+        }
+      },
+      {
+        "text": "# Code\n```\n# not a heading\nprint(1)\n```\n#tag is no heading\n####### nor is seven\n## Last\nThe end.",
+        "span": {
+          "start": 94,
+          "end": 190
+        }
+      }
+    ]
+  },
+  {
+    "name": "paragraphs",
+    "bound": 50,
+    "text": "The first paragraph has a sentence or two. It goes on.\n\nA second, shorter one.\n\n\nA third.\n\nAnd a fourth paragraph that runs a little longer than the bound allows it.",
+    "chunks": [
+      {
+        "text": "The first paragraph has a sentence or two. It goes on.\n\nA second, shorter one.\n\n\nA third.",
+        "span": {
+          "start": 0,
+          "end": 89
+        }
+      },
+      {
+        "text": "And a fourth paragraph that runs a little longer than the bound allows it.",
+        "span": {
+          "start": 91,
+          "end": 165
+        }
+      }
+    ]
+  },
+  {
+    "name": "long sentences",
+    "bound": 40,
+    "text": "She said \"it shipped.\" Then v1.2 broke! Did anyone notice? (Nobody did.) This one sentence is far too long to fit within the bound, so it is cut hard.\n- an item\n- another item\n- a third item",
+    "chunks": [
+      {
+        "text": "She said \"it shipped.\" Then v1.2 broke! Did anyone notice? (Nobody did.)",
+        "span": {
+          "start": 0,
+          "end": 72
+        }
+      },
+      {
+        "text": "This one sentence is far too long to fit within the bound, so it is cut hard.\n- an item\n- another item",
+        "span": {
+          "start": 73,
+          "end": 175
+        }
+      },
+      {
+        "text": "- a third item",
+        "span": {
+          "start": 176,
+          "end": 190
+        }
+      }
+    ]
+  },
+  {
+    "name": "multibyte",
+    "bound": 6,
+    "text": "日本語のテキストです。とても長い文章になります！短い？\n\nÜnïcödé façade naïve café — résumé. 😀😀😀🎉🎉🎉😀😀😀🎉",
+    "chunks": [
+      {
+        "text": "日本語のテキストです。",
+        "span": {
+          "start": 0,
+          "end": 33
+        }
+      },
+      {
+        "text": "とても長い文章になります",
+        "span": {
+          "start": 33,
+          "end": 69
+        }
+      },
+      {
+        "text": "！",
+        "span": {
+          "start": 69,
+          "end": 72
+        }
+      },
+      {
+        "text": "短い？",
+        "span": {
+          "start": 72,
+          "end": 81
+        }
+      },
+      {
+        "text": "Ünïcödé faç",
+        "span": {
+          "start": 83,
+          "end": 99
+        }
+      },
+      {
+        "text": "ade naïve caf",
+        "span": {
+          "start": 99,
+          "end": 113
+        }
+      },
+      {
+        "text": "é — résumé",
+        "span": {
+          "start": 113,
+          "end": 128
+        }
+      },
+      {
+        "text": ".",
+        "span": {
+          "start": 128,
+          "end": 129
+        }
+      },
+      {
+        "text": "😀😀😀🎉🎉🎉😀😀😀🎉",
+        "span": {
+          "start": 130,
+          "end": 170
+        }
+      }
+    ]
+  },
+  {
+    "name": "scripts",
+    "bound": 12,
+    "text": "Το κείμενο είναι ελληνικό και αρκετά μακρύ. Это русский текст, и он довольно длинный.\n\nهذا نص عربي طويل بما فيه الكفاية. זה טקסט בעברית שהוא ארוך מספיק.\n\nयह हिंदी पाठ काफी लंबा है। 한국어 텍스트는 충분히 깁니다. 中文文本足够长了。",
+    "chunks": [
+      {
+        "text": "Το κείμενο είναι ελληνικό και",
+        "span": {
+          "start": 0,
+          "end": 54
+        }
+      },
+      {
+        "text": "αρκετά μακρύ.",
+        "span": {
+          "start": 55,
+          "end": 79
+        }
+      },
+      {
+        "text": "Это русский текст, и он доволь",
+        "span": {
+          "start": 80,
+          "end": 134
+        }
+      },
+      {
+        "text": "но длинный.",
+        "span": {
+          "start": 134,
+          "end": 154
+        }
+      },
+      {
+        "text": "هذا نص عربي طويل بما فيه الكفاي",
+        "span": {
+          "start": 156,
+          "end": 212
+        }
+      },
+      {
+        "text": "ة.",
+        "span": {
+          "start": 212,
+          "end": 215
+        }
+      },
+      {
+        "text": "זה טקסט בעברית שהוא ארוך מספ",
+        "span": {
+          "start": 216,
+          "end": 267
+        }
+      },
+      {
+        "text": "יק.",
+        "span": {
+          "start": 267,
+          "end": 272
+        }
+      },
+      {
+        "text": "यह हिंदी पाठ काफी लंबा है। 한국어",
+        "span": {
+          "start": 274,
+          "end": 352
+        }
+      },
+      {
+        "text": "텍스트는 충분히 깁니다.",
+        "span": {
+          "start": 353,
+          "end": 386
+        }
+      },
+      {
+        "text": "中文文本足够长了。",
+        "span": {
+          "start": 387,
+          "end": 414
+        }
+      }
+    ]
+  },
+  {
+    "name": "recut",
+    "bound": 14,
+    "text": "one two three four\n\nfive six seven\n\neight nine ten eleven\n\ntwelve",
+    "chunks": [
+      {
+        "text": "one two three four",
+        "span": {
+          "start": 0,
+          "end": 18
+        }
+      },
+      {
+        "text": "five six seven",
+        "span": {
+          "start": 20,
+          "end": 34
+        }
+      },
+      {
+        "text": "eight nine ten eleven\n\ntwelve",
+        "span": {
+          "start": 36,
+          "end": 65
+        }
+      }
+    ]
+  },
+  {
+    "name": "hard cut",
+    "bound": 7,
+    "text": "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij",
+    "chunks": [
+      {
+        "text": "abcdefghijabcde",
+        "span": {
+          "start": 0,
+          "end": 15
+        }
+      },
+      {
+        "text": "fghijabcdefghij",
+        "span": {
+          "start": 15,
+          "end": 30
+        }
+      },
+      {
+        "text": "abcdefghijabcde",
+        "span": {
+          "start": 30,
+          "end": 45
+        }
+      },
+      {
+        "text": "fghij",
+        "span": {
+          "start": 45,
+          "end": 50
+        }
+      }
+    ]
+  },
+  {
+    "name": "bound three",
+    "bound": 3,
+    "text": "a b\ncd é😀",
+    "chunks": [
+      {
+        "text": "a",
+        "span": {
+          "start": 0,
+          "end": 1
+        }
+      },
+      {
+        "text": "b",
+        "span": {
+          "start": 2,
+          "end": 3
+        }
+      },
+      {
+        "text": "cd",
+        "span": {
+          "start": 4,
+          "end": 6
+        }
+      },
+      {
+        "text": "é😀",
+        "span": {
+          "start": 7,
+          "end": 13
+        }
+      }
+    ]
+  }
+]

@@ -48,19 +48,26 @@ var goldenInputs = []goldenCase{
 	},
 	{
 		Name:  "multibyte",
-		Bound: 8,
+		Bound: 6,
 		Text: "日本語のテキストです。とても長い文章になります！短い？\n\n" +
 			"Ünïcödé façade naïve café — résumé. 😀😀😀🎉🎉🎉😀😀😀🎉",
 	},
+	{
+		Name:  "scripts",
+		Bound: 12,
+		Text: "Το κείμενο είναι ελληνικό και αρκετά μακρύ. Это русский текст, и он довольно длинный.\n\n" +
+			"هذا نص عربي طويل بما فيه الكفاية. זה טקסט בעברית שהוא ארוך מספיק.\n\n" +
+			"यह हिंदी पाठ काफी लंबा है। 한국어 텍스트는 충분히 깁니다. 中文文本足够长了。",
+	},
+	{Name: "recut", Bound: 14, Text: "one two three four\n\nfive six seven\n\neight nine ten eleven\n\ntwelve"},
 	{Name: "hard cut", Bound: 7, Text: strings.Repeat("abcdefghij", 5)},
-	{Name: "bound one", Bound: 1, Text: "a b\ncd é😀"},
+	{Name: "bound three", Bound: 3, Text: "a b\ncd é😀"},
 }
 
 func TestGoldenCorpus(t *testing.T) {
 	var got []goldenCase
 	for _, in := range goldenInputs {
-		cs := split(t, in.Text, in.Bound)
-		valid(t, in.Text, in.Bound, cs)
+		cs := splitBy(t, words, in.Text, in.Bound)
 		got = append(got, goldenCase{Name: in.Name, Bound: in.Bound, Text: in.Text, Chunks: cs})
 	}
 	path := filepath.Join("testdata", "chunks-v"+chunk.Version+".json")

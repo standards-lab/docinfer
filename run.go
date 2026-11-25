@@ -175,9 +175,10 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // image or extraction so refused is outcome refused, held, its Reason the error's text; a
 // permanent or transient failure stops the job with the error, wrapped; a failed one stops it
 // too, except on Options.Final, where its chunks' Error, or its image's, window's, or
-// extraction's outcome failed, is recorded, never held, and the job goes on. An error stops the
-// job: Run cancels its requests, waits for them, and yields the error alone, last. A cancelled
-// context yields ctx.Err() alone, last.
+// extraction's outcome failed, is recorded, never held, and the job goes on. A failure of the
+// chunker's count stops the job, with no chunk of its text, as the failure table says. An error
+// stops the job: Run cancels its requests, waits for them, and yields the error alone, last. A
+// cancelled context yields ctx.Err() alone, last.
 //
 // The pipeline joins work in flight across its jobs by Key: a chunk's embedding or an image's
 // description another job is asking for, read from neither the cache nor the model, is waited

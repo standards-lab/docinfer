@@ -315,7 +315,7 @@ func TestRunTranscribesWindows(t *testing.T) {
 					t.Errorf("window %d held as %+v, want its transcript", w.index, h)
 				}
 			}
-			pieces, _ := cfg.Chunker.Split(tr.Text())
+			pieces, _ := cfg.Chunker.Split(t.Context(), tr.Text())
 			chunks := o.chunks()
 			if len(chunks) != len(pieces) || len(pieces) < 2 {
 				t.Fatalf("%d chunks, want the transcript's %d", len(chunks), len(pieces))

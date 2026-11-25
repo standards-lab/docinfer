@@ -57,8 +57,9 @@
 //
 // docinfer has no default bounds, so the tier sets its own small values: a Bounds of one request
 // in flight per capability, Pending 2, EmbedBatch 8, BatchBytes 64 KiB, a Chunker Bound of 400
-// runes, Join's WordsPerSecond 3, vision's MaxTokens 256, and extraction's 1024, room for a
-// reasoning model to reason ahead of its answer. Each Run is bounded by five minutes.
+// tokens, counted by the embeddings client's Tokenize as documents, Join's WordsPerSecond 3,
+// vision's MaxTokens 256, and extraction's 1024, room for a reasoning model to reason ahead of its
+// answer. Each Run is bounded by five minutes.
 //
 // integration/testdata/README.md tells where the media came from: go-ai's integration testdata
 // at v0.4.0.

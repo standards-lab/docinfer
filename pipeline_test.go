@@ -46,7 +46,7 @@ func validConfig(t *testing.T) docinfer.Config {
 			Client: c, Model: "agent", Served: "org/extraction-1", MaxTokens: 2, Reasoning: protocol.ReasoningEffortMedium,
 		},
 		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding", Served: "org/embedding-1"},
-		Chunker:    chunk.Splitter{Bound: 2},
+		Chunker:    chunk.Splitter{Bound: 2, Count: runes, Model: "org/embedding-1"},
 		Dimensions: 2,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     newBounds(t, 1, 1, 1, 1),
@@ -136,6 +136,8 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		{"Vision.Served", func(c *docinfer.Config) { c.Vision.Served = "" }},
 		{"Transcription.Served", func(c *docinfer.Config) { c.Transcription.Served = "" }},
 		{"Extraction.Served", func(c *docinfer.Config) { c.Extraction.Served = "" }},
+		{"Chunker.Model", func(c *docinfer.Config) { c.Chunker.Model = "" }},
+		{"Chunker.Count", func(c *docinfer.Config) { c.Chunker.Count = nil }},
 	}
 	for _, tc := range models {
 		t.Run(tc.field+"=empty", func(t *testing.T) {

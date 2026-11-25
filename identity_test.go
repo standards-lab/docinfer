@@ -158,7 +158,7 @@ func TestProfile(t *testing.T) {
 		},
 		Embeddings: docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "org/embedding-1"},
 		Dimensions: 2,
-		Chunker:    `{"version":"1","bound":2}`,
+		Chunker:    `{"version":"2","bound":2,"model":"org/embedding-1"}`,
 	}
 	cfg.Vision.Prompt, cfg.Transcription.Language, cfg.Extraction.MaxTokens = "changed", "de", 3
 	first := p.Profile()

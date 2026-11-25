@@ -17,7 +17,7 @@ type Config struct {
 	Transcription *Transcription // nil skips windows, counted
 	Extraction    *Extraction    // nil: a run that asks for extraction fails, permanent
 	Embeddings    Embeddings     // required
-	Chunker       chunk.Splitter // its Bound at least 1
+	Chunker       chunk.Splitter // its Bound at least 1, its Count set, its Model not empty
 	// Dimensions is the embedding space's, at least 1: a vector of another length, made or held,
 	// fails the job, permanent.
 	Dimensions int
@@ -41,8 +41,8 @@ type Pipeline struct {
 // New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
-// Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens), an
-// empty Model or Served, and a Vision or Extraction Native that isn't a JSON object with unique
+// Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens), a nil
+// Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision or Extraction Native that isn't a JSON object with unique
 // member names. It copies the capabilities cfg points to, so a later change to them changes
 // nothing.
 func New(cfg Config) (*Pipeline, error) {
@@ -78,7 +78,10 @@ func New(cfg Config) (*Pipeline, error) {
 		{"Join.WordsPerSecond", cfg.Join.WordsPerSecond},
 	}
 	type model struct{ field, model string }
-	models := []model{{"Embeddings.Model", cfg.Embeddings.Model}, {"Embeddings.Served", cfg.Embeddings.Served}}
+	models := []model{
+		{"Embeddings.Model", cfg.Embeddings.Model}, {"Embeddings.Served", cfg.Embeddings.Served},
+		{"Chunker.Model", cfg.Chunker.Model},
+	}
 	if v := cfg.Vision; v != nil {
 		counts = append(counts, count{"Vision.MaxTokens", v.MaxTokens})
 		models = append(models, model{"Vision.Model", v.Model}, model{"Vision.Served", v.Served})
@@ -99,6 +102,9 @@ func New(cfg Config) (*Pipeline, error) {
 		if c.n < 1 {
 			return nil, fmt.Errorf("docinfer: New: %w: %s %d is below 1", ErrRequest, c.field, c.n)
 		}
+	}
+	if cfg.Chunker.Count == nil {
+		return nil, fmt.Errorf("docinfer: New: %w: Chunker.Count is nil", ErrRequest)
 	}
 	for _, m := range models {
 		if m.model == "" {

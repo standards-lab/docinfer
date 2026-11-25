@@ -166,7 +166,7 @@ func TestRunDescribesImage(t *testing.T) {
 	if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Text: description}) {
 		t.Errorf("held %+v, want the description", h)
 	}
-	pieces, _ := cfg.Chunker.Split(description)
+	pieces, _ := cfg.Chunker.Split(t.Context(), description)
 	chunks := o.chunks()
 	if len(chunks) != len(pieces) || len(pieces) < 2 {
 		t.Fatalf("%d chunks, want the description's %d", len(chunks), len(pieces))

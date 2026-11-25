@@ -12,9 +12,12 @@ import (
 )
 
 func (r *run) embed(st *inputState, text string) {
-	pieces, err := r.p.cfg.Chunker.Split(text)
+	pieces, err := r.p.cfg.Chunker.Split(r.ctx, text)
 	if err != nil {
-		r.fail(fmt.Errorf("docinfer: run: chunk part %s: %w", st.part.ID, err))
+		if r.ctx.Err() != nil {
+			return
+		}
+		r.fail(&chunkError{fmt.Errorf("docinfer: run: chunk part %s: %w", st.part.ID, err)})
 		return
 	}
 	items := make([]item, len(pieces))

@@ -19,6 +19,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docinfer/chunk"
@@ -46,6 +47,8 @@ var theExtract = docinfer.Extract{
 	Prompt: "Echo the text.",
 	Schema: jsontext.Value(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"],"additionalProperties":false}`),
 }
+
+func runes(_ context.Context, text string) (int, error) { return utf8.RuneCountInString(text), nil }
 
 func sum(s string) string {
 	h := sha256.Sum256([]byte(s))
@@ -87,7 +90,7 @@ func newPipeline(t *testing.T, e *aitest.Endpoint) *docinfer.Pipeline {
 	p, err := docinfer.New(docinfer.Config{
 		Extraction: &docinfer.Extraction{Client: c, Model: extractModel, Served: extractServed, MaxTokens: 100},
 		Embeddings: docinfer.Embeddings{Client: c, Model: embeddingModel, Served: embeddingServed},
-		Chunker:    chunk.Splitter{Bound: 1000},
+		Chunker:    chunk.Splitter{Bound: 1000, Count: runes, Model: embeddingServed},
 		Dimensions: 2,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     bounds,
