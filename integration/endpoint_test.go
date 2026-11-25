@@ -30,6 +30,7 @@ const (
 	audio         role = "AI_AUDIO_BASE_URL"
 	embedding     role = "AI_EMBEDDING_BASE_URL"
 	transcription role = "AI_TRANSCRIPTION_BASE_URL"
+	tokenize      role = "AI_TOKENIZE_BASE_URL"
 )
 
 const (
@@ -93,8 +94,22 @@ func embeddings(t *testing.T) (docinfer.Embeddings, int) {
 	return docinfer.Embeddings{Client: c, Model: model, Served: served}, len(probe.Vectors[0])
 }
 
+func tokenizer(t *testing.T, emb docinfer.Embeddings) *ai.Client {
+	t.Helper()
+	base := os.Getenv(string(tokenize))
+	if base == "" {
+		return emb.Client
+	}
+	c, err := newClient(string(tokenize), base, completions.New(completions.Options{}), ai.Options{}, os.Getenv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
 func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*docinfer.Config)) *docinfer.Pipeline {
 	t.Helper()
+	counter := tokenizer(t, emb)
 	cache, err := docinfer.NewFileCache(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +123,7 @@ func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*doc
 		Chunker: chunk.Splitter{
 			Bound: chunkBound,
 			Count: func(ctx context.Context, text string) (int, error) {
-				tokens, err := emb.Client.Tokenize(ctx, &ai.TokenizeRequest{Model: emb.Model, Text: text, InputType: ai.InputDocument})
+				tokens, err := counter.Tokenize(ctx, &ai.TokenizeRequest{Model: emb.Model, Text: text, InputType: ai.InputDocument})
 				if err != nil {
 					return 0, err
 				}

@@ -17,6 +17,10 @@
 //     on it in chat mode.
 //   - AI_AGENT_BASE_URL: a model with structured output, the role go-ai's tier asks for a strict
 //     JSON schema. TestExtraction runs on it.
+//   - AI_TOKENIZE_BASE_URL: the root an embedding endpoint serves tokenize at, such as
+//     http://localhost:8000, as the command's tier reads it. Every scenario counts tokens through
+//     it, or, with it unset, through AI_EMBEDDING_BASE_URL's tokenize route, as a gateway forwards
+//     it.
 //
 // Each role may also name its credentials, as go-ai's tier reads them: AI_<ROLE>_TOKEN, sent as the
 // bearer token through Options.Token, and AI_<ROLE>_HEADER, one or more "Name: value" lines
@@ -57,7 +61,7 @@
 //
 // docinfer has no default bounds, so the tier sets its own small values: a Bounds of one request
 // in flight per capability, Pending 2, EmbedBatch 8, BatchBytes 64 KiB, a Chunker Bound of 400
-// tokens, counted by the embeddings client's Tokenize as documents, Join's WordsPerSecond 3,
+// tokens, counted by Tokenize as documents, Join's WordsPerSecond 3,
 // vision's MaxTokens 256, and extraction's 1024, room for a reasoning model to reason ahead of its
 // answer. Each Run is bounded by five minutes.
 //
