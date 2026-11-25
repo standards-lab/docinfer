@@ -78,13 +78,17 @@ func responseHeaderTimeout(t *testing.T, p probed, endpoint string) time.Duratio
 }
 
 func TestConfig_StartingValues(t *testing.T) {
-	p := probeConfig(t, `{"endpoints":{"gb10":{"base_url":"`+unusedURL+`","format":"completions"}},
-		"vision":{"endpoint":"gb10","model":"vision-model"},
+	p := probeConfig(t, `{"endpoints":{"gb10":{"base_url":"`+unusedURL+`","format":"completions"},
+			"seeing":{"base_url":"`+unusedURL+`","format":"completions"}},
+		"vision":{"endpoint":"seeing","model":"vision-model"},
 		"transcription":{"endpoint":"gb10","model":"audio-model"},
 		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`)
 
 	if got := responseHeaderTimeout(t, p, "gb10"); got != 180*time.Second {
 		t.Errorf("transport ResponseHeaderTimeout = %v, want 180s", got)
+	}
+	if got := responseHeaderTimeout(t, p, "seeing"); got != 600*time.Second {
+		t.Errorf("vision's transport ResponseHeaderTimeout = %v, want 600s", got)
 	}
 	e := p.cfg.Endpoints["gb10"]
 	if got := [3]any{*e.Retry.MaxAttempts, e.Retry.BaseDelay.Duration(), e.Retry.MaxDelay.Duration()}; got != [3]any{3, 500 * time.Millisecond, 30 * time.Second} {
@@ -133,6 +137,35 @@ func TestConfig_ResponseHeaderTimeoutOverride(t *testing.T) {
 
 	if got := responseHeaderTimeout(t, p, "gb10"); got != 5*time.Second {
 		t.Errorf("transport ResponseHeaderTimeout = %v, want the override's 5s", got)
+	}
+}
+
+func TestConfig_VisionResponseHeaderTimeout(t *testing.T) {
+	visionJSON := func(gb10 string) string {
+		return `{"endpoints":{"gb10":{"base_url":"` + unusedURL + `","format":"completions"` + gb10 + `}},
+			"vision":{"endpoint":"gb10","model":"vision-model"},
+			"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`
+	}
+	for name, tc := range map[string]struct {
+		gb10 string
+		env  string
+		want time.Duration
+	}{
+		"shared with embeddings starts at vision's": {want: 600 * time.Second},
+		"configured value wins":                     {gb10: `,"response_header_timeout":"90s"`, want: 90 * time.Second},
+		"override wins":                             {env: "5s", want: 5 * time.Second},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if tc.env != "" {
+				t.Setenv("DOCINFER_ENDPOINTS_GB10_RESPONSE_HEADER_TIMEOUT", tc.env)
+			}
+
+			p := probeConfig(t, visionJSON(tc.gb10))
+
+			if got := responseHeaderTimeout(t, p, "gb10"); got != tc.want {
+				t.Errorf("transport ResponseHeaderTimeout = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

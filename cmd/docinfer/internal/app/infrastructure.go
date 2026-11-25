@@ -123,8 +123,9 @@ type Config struct {
 //   - profile: the format's options, a JSON object keyed by format name, as go-ai's tools/infer
 //     decodes its profile, such as {"responses":{"refused_efforts":["none"]}}; optional
 //   - query: parameters added to every request's URL; optional
-//   - response_header_timeout: the transport's wait for a reply's header, starting at 180s; 0
-//     waits for as long as the reply takes
+//   - response_header_timeout: the transport's wait for a reply's header, starting at 180s, and
+//     at 600s on the endpoint vision names, since a non-streaming reply's header waits for the
+//     whole reply, up to vision's max_tokens; 0 waits for as long as the reply takes
 //   - retry: go-ai's RetryPolicy, max_attempts starting at 3, base_delay at 500ms, and max_delay
 //     at 30s
 //   - token and headers: the bearer token and the fixed headers each request carries, which
@@ -229,6 +230,7 @@ type Run struct {
 
 const (
 	startResponseHeaderTimeout = 180 * time.Second
+	startVisionHeaderTimeout   = 600 * time.Second
 	startRetryAttempts         = 3
 	startRetryBaseDelay        = 500 * time.Millisecond
 	startRetryMaxDelay         = 30 * time.Second
@@ -506,6 +508,11 @@ func parseMode(s string) (ai.TranscriptionMode, error) {
 }
 
 func (c *Config) start() {
+	if v := c.Vision; v != nil {
+		if e := c.Endpoints[v.Endpoint]; e != nil {
+			startAt(&e.ResponseHeaderTimeout, config.Duration(startVisionHeaderTimeout))
+		}
+	}
 	for _, e := range c.Endpoints {
 		startAt(&e.ResponseHeaderTimeout, config.Duration(startResponseHeaderTimeout))
 		startAt(&e.Retry.MaxAttempts, startRetryAttempts)

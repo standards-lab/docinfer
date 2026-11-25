@@ -37,8 +37,10 @@ The configuration ships the operator's starting values, which the library leaves
 endpoints.<name>     base_url; format: completions, messages, or responses; profile, the format's
                        Options, decoded as tools/infer's formatOptions is (C6); query; retry
                        {max_attempts 3, base_delay 500ms, max_delay 30s} (C6);
-                       response_header_timeout 180s, above vision's slowest observed image,
-                       38.9 s, and no stream timeout, the command running no extraction (C9);
+                       response_header_timeout 180s, and 600s on the endpoint vision names,
+                       shared or not, since a non-streaming reply's header waits for the whole
+                       reply, up to vision's max_tokens, and no stream timeout, the command
+                       running no extraction (C9);
                        token and headers in the secrets file (C6)
 vision               endpoint, model, served_model, prompt, max_tokens 2048, reasoning none (a
                        protocol.ReasoningEffort, refused by its UnmarshalText, C7), native

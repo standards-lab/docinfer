@@ -81,6 +81,10 @@ the postgres module keep their own.
   under the former settings miss and are recut.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.
+- The endpoint `vision.endpoint` names starts its `response_header_timeout` at 600s, every other
+  endpoint keeping 180s, since a non-streaming reply's header waits for the whole reply, up to
+  vision's `max_tokens`; an endpoint vision shares with another capability takes vision's start,
+  and a configured value still replaces it.
 
 ### Fixed
 
