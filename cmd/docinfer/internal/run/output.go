@@ -44,16 +44,14 @@ type inputTally struct {
 }
 
 type progress struct {
-	w        io.Writer
-	f        *feed
-	echoed   int
-	tallies  map[string]*inputTally
-	parts    map[string]string
-	contents map[string]string
+	w       io.Writer
+	f       *feed
+	echoed  int
+	tallies map[string]*inputTally
 }
 
 func newProgress(w io.Writer, f *feed) *progress {
-	return &progress{w: w, f: f, tallies: map[string]*inputTally{}, parts: map[string]string{}, contents: map[string]string{}}
+	return &progress{w: w, f: f, tallies: map[string]*inputTally{}}
 }
 
 func (p *progress) tally(path string) *inputTally {
@@ -71,11 +69,7 @@ func (p *progress) echo(in docinfer.Input) {
 	t := p.tally(fd.path)
 	t.pending++
 	t.closed = t.closed || fd.last
-	if part := in.Event.Part; part.ID != "" {
-		p.parts[partKey(part)] = fd.path
-	}
 	if o := in.Event.Output; o != nil {
-		p.contents[o.SHA256] = fd.path
 		switch o.Kind {
 		case dispatch.ImageOutput:
 			t.images++
@@ -85,29 +79,16 @@ func (p *progress) echo(in docinfer.Input) {
 	}
 }
 
-func (p *progress) inputOf(inf docinfer.Inference) (string, bool) {
-	for _, sha := range inf.ContentSHA256 {
-		if path, ok := p.contents[sha]; ok {
-			return path, true
-		}
-	}
-	return "", false
-}
-
-func (p *progress) partInputs(b docinfer.Batch) []string {
+func partInputs(b docinfer.Batch) []string {
 	inputs := make([]string, len(b.Parts))
-	for i, part := range b.Parts {
-		inputs[i] = p.parts[partKey(part)]
+	for _, s := range b.Sources {
+		inputs[s.Part] = s.Origin
 	}
 	return inputs
 }
 
 func (p *progress) inference(inf docinfer.Inference) {
-	path, ok := p.inputOf(inf)
-	if !ok {
-		return
-	}
-	t := p.tally(path)
+	t := p.tally(inf.Origin)
 	switch {
 	case inf.Capability == docinfer.CapabilityTranscription:
 		t.failures += len(inf.Failed)
@@ -118,19 +99,13 @@ func (p *progress) inference(inf docinfer.Inference) {
 
 func (p *progress) batch(b docinfer.Batch) {
 	for _, c := range b.Chunks {
-		path, ok := p.parts[partKey(b.Parts[b.Sources[c.Source].Part])]
-		if !ok {
-			continue
-		}
-		t := p.tally(path)
+		t := p.tally(b.Sources[c.Source].Origin)
 		t.chunks++
 		if c.Error != "" {
 			t.failures++
 		}
 	}
 }
-
-func partKey(p dispatch.Part) string { return p.ID + "\x00" + p.SHA256 }
 
 func (p *progress) settle(pos int) error {
 	path := p.f.at(pos).path

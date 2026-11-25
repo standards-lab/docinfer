@@ -62,6 +62,10 @@ the postgres module keep their own.
   uncounted, the run ending 0. `run` names each line's input to the library as its `Origin`, so
   each input's windows join into its own transcript, and the transcription line counts the windows
   placed in no transcript, `unplaced`, after `failed`.
+- A part two inputs share, such as a section two OneNote files both hold, had its chunk and
+  inference lines named by whichever of the inputs had been fed last when each result arrived, so
+  a rerun could name some differently. Each line now names the input whose results it holds, the
+  `Origin` the library echoes on each inference and source, whatever order the results arrive in.
 
 ## [v0.1.0] - 2026-11-23
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"path/filepath"
 	"slices"
@@ -384,5 +385,67 @@ func TestRun_ReadsTheLatestRunThatEnded(t *testing.T) {
 	}
 	if want := "docinfer run: docproc run " + secondRun + ": rundir: run has not ended"; !strings.HasPrefix(stderr.String(), want) {
 		t.Errorf("stderr = %q, want it to start with %q", stderr, want)
+	}
+}
+
+func TestRun_SharedPartNamedByEachInput(t *testing.T) {
+	var gate aitest.Gate
+	e := aitest.Serve(t, aitest.Routes{
+		Models:   listed,
+		Tokenize: wordTokens,
+		Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
+			if err := gate.Wait(ctx); err != nil {
+				return aitest.ErrorReply{Status: http.StatusServiceUnavailable, Message: "cancelled"}
+			}
+			return unitVectors(ctx, req)
+		},
+	})
+	root := t.TempDir()
+	docproc := filepath.Join(root, "docproc")
+	dr := newDocprocRun(t, docproc)
+	shared := dispatch.Part{ID: "/section.one", Name: "section.one", Size: 6, SHA256: sha([]byte("shared")), Parent: "/", Depth: 1, Where: "section.one"}
+	texts := map[string]string{"/in/a.zip": "alpha section text", "/in/b.zip": "beta section text"}
+	for _, path := range []string{"/in/a.zip", "/in/b.zip"} {
+		dr.output(path, shared, dispatch.TextOutput, "text/plain", []byte(texts[path]))
+		dr.part(path, shared, 1)
+		dr.part(path, inputPart(filepath.Base(path), []byte(path)), 0)
+	}
+	dr.end()
+	attribution := func(out string) map[string]string {
+		t.Helper()
+		d, m := openOut(t, out)
+		got := map[string]string{}
+		for _, l := range collect(t, d.Lines(m.Run)) {
+			if l.Part.ID == shared.ID {
+				got[l.Text] = l.Input
+			}
+		}
+		return got
+	}
+	want := map[string]string{texts["/in/a.zip"]: "/in/a.zip", texts["/in/b.zip"]: "/in/b.zip"}
+
+	cfg := inferConfig(e.URL(), false)
+	cfg.Run.Pending = new(4)
+	a, stderr := inferApp(t, cfg, io.Discard)
+	done := make(chan int, 1)
+	later := filepath.Join(root, "later")
+	go func() { done <- a.Run(context.Background(), []string{"run", docproc, "--out", later}) }()
+	gate.Await(t, 3)
+	gate.Open()
+	if code := <-done; code != process.ExitOK {
+		t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
+	}
+	if got := attribution(later); !maps.Equal(got, want) {
+		t.Errorf("with a.zip's chunks after b.zip's lines were fed, the shared part's chunks name %v, want %v", got, want)
+	}
+
+	cfg.Run.Pending = new(1)
+	a, stderr = inferApp(t, cfg, io.Discard)
+	earlier := filepath.Join(root, "earlier")
+	if code := a.Run(context.Background(), []string{"run", docproc, "--out", earlier}); code != process.ExitOK {
+		t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
+	}
+	if got := attribution(earlier); !maps.Equal(got, want) {
+		t.Errorf("with a.zip's chunks before b.zip's lines were fed, the shared part's chunks name %v, want %v", got, want)
 	}
 }
