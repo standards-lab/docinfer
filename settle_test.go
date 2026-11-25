@@ -47,8 +47,8 @@ func settleConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config))
 	t.Helper()
 	client := newClient(t, e.URL(), ai.TranscribeRoute)
 	return extractConfig(t, e, func(c *docinfer.Config) {
-		c.Vision = &docinfer.Vision{Client: client, Model: visionModel, MaxTokens: visionTokens}
-		c.Transcription = &docinfer.Transcription{Client: client, Model: transcriptionModel}
+		c.Vision = &docinfer.Vision{Client: client, Model: visionModel, Served: visionServed, MaxTokens: visionTokens}
+		c.Transcription = &docinfer.Transcription{Client: client, Model: transcriptionModel, Served: transcriptionServed}
 		if edit != nil {
 			edit(c)
 		}

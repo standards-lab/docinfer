@@ -20,7 +20,7 @@ func TestIdentity(t *testing.T) {
 	}{
 		{
 			"vision",
-			docinfer.Vision{Client: route, Model: "v", Prompt: "Describe <this> & that.", MaxTokens: 7, Reasoning: protocol.ReasoningEffortHigh}.Identity(),
+			docinfer.Vision{Client: route, Model: "alias", Served: "v", Prompt: "Describe <this> & that.", MaxTokens: 7, Reasoning: protocol.ReasoningEffortHigh}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityVision, Model: "v",
 				Settings: `{"request":"1","prompt":"Describe <this> & that.","max_tokens":7,"effort":"high"}`,
@@ -28,7 +28,7 @@ func TestIdentity(t *testing.T) {
 		},
 		{
 			"vision with no effort",
-			docinfer.Vision{Client: route, Model: "v", MaxTokens: 7}.Identity(),
+			docinfer.Vision{Client: route, Model: "alias", Served: "v", MaxTokens: 7}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityVision, Model: "v",
 				Settings: `{"request":"1","prompt":"","max_tokens":7,"effort":""}`,
@@ -36,7 +36,7 @@ func TestIdentity(t *testing.T) {
 		},
 		{
 			"transcription by route",
-			docinfer.Transcription{Client: route, Model: "w", Prompt: "Names: Ada.", Language: "en"}.Identity(),
+			docinfer.Transcription{Client: route, Model: "alias", Served: "w", Prompt: "Names: Ada.", Language: "en"}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
 				Settings: `{"request":"1","mode":"route","prompt":"Names: Ada.","language":"en"}`,
@@ -44,7 +44,7 @@ func TestIdentity(t *testing.T) {
 		},
 		{
 			"transcription by chat",
-			docinfer.Transcription{Client: chat, Model: "w"}.Identity(),
+			docinfer.Transcription{Client: chat, Model: "alias", Served: "w"}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityTranscription, Model: "w",
 				Settings: `{"request":"1","mode":"chat","prompt":"","language":""}`,
@@ -52,7 +52,7 @@ func TestIdentity(t *testing.T) {
 		},
 		{
 			"extraction",
-			docinfer.Extraction{Client: route, Model: "x", MaxTokens: 9, Reasoning: protocol.ReasoningEffortMedium}.Identity(
+			docinfer.Extraction{Client: route, Model: "alias", Served: "x", MaxTokens: 9, Reasoning: protocol.ReasoningEffortMedium}.Identity(
 				docinfer.Extract{Name: "invoice", Prompt: "Extract the invoice.", Schema: schema}),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityExtraction, Model: "x",
@@ -62,7 +62,7 @@ func TestIdentity(t *testing.T) {
 		},
 		{
 			"embeddings",
-			docinfer.Embeddings{Client: route, Model: "e"}.Identity(),
+			docinfer.Embeddings{Client: route, Model: "alias", Served: "e"}.Identity(),
 			docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "e", Settings: ""},
 		},
 	}
@@ -73,18 +73,47 @@ func TestIdentity(t *testing.T) {
 	}
 }
 
+func TestIdentityNamesTheServedModel(t *testing.T) {
+	route := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
+	extract := docinfer.Extract{Name: "invoice", Prompt: "prompt", Schema: jsontext.Value(`{"type":"object"}`)}
+	identities := map[docinfer.Capability]func(model, served string) docinfer.Identity{
+		docinfer.CapabilityVision: func(model, served string) docinfer.Identity {
+			return docinfer.Vision{Client: route, Model: model, Served: served, MaxTokens: 1}.Identity()
+		},
+		docinfer.CapabilityTranscription: func(model, served string) docinfer.Identity {
+			return docinfer.Transcription{Client: route, Model: model, Served: served}.Identity()
+		},
+		docinfer.CapabilityExtraction: func(model, served string) docinfer.Identity {
+			return docinfer.Extraction{Client: route, Model: model, Served: served, MaxTokens: 1}.Identity(extract)
+		},
+		docinfer.CapabilityEmbeddings: func(model, served string) docinfer.Identity {
+			return docinfer.Embeddings{Client: route, Model: model, Served: served}.Identity()
+		},
+	}
+	content := sha("content")
+	for capability, identity := range identities {
+		key := docinfer.Key(identity("alias", "org/model-1"), content)
+		if docinfer.Key(identity("alias", "org/model-2"), content) == key {
+			t.Errorf("%s: another model served under the same alias keys the same", capability)
+		}
+		if docinfer.Key(identity("another-alias", "org/model-1"), content) != key {
+			t.Errorf("%s: the same model served under another alias keys differently", capability)
+		}
+	}
+}
+
 func TestGoldenKeysAreIdentities(t *testing.T) {
 	route := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
 	ids := map[docinfer.Capability]docinfer.Identity{
 		docinfer.CapabilityVision: docinfer.Vision{
-			Client: route, Model: "gpt-4.1-mini", Prompt: "Describe the image.", MaxTokens: 1024,
+			Client: route, Model: "vision", Served: "gpt-4.1-mini", Prompt: "Describe the image.", MaxTokens: 1024,
 			Reasoning: protocol.ReasoningEffortLow,
 		}.Identity(),
-		docinfer.CapabilityTranscription: docinfer.Transcription{Client: route, Model: "whisper-1", Language: "en"}.Identity(),
+		docinfer.CapabilityTranscription: docinfer.Transcription{Client: route, Model: "audio", Served: "whisper-1", Language: "en"}.Identity(),
 		docinfer.CapabilityExtraction: docinfer.Extraction{
-			Client: route, Model: "gpt-4.1", MaxTokens: 4096, Reasoning: protocol.ReasoningEffortMedium,
+			Client: route, Model: "agent", Served: "gpt-4.1", MaxTokens: 4096, Reasoning: protocol.ReasoningEffortMedium,
 		}.Identity(docinfer.Extract{Name: "invoice", Prompt: "prompt", Schema: jsontext.Value("schema")}),
-		docinfer.CapabilityEmbeddings: docinfer.Embeddings{Client: route, Model: "text-embedding-3-small"}.Identity(),
+		docinfer.CapabilityEmbeddings: docinfer.Embeddings{Client: route, Model: "embedding", Served: "text-embedding-3-small"}.Identity(),
 	}
 	for _, g := range goldenKeys {
 		if id := ids[g.Identity.Capability]; id != g.Identity {
@@ -101,18 +130,18 @@ func TestProfile(t *testing.T) {
 	}
 	want := docinfer.Profile{
 		Vision: &docinfer.Identity{
-			Capability: docinfer.CapabilityVision, Model: "vision-model",
+			Capability: docinfer.CapabilityVision, Model: "org/vision-1",
 			Settings: `{"request":"1","prompt":"Describe the image.","max_tokens":2,"effort":"low"}`,
 		},
 		Transcription: &docinfer.Identity{
-			Capability: docinfer.CapabilityTranscription, Model: "transcription-model",
+			Capability: docinfer.CapabilityTranscription, Model: "org/transcription-1",
 			Settings: `{"request":"1","mode":"route","prompt":"","language":"en"}`,
 		},
 		Extraction: &docinfer.Identity{
-			Capability: docinfer.CapabilityExtraction, Model: "extraction-model",
+			Capability: docinfer.CapabilityExtraction, Model: "org/extraction-1",
 			Settings: `{"request":"1","max_tokens":2,"effort":"medium"}`,
 		},
-		Embeddings: docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "embedding-model"},
+		Embeddings: docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "org/embedding-1"},
 		Dimensions: 2,
 		Chunker:    `{"version":"1","bound":2}`,
 	}

@@ -27,6 +27,7 @@ import (
 
 const (
 	visionModel  = "vision-model"
+	visionServed = "org/vision-1"
 	visionPrompt = "Describe the image."
 	visionTokens = 300
 	description  = "A red square on a white page.\n\nA small grey caption below."
@@ -49,7 +50,7 @@ func visionConfig(t *testing.T, e *aitest.Endpoint, wireFormat format.Format, ed
 	}
 	return runConfig(t, e, func(c *docinfer.Config) {
 		c.Vision = &docinfer.Vision{
-			Client: client, Model: visionModel, Prompt: visionPrompt, MaxTokens: visionTokens,
+			Client: client, Model: visionModel, Served: visionServed, Prompt: visionPrompt, MaxTokens: visionTokens,
 			Reasoning: protocol.ReasoningEffortLow,
 		}
 		if edit != nil {
@@ -59,7 +60,7 @@ func visionConfig(t *testing.T, e *aitest.Endpoint, wireFormat format.Format, ed
 }
 
 var visionID = docinfer.Vision{
-	Model: visionModel, Prompt: visionPrompt, MaxTokens: visionTokens, Reasoning: protocol.ReasoningEffortLow,
+	Model: visionModel, Served: visionServed, Prompt: visionPrompt, MaxTokens: visionTokens, Reasoning: protocol.ReasoningEffortLow,
 }.Identity()
 
 func imageInput(t *testing.T, content *dispatch.MemoryContent, data []byte, mediaType string) docinfer.Input {
@@ -548,5 +549,50 @@ func TestRunImageFailed(t *testing.T) {
 				t.Errorf("counts %+v, want the image failed and the text embedded", o.counts)
 			}
 		})
+	}
+}
+
+func TestRunKeysByServedModel(t *testing.T) {
+	var models []string
+	e := aitest.Serve(t, aitest.Routes{
+		ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
+			models = append(models, req.Model)
+			return aitest.ChatReply{Text: description}
+		},
+		Embeddings: embedAll,
+	})
+	cache := docinfer.NewMemoryCache()
+	content := dispatch.NewMemoryContent()
+	in := imageInput(t, content, imageBytes, imageType)
+	run := func(model, served string) docinfer.VisionCounts {
+		t.Helper()
+		cfg := visionConfig(t, e, nil, func(c *docinfer.Config) {
+			c.Vision.Model, c.Vision.Served = model, served
+			c.Cache = cache
+		})
+		o := collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(in), docinfer.Options{}))
+		if o.err != nil {
+			t.Fatal(o.err)
+		}
+		return *o.counts.Vision
+	}
+	for _, tc := range []struct {
+		name, model, served string
+		want                docinfer.VisionCounts
+		sent                []string
+	}{
+		{"first", visionModel, visionServed, docinfer.VisionCounts{Described: 1, Requests: 1}, []string{visionModel}},
+		{"another model served under the alias", visionModel, "org/vision-2", docinfer.VisionCounts{Described: 1, Requests: 1}, []string{visionModel, visionModel}},
+		{"the model served under another alias", "another-alias", visionServed, docinfer.VisionCounts{Described: 1, Held: 1}, []string{visionModel, visionModel}},
+	} {
+		if got := run(tc.model, tc.served); got != tc.want {
+			t.Errorf("%s: vision counts %+v, want %+v", tc.name, got, tc.want)
+		}
+		if !slices.Equal(models, tc.sent) {
+			t.Errorf("%s: requests named %q, want %q", tc.name, models, tc.sent)
+		}
+	}
+	if h := heldImage(t, cache); h == nil || *h != (docinfer.Held{Text: description}) {
+		t.Errorf("held under the served model %+v, want the description", h)
 	}
 }

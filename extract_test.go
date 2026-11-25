@@ -27,6 +27,7 @@ import (
 
 const (
 	extractModel  = "extraction-model"
+	extractServed = "org/extraction-1"
 	extractTokens = 200
 	extractPrompt = "Extract the total."
 	extractName   = "invoice_total"
@@ -38,14 +39,14 @@ var (
 	theExtract    = docinfer.Extract{Name: extractName, Prompt: extractPrompt, Schema: extractSchema}
 	extractPieces = []string{`{"total"`, `: 12`, `.5`, `}`}
 	extractJSON   = strings.Join(extractPieces, "")
-	extractID     = docinfer.Extraction{Model: extractModel, MaxTokens: extractTokens, Reasoning: protocol.ReasoningEffortLow}.Identity(theExtract)
+	extractID     = docinfer.Extraction{Model: extractModel, Served: extractServed, MaxTokens: extractTokens, Reasoning: protocol.ReasoningEffortLow}.Identity(theExtract)
 )
 
 func extractConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	return runConfig(t, e, func(c *docinfer.Config) {
 		c.Extraction = &docinfer.Extraction{
-			Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: extractModel, MaxTokens: extractTokens,
+			Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: extractModel, Served: extractServed, MaxTokens: extractTokens,
 			Reasoning: protocol.ReasoningEffortLow,
 		}
 		if edit != nil {
@@ -271,8 +272,8 @@ func TestRunExtractsInferredTexts(t *testing.T) {
 	})
 	client := newClient(t, e.URL(), ai.TranscribeRoute)
 	cfg := extractConfig(t, e, func(c *docinfer.Config) {
-		c.Vision = &docinfer.Vision{Client: client, Model: visionModel, MaxTokens: visionTokens}
-		c.Transcription = &docinfer.Transcription{Client: client, Model: transcriptionModel}
+		c.Vision = &docinfer.Vision{Client: client, Model: visionModel, Served: visionServed, MaxTokens: visionTokens}
+		c.Transcription = &docinfer.Transcription{Client: client, Model: transcriptionModel, Served: transcriptionServed}
 	})
 	content := dispatch.NewMemoryContent()
 	inputs := seq(imageInput(t, content, imageBytes, imageType), windowInput(t, content, win{index: 0, clip: "clip 0", said: said0}),

@@ -35,15 +35,17 @@ const (
 // model, and the settings the request is built with.
 type Identity struct {
 	Capability Capability `json:"capability"`
-	Model      string     `json:"model"`
+	// Model is the model the deployment serves, the capability's Served, not the one its request
+	// names, so a model swapped in under the same name misses.
+	Model string `json:"model"`
 	// Settings is the JSON of the capability's settings, its first member "request", the request's
 	// version, changed when the request's construction changes; the embeddings' is "", since a
 	// vector depends on the model and the chunk's text alone.
 	Settings string `json:"settings"`
 }
 
-// Profile is a pipeline's resolved identity: the models, settings, dimensions, and chunker, known
-// before any job runs.
+// Profile is a pipeline's resolved identity: the served models, settings, dimensions, and chunker,
+// known before any job runs.
 type Profile struct {
 	Vision        *Identity `json:"vision,omitempty"`
 	Transcription *Identity `json:"transcription,omitempty"`

@@ -29,11 +29,12 @@ import (
 )
 
 const (
-	embeddingModel = "embedding-model"
-	dimensions     = 2
+	embeddingModel  = "embedding-model"
+	embeddingServed = "org/embedding-1"
+	dimensions      = 2
 )
 
-var embeddingID = docinfer.Embeddings{Model: embeddingModel}.Identity()
+var embeddingID = docinfer.Embeddings{Model: embeddingModel, Served: embeddingServed}.Identity()
 
 func vectorOf(text string) []float32 {
 	return []float32{float32(len(text)), float32(strings.Count(text, " "))}
@@ -50,7 +51,7 @@ func embedAll(_ context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 func runConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	cfg := docinfer.Config{
-		Embeddings: docinfer.Embeddings{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: embeddingModel},
+		Embeddings: docinfer.Embeddings{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: embeddingModel, Served: embeddingServed},
 		Chunker:    chunk.Splitter{Bound: 40},
 		Dimensions: dimensions,
 		Cache:      docinfer.NewMemoryCache(),

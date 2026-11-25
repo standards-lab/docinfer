@@ -38,14 +38,14 @@ func validConfig(t *testing.T) docinfer.Config {
 	c := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
 	return docinfer.Config{
 		Vision: &docinfer.Vision{
-			Client: c, Model: "vision-model", Prompt: "Describe the image.", MaxTokens: 2,
+			Client: c, Model: "vision", Served: "org/vision-1", Prompt: "Describe the image.", MaxTokens: 2,
 			Reasoning: protocol.ReasoningEffortLow,
 		},
-		Transcription: &docinfer.Transcription{Client: c, Model: "transcription-model", Language: "en"},
+		Transcription: &docinfer.Transcription{Client: c, Model: "audio", Served: "org/transcription-1", Language: "en"},
 		Extraction: &docinfer.Extraction{
-			Client: c, Model: "extraction-model", MaxTokens: 2, Reasoning: protocol.ReasoningEffortMedium,
+			Client: c, Model: "agent", Served: "org/extraction-1", MaxTokens: 2, Reasoning: protocol.ReasoningEffortMedium,
 		},
-		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding-model"},
+		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding", Served: "org/embedding-1"},
 		Chunker:    chunk.Splitter{Bound: 2},
 		Dimensions: 2,
 		Cache:      docinfer.NewMemoryCache(),
@@ -132,6 +132,10 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		{"Vision.Model", func(c *docinfer.Config) { c.Vision.Model = "" }},
 		{"Transcription.Model", func(c *docinfer.Config) { c.Transcription.Model = "" }},
 		{"Extraction.Model", func(c *docinfer.Config) { c.Extraction.Model = "" }},
+		{"Embeddings.Served", func(c *docinfer.Config) { c.Embeddings.Served = "" }},
+		{"Vision.Served", func(c *docinfer.Config) { c.Vision.Served = "" }},
+		{"Transcription.Served", func(c *docinfer.Config) { c.Transcription.Served = "" }},
+		{"Extraction.Served", func(c *docinfer.Config) { c.Extraction.Served = "" }},
 	}
 	for _, tc := range models {
 		t.Run(tc.field+"=empty", func(t *testing.T) {

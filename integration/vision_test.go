@@ -15,10 +15,10 @@ var imagePart = dispatch.Part{ID: "/shapes.png", Name: "shapes.png", Size: 5384,
 	Parent: "/", Depth: 1, Where: "shapes.png"}
 
 func TestVision(t *testing.T) {
-	client, model := endpoint(t, vision, ai.Options{})
+	client, model, served := endpoint(t, vision, ai.Options{})
 	emb, dims := embeddings(t)
 	p := newPipeline(t, emb, dims, func(c *docinfer.Config) {
-		c.Vision = &docinfer.Vision{Client: client, Model: model, Prompt: "Describe this image in one sentence.", MaxTokens: visionTokens}
+		c.Vision = &docinfer.Vision{Client: client, Model: model, Served: served, Prompt: "Describe this image in one sentence.", MaxTokens: visionTokens}
 	})
 	content := dispatch.NewMemoryContent()
 	in := docinfer.Input{Event: dispatch.Event{

@@ -33,10 +33,12 @@ import (
 )
 
 const (
-	embeddingModel = "embedding-model"
-	extractModel   = "extraction-model"
-	refusedText    = "message 2"
-	failsafe       = 10 * time.Second
+	embeddingModel  = "embedding-model"
+	extractModel    = "extraction-model"
+	embeddingServed = "org/embedding-1"
+	extractServed   = "org/extraction-1"
+	refusedText     = "message 2"
+	failsafe        = 10 * time.Second
 )
 
 var theExtract = docinfer.Extract{
@@ -83,8 +85,8 @@ func newPipeline(t *testing.T, e *aitest.Endpoint) *docinfer.Pipeline {
 		t.Fatal(err)
 	}
 	p, err := docinfer.New(docinfer.Config{
-		Extraction: &docinfer.Extraction{Client: c, Model: extractModel, MaxTokens: 100},
-		Embeddings: docinfer.Embeddings{Client: c, Model: embeddingModel},
+		Extraction: &docinfer.Extraction{Client: c, Model: extractModel, Served: extractServed, MaxTokens: 100},
+		Embeddings: docinfer.Embeddings{Client: c, Model: embeddingModel, Served: embeddingServed},
 		Chunker:    chunk.Splitter{Bound: 1000},
 		Dimensions: 2,
 		Cache:      docinfer.NewMemoryCache(),

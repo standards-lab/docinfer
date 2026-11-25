@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	transcriptionModel = "transcription-model"
-	transcriptionLang  = "en"
+	transcriptionModel  = "transcription-model"
+	transcriptionServed = "org/transcription-1"
+	transcriptionLang   = "en"
 )
 
 var (
@@ -170,7 +171,7 @@ func transcriptionConfig(t *testing.T, e *aitest.Endpoint, mode ai.Transcription
 	t.Helper()
 	return runConfig(t, e, func(c *docinfer.Config) {
 		c.Transcription = &docinfer.Transcription{
-			Client: newClient(t, e.URL(), mode), Model: transcriptionModel, Language: transcriptionLang,
+			Client: newClient(t, e.URL(), mode), Model: transcriptionModel, Served: transcriptionServed, Language: transcriptionLang,
 		}
 		if edit != nil {
 			edit(c)
@@ -181,7 +182,7 @@ func transcriptionConfig(t *testing.T, e *aitest.Endpoint, mode ai.Transcription
 func transcriptionID(t *testing.T, mode ai.TranscriptionMode) docinfer.Identity {
 	t.Helper()
 	return docinfer.Transcription{
-		Client: newClient(t, "http://localhost/v1", mode), Model: transcriptionModel, Language: transcriptionLang,
+		Client: newClient(t, "http://localhost/v1", mode), Model: transcriptionModel, Served: transcriptionServed, Language: transcriptionLang,
 	}.Identity()
 }
 

@@ -9,7 +9,8 @@ import (
 )
 
 // Config is a [Pipeline]'s configuration. Nothing in it has a default: [New] refuses a count or
-// bound below 1 and an empty model, and panics on a missing client, cache, or Bounds.
+// bound below 1 and an empty model or served model, and panics on a missing client, cache, or
+// Bounds.
 type Config struct {
 	Vision        *Vision        // nil skips images, counted
 	Transcription *Transcription // nil skips windows, counted
@@ -40,7 +41,7 @@ type Pipeline struct {
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
 // Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens) and an
-// empty Model. It copies the capabilities cfg points to, so a later change to them changes
+// empty Model or Served. It copies the capabilities cfg points to, so a later change to them changes
 // nothing.
 func New(cfg Config) (*Pipeline, error) {
 	if cfg.Cache == nil {
@@ -74,19 +75,20 @@ func New(cfg Config) (*Pipeline, error) {
 		{"BatchBytes", cfg.BatchBytes},
 		{"Join.WordsPerSecond", cfg.Join.WordsPerSecond},
 	}
-	models := []struct{ field, model string }{{"Embeddings.Model", cfg.Embeddings.Model}}
+	type model struct{ field, model string }
+	models := []model{{"Embeddings.Model", cfg.Embeddings.Model}, {"Embeddings.Served", cfg.Embeddings.Served}}
 	if v := cfg.Vision; v != nil {
 		counts = append(counts, count{"Vision.MaxTokens", v.MaxTokens})
-		models = append(models, struct{ field, model string }{"Vision.Model", v.Model})
+		models = append(models, model{"Vision.Model", v.Model}, model{"Vision.Served", v.Served})
 		cfg.Vision = new(*v)
 	}
 	if t := cfg.Transcription; t != nil {
-		models = append(models, struct{ field, model string }{"Transcription.Model", t.Model})
+		models = append(models, model{"Transcription.Model", t.Model}, model{"Transcription.Served", t.Served})
 		cfg.Transcription = new(*t)
 	}
 	if x := cfg.Extraction; x != nil {
 		counts = append(counts, count{"Extraction.MaxTokens", x.MaxTokens})
-		models = append(models, struct{ field, model string }{"Extraction.Model", x.Model})
+		models = append(models, model{"Extraction.Model", x.Model}, model{"Extraction.Served", x.Served})
 		cfg.Extraction = new(*x)
 	}
 	for _, c := range counts {
@@ -119,7 +121,9 @@ func New(cfg Config) (*Pipeline, error) {
 }
 
 // Profile returns the pipeline's resolved identity: each capability's [Identity], the
-// embeddings' Dimensions, and the Chunker's Settings, known before any job runs. An unset
+// embeddings' Dimensions, and the Chunker's Settings, known before any job runs. Each identity's
+// Model is the capability's Served, the model the deployment serves, not the one its request
+// names, so a consumer recording the embedding space records the model. An unset
 // capability's identity is nil, and the extraction's settings are {"request","max_tokens",
 // "effort"}, less the name, prompt, and schema each run's [Extract] gives.
 func (p *Pipeline) Profile() Profile {

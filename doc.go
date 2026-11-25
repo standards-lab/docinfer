@@ -4,16 +4,19 @@
 //
 // The cache holds one result per [Key], a [Held] as JSON. A key hashes [Version], the result's
 // [Identity], and its content's SHA-256, so a new shape of a held value, a new model, or new
-// settings misses rather than decoding wrong. A held value that doesn't decode as Held is a miss:
-// the model is asked again, and its Put replaces the value. docinfer never removes a value.
-// [FileCache] and [MemoryCache] are the module's caches, and package docinfertest holds the
-// contract every cache passes.
+// settings misses rather than decoding wrong. An identity's model is the one the deployment serves,
+// each capability's Served, which the host resolves, not Model, the name its request sends: another
+// model served under the same name misses, and the same model served under another name hits. A
+// held value that doesn't decode as Held is a miss: the model is asked again, and its Put replaces
+// the value. docinfer never removes a value. [FileCache] and [MemoryCache] are the module's caches,
+// and package docinfertest holds the contract every cache passes.
 //
 // A [Pipeline] is built by [New] from a [Config]: a go-ai client and settings per capability
 // ([Vision], [Transcription], [Extraction], and [Embeddings]), the chunker, the cache, and a
-// [Bounds] from [NewBounds], which caps each capability's requests in flight across every
-// pipeline built on it. Nothing has a default. Each capability's [Identity] holds its settings as
-// one JSON encoding led by its request's version, and [Pipeline.Profile] reports them.
+// [Bounds] from [NewBounds], which caps each capability's requests in flight across every pipeline
+// built on it. Nothing has a default. Each capability's [Identity] holds its served model and its
+// settings, one JSON encoding led by its request's version, and [Pipeline.Profile] reports them, so
+// a consumer records the models served, not the names requests send.
 //
 // [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
 // Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
@@ -26,7 +29,7 @@
 // apart for the host; and a failed call stops it too, but on the job's last delivery
 // ([Options].Final) its items are recorded failed, never held, and the job goes on.
 //
-// A held refusal stays until its key changes, by [Version], a request's version, or the model, or
+// A held refusal stays until its key changes, by [Version], a request's version, or the served model, or
 // until the host removes it from its own store. A chunk is identified by its job, its part's ID,
 // its source's kind and text SHA-256, and its index: the same content in two places is two chunks,
 // and a redelivery's repeat is the same one. A transcript that isn't transcribed carries its
@@ -53,8 +56,9 @@
 //     miss, with its [MissingError.Error] and [MissingError.Unwrap]; and [Permanent], which tells
 //     an error no redelivery changes
 //   - [Bounds] and [NewBounds], the requests in flight per capability
-//   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client and
-//     settings, and each one's Identity, [Vision.Identity], [Transcription.Identity],
+//   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client, the
+//     model its request names and the model served under it, and settings, and each one's
+//     Identity, [Vision.Identity], [Transcription.Identity],
 //     [Extraction.Identity], and [Embeddings.Identity]; [Extract], a caller's prompt and schema
 //   - [Cache], its Get and Put, and its two implementations, [FileCache] from [NewFileCache] and
 //     [MemoryCache] from [NewMemoryCache], each with its [FileCache.Get] and [FileCache.Put], and
@@ -63,7 +67,7 @@
 //   - [Version], the version of the shapes, which Key hashes
 //   - [Capability] and its four constants, [CapabilityVision], [CapabilityTranscription],
 //     [CapabilityExtraction], and [CapabilityEmbeddings]
-//   - [Identity], a result's capability, model, and settings, and [Profile], a pipeline's
+//   - [Identity], a result's capability, served model, and settings, and [Profile], a pipeline's
 //   - [Inference], one text a model made, its [Outcome], and its [Usage]; the six Outcome
 //     constants, [OutcomeDescribed], [OutcomeTranscribed], [OutcomeExtracted],
 //     [OutcomeIncomplete], [OutcomeRefused], and [OutcomeFailed]; [Progress], an extraction's text

@@ -9,8 +9,19 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+### Added
+
+- `Served` on `Vision`, `Transcription`, `Extraction`, and `Embeddings`: the model the deployment
+  serves under `Model`, which the host resolves. Requests still send `Model`.
+
 ### Changed
 
+- Each capability's `Identity`, and so each cache `Key` and `Pipeline.Profile`, names the served
+  model, `Served`, not `Model`: another model served under the same name misses, and the same
+  model served under another name hits. A caller sets `Served` on every capability it configures,
+  and `New` refuses an empty one, matching `ErrRequest`. `Version` stays "1": the shapes and the
+  key's format are unchanged, and a value held under a request's name misses under the served
+  model's rather than decoding wrong.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.
 
