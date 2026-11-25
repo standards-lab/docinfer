@@ -112,6 +112,9 @@ func TestConfig_StartingValues(t *testing.T) {
 	if v.Prompt == "" {
 		t.Error("vision prompt is empty, want the starting prompt")
 	}
+	if got := string(v.Native); got != `{"temperature":0}` {
+		t.Errorf("vision native = %s, want {\"temperature\":0}", got)
+	}
 	if got := p.transcription.TranscriptionMode(); got != ai.TranscribeRoute {
 		t.Errorf("transcription client's mode = %v, want route", got)
 	}

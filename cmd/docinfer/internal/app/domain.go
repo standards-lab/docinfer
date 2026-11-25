@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"encoding/json/jsontext"
+	jsonv2 "encoding/json/v2"
 
 	"github.com/standards-lab/go-cli-sdk"
 	"github.com/standards-lab/go-core/graph"
@@ -41,7 +43,7 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 				Prompt:    v.Prompt,
 				MaxTokens: *v.MaxTokens,
 				Reasoning: v.Reasoning,
-				Native:    jsontext.Value(v.Native),
+				Native:    native(v.Native),
 			}
 			rc.Endpoints[docinfer.CapabilityVision] = endpoint(cfg, v.Endpoint)
 			rc.Concurrency[docinfer.CapabilityVision] = *v.Concurrency
@@ -60,6 +62,14 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 		}
 		return rc, nil
 	})
+}
+
+func native(v json.RawMessage) jsontext.Value {
+	var members map[string]jsontext.Value
+	if jsonv2.Unmarshal(v, &members) == nil && len(members) == 0 {
+		return nil
+	}
+	return jsontext.Value(v)
 }
 
 func counter(client *ai.Client, model string) chunk.Counter {

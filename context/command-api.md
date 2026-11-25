@@ -41,7 +41,8 @@ endpoints.<name>     base_url; format: completions, messages, or responses; prof
                        38.9 s, and no stream timeout, the command running no extraction (C9);
                        token and headers in the secrets file (C6)
 vision               endpoint, model, served_model, prompt, max_tokens 2048, reasoning none (a
-                       protocol.ReasoningEffort, refused by its UnmarshalText, C7), native,
+                       protocol.ReasoningEffort, refused by its UnmarshalText, C7), native
+                       {"temperature":0}, replaced whole when set, {} sending none,
                        concurrency 4
 transcription        endpoint, model, served_model, prompt, language, mode route (the start) or
                        chat, set on this capability's own client as ai.TranscribeRoute or

@@ -190,38 +190,57 @@ func TestRun_ServedModel(t *testing.T) {
 }
 
 func TestRun_VisionSendsItsNative(t *testing.T) {
-	var asked recorded[aitest.ChatRequest]
-	e := aitest.Serve(t, aitest.Routes{
-		Models:     listed,
-		Embeddings: unitVectors,
-		Tokenize:   wordTokens,
-		ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
-			asked.add(req)
-			return aitest.ChatReply{Text: "a red square"}
-		},
-	})
-	cfg := inferConfig(e.URL(), true)
-	cfg.Vision.Native = json.RawMessage(`{"temperature": 0}`)
-	root := t.TempDir()
-	docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
-	dr := newDocprocRun(t, docproc)
-	part := inputPart("a.png", []byte("png-bytes"))
-	dr.output("/in/a.png", part, dispatch.ImageOutput, "image/png", []byte("image-a"))
-	dr.part("/in/a.png", part, 1)
-	dr.end()
-	a, stderr := inferApp(t, cfg, new(bytes.Buffer))
+	for _, tt := range []struct {
+		name, native, want string
+	}{
+		{"unset starts at temperature 0", "", `{"temperature":0}`},
+		{"configured replaces the start", `{"top_p": 0.5}`, `{"top_p":0.5}`},
+		{"empty sends none", `{}`, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var asked recorded[aitest.ChatRequest]
+			e := aitest.Serve(t, aitest.Routes{
+				Models:     listed,
+				Embeddings: unitVectors,
+				Tokenize:   wordTokens,
+				ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
+					asked.add(req)
+					return aitest.ChatReply{Text: "a red square"}
+				},
+			})
+			cfg := inferConfig(e.URL(), true)
+			if tt.native != "" {
+				cfg.Vision.Native = json.RawMessage(tt.native)
+			}
+			root := t.TempDir()
+			docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
+			dr := newDocprocRun(t, docproc)
+			part := inputPart("a.png", []byte("png-bytes"))
+			dr.output("/in/a.png", part, dispatch.ImageOutput, "image/png", []byte("image-a"))
+			dr.part("/in/a.png", part, 1)
+			dr.end()
+			a, stderr := inferApp(t, cfg, new(bytes.Buffer))
 
-	code := a.Run(context.Background(), []string{"run", docproc, "--out", out})
+			code := a.Run(context.Background(), []string{"run", docproc, "--out", out})
 
-	if code != process.ExitOK {
-		t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
-	}
-	reqs := asked.all()
-	if len(reqs) != 1 || !strings.Contains(string(reqs[0].Body), `"temperature":0`) {
-		t.Errorf("vision requests = %d, want one carrying native's temperature", len(reqs))
-	}
-	_, m := openOut(t, out)
-	if c := capabilityOf(t, m, docinfer.CapabilityVision); !strings.Contains(c.Settings, `"native":{"temperature":0}`) {
-		t.Errorf("vision settings = %s, want native in them", c.Settings)
+			if code != process.ExitOK {
+				t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
+			}
+			reqs := asked.all()
+			if len(reqs) != 1 {
+				t.Fatalf("vision requests = %d, want 1", len(reqs))
+			}
+			body := string(reqs[0].Body)
+			for _, member := range []string{`"temperature"`, `"top_p"`} {
+				if strings.Contains(body, member) != strings.Contains(tt.want, member) {
+					t.Errorf("vision request body = %s, want native %q's members alone", body, tt.want)
+				}
+			}
+			_, m := openOut(t, out)
+			settings := capabilityOf(t, m, docinfer.CapabilityVision).Settings
+			if tt.want == "" && strings.Contains(settings, `"native"`) || tt.want != "" && !strings.Contains(settings, `"native":`+tt.want) {
+				t.Errorf("vision settings = %s, want native %q", settings, tt.want)
+			}
+		})
 	}
 }

@@ -161,8 +161,9 @@ type Capability struct {
 
 // Vision is the vision capability: what each image is asked, prompt, the cap on its reply,
 // max_tokens, starting at 2048, the reasoning effort, any go-ai's protocol.ReasoningEffort
-// accepts, starting at none, and native, a JSON object of members the endpoint defines, such as
-// {"temperature":0}, sent in every request; optional.
+// accepts, starting at none, and native, a JSON object of members the endpoint defines, sent in
+// every request, starting at {"temperature":0}; a configured native replaces it whole, and {}
+// sends none.
 type Vision struct {
 	Capability
 	Prompt    string                   `json:"prompt"`
@@ -217,6 +218,7 @@ const (
 	startVisionPrompt          = "Transcribe the text in this picture. If it has no text, describe it in one sentence."
 	startVisionMaxTokens       = 2048
 	startVisionReasoning       = protocol.ReasoningEffortNone
+	startVisionNative          = `{"temperature":0}`
 	startWordsPerSecond        = 8
 	startEmbeddingsBatch       = 16
 	startChunkSize             = 480
@@ -483,6 +485,9 @@ func (c *Config) start() {
 		}
 		if v.Reasoning == "" {
 			v.Reasoning = startVisionReasoning
+		}
+		if v.Native == nil {
+			v.Native = json.RawMessage(startVisionNative)
 		}
 	}
 	if t := c.Transcription; t != nil {

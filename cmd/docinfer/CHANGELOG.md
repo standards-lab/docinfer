@@ -38,6 +38,9 @@ the postgres module keep their own.
   starting value; a configuration without them fails its Build before docproc's run is read.
 - **Breaking:** `embeddings.chunk_size` is in tokens, as the tokenizer counts them, its document
   prefix included, starting at 480, in place of 2,000 characters.
+- `vision.native` starts at `{"temperature":0}`, so a page's text is the same on every run. A
+  configured `vision.native` replaces it whole, and `{}` sends no native member, vision's identity
+  then carrying none.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.
 
