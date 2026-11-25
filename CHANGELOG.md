@@ -56,6 +56,16 @@ each nested module keeps its own.
   default. go-ai refuses any other in route mode. It enters transcription's identity settings as a
   `"native"` member after `"max_tokens"`, omitted when empty and canonical as `Vision`'s is. `New`
   refuses one that isn't a JSON object with unique member names, matching `ErrRequest`.
+- `MaxPixels` on `Vision`: an area bound on the image sent. A PNG or JPEG whose width × height
+  exceeds it is downscaled before the request, its aspect ratio kept, to the largest whole size
+  within it, by an area average over the standard library's `image` packages, and re-encoded in
+  its own format, JPEG at quality 95; its header is read first, so an image within the bound is
+  never decoded and is sent byte for byte. An image of another format, GIF among them, or one the
+  standard library can't decode, is sent as it is, and the endpoint's refusal classifies it as
+  before. 0 sends every image as it is; docinfer ships no default. `New` refuses a negative one,
+  matching `ErrRequest`. It enters vision's identity settings as `"max_pixels"` after `"effort"`,
+  always present; vision's request 2 is unreleased, so its settings gain it in place and the
+  request-1 keys are unchanged.
 
 ### Changed
 

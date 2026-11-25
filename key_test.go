@@ -82,7 +82,7 @@ var goldenKeys = []goldenKey{
 	{
 		Identity: docinfer.Identity{
 			Capability: docinfer.CapabilityVision, Model: "gpt-4.1-mini",
-			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":1024,"effort":"low"}`,
+			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":1024,"effort":"low","max_pixels":0}`,
 		},
 		Content: sha("an image"),
 	},
@@ -98,7 +98,7 @@ var goldenKeys = []goldenKey{
 		Identity: docinfer.Identity{
 			Capability: docinfer.CapabilityVision, Model: "gpt-4.1-mini",
 			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":1024,"effort":"low",` +
-				`"native":{"temperature":0.2,"top_k":64,"top_p":0.95}}`,
+				`"max_pixels":2580480,"native":{"temperature":0.2,"top_k":64,"top_p":0.95}}`,
 		},
 		Content: sha("an image"),
 	},

@@ -25,7 +25,7 @@ func TestIdentity(t *testing.T) {
 			docinfer.Vision{Client: route, Model: "alias", Served: "v", Prompt: "Describe <this> & that.", MaxTokens: 7, Reasoning: protocol.ReasoningEffortHigh}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityVision, Model: "v",
-				Settings: `{"request":"2","prompt":"Describe <this> & that.","max_tokens":7,"effort":"high"}`,
+				Settings: `{"request":"2","prompt":"Describe <this> & that.","max_tokens":7,"effort":"high","max_pixels":0}`,
 			},
 		},
 		{
@@ -33,7 +33,15 @@ func TestIdentity(t *testing.T) {
 			docinfer.Vision{Client: route, Model: "alias", Served: "v", MaxTokens: 7}.Identity(),
 			docinfer.Identity{
 				Capability: docinfer.CapabilityVision, Model: "v",
-				Settings: `{"request":"2","prompt":"","max_tokens":7,"effort":""}`,
+				Settings: `{"request":"2","prompt":"","max_tokens":7,"effort":"","max_pixels":0}`,
+			},
+		},
+		{
+			"vision with a pixel bound",
+			docinfer.Vision{Client: route, Model: "alias", Served: "v", MaxTokens: 7, MaxPixels: 2580480}.Identity(),
+			docinfer.Identity{
+				Capability: docinfer.CapabilityVision, Model: "v",
+				Settings: `{"request":"2","prompt":"","max_tokens":7,"effort":"","max_pixels":2580480}`,
 			},
 		},
 		{
@@ -134,6 +142,7 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 	extract := docinfer.Extract{Name: "invoice", Prompt: "prompt", Schema: jsontext.Value("schema")}
 	sampledVision, sampledExtraction := vision, extraction
 	sampledVision.Native = jsontext.Value(`{"top_p": 0.95, "top_k": 64, "temperature": 0.2}`)
+	sampledVision.MaxPixels = 2580480
 	sampledExtraction.Native = jsontext.Value(`{"temperature": 0}`)
 	ids := []docinfer.Identity{
 		vision.Identity(),
@@ -168,7 +177,7 @@ func TestProfile(t *testing.T) {
 	want := docinfer.Profile{
 		Vision: &docinfer.Identity{
 			Capability: docinfer.CapabilityVision, Model: "org/vision-1",
-			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low"}`,
+			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low","max_pixels":0}`,
 		},
 		Transcription: &docinfer.Identity{
 			Capability: docinfer.CapabilityTranscription, Model: "org/transcription-1",

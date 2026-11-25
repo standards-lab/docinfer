@@ -59,6 +59,7 @@ func (r *run) lead(in Input, pos int, start time.Time, key string, l *lease) {
 		return
 	}
 	v := r.p.cfg.Vision
+	data = fit(data, v.MaxPixels)
 	content := []protocol.ContentPart{protocol.InputImage{ImageURL: protocol.DataURL(ev.Output.MediaType, data)}}
 	if v.Prompt != "" {
 		content = append([]protocol.ContentPart{protocol.InputText{Text: v.Prompt}}, content...)

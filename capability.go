@@ -30,6 +30,13 @@ type Vision struct {
 	Prompt    string                   // the user message's InputText beside the image
 	MaxTokens int                      // at least 1: the request's MaxOutputTokens
 	Reasoning protocol.ReasoningEffort // "" sends none
+	// MaxPixels bounds the area of the image sent: one whose width × height exceeds it is
+	// downscaled, its aspect ratio kept, to the largest whole size within it by an area average,
+	// and re-encoded in its own format, a PNG as PNG and a JPEG as JPEG at quality 95. An image
+	// within it is sent as it is, as is one of another format or one the standard library can't
+	// decode, which the endpoint's refusal classifies. 0 sends every image as it is; [New] refuses
+	// a negative one.
+	MaxPixels int
 	// Native is the native tier, sent as every request's protocol.Request.Native: a JSON object
 	// whose members the endpoint defines, such as temperature. Empty sends none; [New] refuses
 	// one that isn't a JSON object with unique member names.
@@ -41,18 +48,22 @@ type visionSettings struct {
 	Prompt    string                   `json:"prompt"`
 	MaxTokens int                      `json:"max_tokens"`
 	Effort    protocol.ReasoningEffort `json:"effort"`
+	MaxPixels int                      `json:"max_pixels"`
 	Native    jsontext.Value           `json:"native,omitempty"`
 }
 
 // Identity returns vision's identity: its capability, Served, and settings, the JSON
-// {"request","prompt","max_tokens","effort","native"} in that member order, "native" there only
-// when Native is set, canonical: its whitespace stripped, its strings in their shortest form, and
-// each object's members sorted by name, its numbers as given. Native must be one [New] accepts.
+// {"request","prompt","max_tokens","effort","max_pixels","native"} in that member order, "native"
+// there only when Native is set, canonical: its whitespace stripped, its strings in their shortest
+// form, and each object's members sorted by name, its numbers as given. Native must be one [New]
+// accepts.
 func (v Vision) Identity() Identity {
 	return Identity{
 		Capability: CapabilityVision,
 		Model:      v.Served,
-		Settings:   encodeSettings(visionSettings{visionRequest, v.Prompt, v.MaxTokens, v.Reasoning, canonical(v.Native)}),
+		Settings: encodeSettings(visionSettings{
+			visionRequest, v.Prompt, v.MaxTokens, v.Reasoning, v.MaxPixels, canonical(v.Native),
+		}),
 	}
 }
 

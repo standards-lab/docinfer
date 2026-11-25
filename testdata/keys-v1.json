@@ -75,10 +75,10 @@
     "identity": {
       "capability": "vision",
       "model": "gpt-4.1-mini",
-      "settings": "{\"request\":\"2\",\"prompt\":\"Describe the image.\",\"max_tokens\":1024,\"effort\":\"low\"}"
+      "settings": "{\"request\":\"2\",\"prompt\":\"Describe the image.\",\"max_tokens\":1024,\"effort\":\"low\",\"max_pixels\":0}"
     },
     "content": "a5df3fde7b200c3fa2791144c7e05c5c2bced4c6ad863d3a4cf76c972c1712f9",
-    "key": "vision/710c2c26fec517b7fe00a92f6154641638ac2d0d11561662a5ec9f06cc826914"
+    "key": "vision/59b127794fcdb223631209657e111cdcf4e4e7c96ddc0ec2095209183149ab5a"
   },
   {
     "identity": {
@@ -93,10 +93,10 @@
     "identity": {
       "capability": "vision",
       "model": "gpt-4.1-mini",
-      "settings": "{\"request\":\"2\",\"prompt\":\"Describe the image.\",\"max_tokens\":1024,\"effort\":\"low\",\"native\":{\"temperature\":0.2,\"top_k\":64,\"top_p\":0.95}}"
+      "settings": "{\"request\":\"2\",\"prompt\":\"Describe the image.\",\"max_tokens\":1024,\"effort\":\"low\",\"max_pixels\":2580480,\"native\":{\"temperature\":0.2,\"top_k\":64,\"top_p\":0.95}}"
     },
     "content": "a5df3fde7b200c3fa2791144c7e05c5c2bced4c6ad863d3a4cf76c972c1712f9",
-    "key": "vision/b8be601b3cb6602a1c0abef6aa56490eae926838fc98780d0068bcf55fcf72b1"
+    "key": "vision/32753aa81332cd9b7ea4a7a9e82f8518cd4d77eea3c18a4ed44977e0253d8553"
   },
   {
     "identity": {

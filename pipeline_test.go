@@ -130,6 +130,11 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		cfg.Transcription.MaxTokens = -1
 		refused(t, cfg, "Transcription.MaxTokens")
 	})
+	t.Run("Vision.MaxPixels=-1", func(t *testing.T) {
+		cfg := validConfig(t)
+		cfg.Vision.MaxPixels = -1
+		refused(t, cfg, "Vision.MaxPixels")
+	})
 	models := []struct {
 		field string
 		clear func(*docinfer.Config)

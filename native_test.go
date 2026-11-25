@@ -197,7 +197,7 @@ func TestIdentityLeavesNativeAsGiven(t *testing.T) {
 	native := jsontext.Value(`{ "top_k": 64, "temperature": 0.2 }`)
 	given := string(native)
 	v := docinfer.Vision{Model: "m", Served: "s", MaxTokens: 1, Native: native}
-	want := `{"request":"2","prompt":"","max_tokens":1,"effort":"","native":{"temperature":0.2,"top_k":64}}`
+	want := `{"request":"2","prompt":"","max_tokens":1,"effort":"","max_pixels":0,"native":{"temperature":0.2,"top_k":64}}`
 	if got := v.Identity().Settings; got != want {
 		t.Errorf("settings %s, want %s", got, want)
 	}
@@ -219,7 +219,7 @@ func TestProfileHoldsNative(t *testing.T) {
 	copy(transcription, `{"temperature":1}`)
 	copy(extraction, `{"temperature":1}`)
 	pr := p.Profile()
-	if want := `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low","native":{"temperature":0.2,"top_k":64}}`; pr.Vision.Settings != want {
+	if want := `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low","max_pixels":0,"native":{"temperature":0.2,"top_k":64}}`; pr.Vision.Settings != want {
 		t.Errorf("Profile.Vision's settings %s, want %s", pr.Vision.Settings, want)
 	}
 	if want := `{"request":"2","mode":"route","prompt":"","language":"en","max_tokens":0,"native":{"temperature":0}}`; pr.Transcription.Settings != want {
