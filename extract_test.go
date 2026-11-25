@@ -10,6 +10,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -220,7 +221,7 @@ func TestRunExtracts(t *testing.T) {
 	if got, want := deltas(t, o, plainText), []string{extractPieces[0], extractPieces[1] + extractPieces[2]}; !slices.Equal(got, want) {
 		t.Errorf("progress %q, want %q", got, want)
 	}
-	if h := heldExtraction(t, cfg.Cache, plainText); h == nil || *h != (docinfer.Held{Text: extractJSON}) {
+	if h := heldExtraction(t, cfg.Cache, plainText); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: extractJSON}) {
 		t.Errorf("held %+v, want the extraction's JSON", h)
 	}
 	if n := chatRequests(e); n != 1 {
@@ -360,7 +361,7 @@ func TestRunExtractionRefusal(t *testing.T) {
 		inf.Text != "" || inf.TextSHA256 != "" || inf.Held {
 		t.Errorf("extraction %+v, want refused for the refusal's text", inf)
 	}
-	if h := heldExtraction(t, cfg.Cache, plainText); h == nil || *h != (docinfer.Held{Refused: extractRefuse}) {
+	if h := heldExtraction(t, cfg.Cache, plainText); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: extractRefuse}) {
 		t.Errorf("held %+v, want the refusal", h)
 	}
 	checkExtractionCounts(t, o, docinfer.ExtractionCounts{Refused: 1, Requests: 1}, docinfer.Usage{Input: 20, Output: 4})
@@ -390,7 +391,7 @@ func TestRunExtractionIncomplete(t *testing.T) {
 		t.Errorf("extraction %+v, want incomplete for max_output_tokens, its partial text kept", inf)
 	}
 	if h := heldExtraction(t, cfg.Cache, plainText); h == nil ||
-		*h != (docinfer.Held{Text: partial, Incomplete: string(protocol.ReasonMaxOutputTokens)}) {
+		!reflect.DeepEqual(*h, docinfer.Held{Text: partial, Incomplete: string(protocol.ReasonMaxOutputTokens)}) {
 		t.Errorf("held %+v, want the partial text and its reason", h)
 	}
 	checkExtractionCounts(t, o, docinfer.ExtractionCounts{Incomplete: 1, Requests: 1}, docinfer.Usage{Output: extractTokens})
@@ -454,7 +455,7 @@ func TestRunExtractionRefusedStatus(t *testing.T) {
 			if inf := oneExtraction(t, o, childPart, plainText); inf.Outcome != docinfer.OutcomeRefused || inf.Reason != want || inf.Held {
 				t.Errorf("extraction %+v, want refused for %q", inf, want)
 			}
-			if h := heldExtraction(t, cfg.Cache, plainText); h == nil || *h != (docinfer.Held{Refused: want}) {
+			if h := heldExtraction(t, cfg.Cache, plainText); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: want}) {
 				t.Errorf("held %+v, want the refusal", h)
 			}
 			checkExtractionCounts(t, o, docinfer.ExtractionCounts{Refused: 1, Requests: 1}, docinfer.Usage{})

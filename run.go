@@ -210,6 +210,7 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 			events:  make(chan event),
 			slots:   make(chan struct{}, p.cfg.Pending),
 			embedID: p.cfg.Embeddings.Identity(),
+			chunkID: Identity{Capability: CapabilityChunk, Model: p.cfg.Chunker.Model, Settings: p.cfg.Chunker.Settings()},
 		}
 		if p.cfg.Vision != nil {
 			r.counts.Vision, r.counts.Tokens.Vision = &VisionCounts{}, &Usage{}
@@ -249,6 +250,7 @@ type run struct {
 	content   dispatch.Content
 	opts      Options
 	embedID   Identity
+	chunkID   Identity
 	extractID Identity
 	events    chan event
 	slots     chan struct{}

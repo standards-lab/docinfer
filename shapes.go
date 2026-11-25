@@ -20,8 +20,8 @@ import (
 // misses every value held under the old rather than decoding wrong.
 const Version = "1"
 
-// Capability names one of the four things docinfer asks a model for, and is the first segment of
-// each of its [Key]s.
+// Capability names one of the four things docinfer asks a model for, or chunking, whose spans it
+// holds by the host's count, and is the first segment of each of its [Key]s.
 type Capability string
 
 // The capabilities.
@@ -30,6 +30,7 @@ const (
 	CapabilityTranscription Capability = "transcription"
 	CapabilityExtraction    Capability = "extraction"
 	CapabilityEmbeddings    Capability = "embeddings"
+	CapabilityChunk         Capability = "chunk"
 )
 
 // Identity is what a capability's results are keyed by besides their content: the capability, the
@@ -42,7 +43,8 @@ type Identity struct {
 	// Settings is the JSON of the capability's settings, its first member "request", the request's
 	// version, changed when the request's construction changes; the embeddings' is "" when the
 	// client declares no document convention, since a vector then depends on the model and the
-	// chunk's text alone.
+	// chunk's text alone. Chunking's is the chunk.Splitter's Settings, led by its "version", and
+	// its Model the Splitter's, the served model whose tokenizer counts.
 	Settings string `json:"settings"`
 }
 

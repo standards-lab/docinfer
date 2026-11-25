@@ -24,9 +24,20 @@ each nested module keeps its own.
   `ai.InputConvention`, the embeddings' client declares in `ai.Options.Embedding`, which a consumer
   applies to its search queries so they land in the space the chunks were embedded in. It is
   omitted when the client declares none; the other members are unchanged.
+- Each text's chunk spans are held in the `Cache`, so a rerun over the same cache rebuilds its
+  chunks with no count, and so no tokenize request. `CapabilityChunk`, `"chunk"`, keys them: its
+  identity's `Model` is `Chunker.Model`, its `Settings` `Chunker.Settings()`, and the key's
+  content the text's SHA-256, so a changed bound, tokenizer model, or `chunk.Version` misses.
+  `Held` gains `Spans`, JSON `"spans"`, each chunk's `[start, end)` bytes of the text in order,
+  `[]` for a text of no chunks and omitted otherwise. Held spans that don't fit the text are a
+  miss, recounted and replaced, and a count's failure holds nothing. `Version` stays "1": `Held`
+  grows by addition, every held value keeps its key, and a release before this one never asks for a
+  chunk key. `docinfertest.Cache` checks that a cache holds a spans value and an empty one
+  byte for byte, and the same content under each capability is five keys.
 
 ### Changed
 
+- Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
 - Each capability's `Identity`, and so each cache `Key` and `Pipeline.Profile`, names the served
   model, `Served`, not `Model`: another model served under the same name misses, and the same
   model served under another name hits. A caller sets `Served` on every capability it configures,
@@ -50,7 +61,7 @@ each nested module keeps its own.
   passes the job's, and returns the count's error wrapped; a character that alone measures over the
   bound is refused with `chunk.ErrRequest`. `chunk.Version` is "2", its golden corpus
   `chunks-v2.json`, and `Settings`, which `Pipeline.Profile` reports as `Chunker`, is
-  `{"version","bound","model"}`. No cache key moves: the chunker keys nothing. `New` refuses a nil
+  `{"version","bound","model"}`. No held result's key moves. `New` refuses a nil
   `Chunker.Count` and an empty `Chunker.Model`, matching `ErrRequest`. A failure of the count
   stops the job, nothing held: `Permanent` reports a permanent status and a refused one, which no
   chunk can hold, and `chunk.ErrRequest`.

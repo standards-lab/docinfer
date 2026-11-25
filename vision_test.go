@@ -163,7 +163,7 @@ func TestRunDescribesImage(t *testing.T) {
 		inf.Reason != "" || inf.Held || inf.Usage != (docinfer.Usage{Input: 11, Output: 7}) {
 		t.Errorf("inference %+v, want described, its text, and the reply's usage", inf)
 	}
-	if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Text: description}) {
+	if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: description}) {
 		t.Errorf("held %+v, want the description", h)
 	}
 	pieces, _ := cfg.Chunker.Split(t.Context(), description)
@@ -273,7 +273,7 @@ func TestRunImageRefusal(t *testing.T) {
 	if inf.Outcome != docinfer.OutcomeRefused || inf.Reason != refusal || inf.Text != "" || inf.TextSHA256 != "" {
 		t.Errorf("inference %+v, want refused, its reason the refusal", inf)
 	}
-	if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Refused: refusal}) {
+	if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: refusal}) {
 		t.Errorf("held %+v, want the refusal", h)
 	}
 	if len(o.batches) > 0 {
@@ -316,7 +316,7 @@ func TestRunImageIncomplete(t *testing.T) {
 			if inf.Outcome != docinfer.OutcomeIncomplete || inf.Reason != tc.reason || inf.Text != tc.text {
 				t.Errorf("inference %+v, want incomplete for %s, its text kept", inf, tc.reason)
 			}
-			if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Text: tc.text, Incomplete: tc.reason}) {
+			if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: tc.text, Incomplete: tc.reason}) {
 				t.Errorf("held %+v, want the text and its reason", h)
 			}
 			chunks := o.chunks()
@@ -396,7 +396,7 @@ func TestRunImageRefusedStatus(t *testing.T) {
 			if inf := oneInference(t, o); inf.Outcome != docinfer.OutcomeRefused || inf.Reason != want || inf.Held {
 				t.Errorf("inference %+v, want refused for %q", inf, want)
 			}
-			if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Refused: want}) {
+			if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: want}) {
 				t.Errorf("held %+v, want the refusal", h)
 			}
 			checkCounts(t, o, visionCounts(docinfer.VisionCounts{Refused: 1, Requests: 1}, docinfer.Usage{}, 0, 0))
@@ -592,7 +592,7 @@ func TestRunKeysByServedModel(t *testing.T) {
 			t.Errorf("%s: requests named %q, want %q", tc.name, models, tc.sent)
 		}
 	}
-	if h := heldImage(t, cache); h == nil || *h != (docinfer.Held{Text: description}) {
+	if h := heldImage(t, cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: description}) {
 		t.Errorf("held under the served model %+v, want the description", h)
 	}
 }

@@ -10,8 +10,8 @@ import (
 	"sync"
 )
 
-// Cache holds one model result per [Key]: an image's, a window's, a chunk's, or an extraction's,
-// each a [Held] as JSON. docinfer reads and replaces values and never removes one; a host removes
+// Cache holds one result per [Key]: an image's, a window's, a chunk's, or an extraction's model
+// result, or a text's chunk spans, each a [Held] as JSON. docinfer reads and replaces values and never removes one; a host removes
 // what it no longer wants from its own store. docinfertest.Cache is the contract every
 // implementation passes.
 type Cache interface {
@@ -32,13 +32,16 @@ func Key(id Identity, content string) string {
 	return string(id.Capability) + "/" + hashParts(Version, string(id.Capability), id.Model, id.Settings, content)
 }
 
-// Held is a held value's JSON, the bytes a [Cache] holds under a [Key]: one model result. A
-// refusal and an incomplete reply are held; a failure never is.
+// Held is a held value's JSON, the bytes a [Cache] holds under a [Key]: one model result, or one
+// text's chunk spans. A refusal and an incomplete reply are held; a failure never is.
 type Held struct {
 	Text       string `json:"text,omitzero"`       // vision, transcription, extraction: inline
 	Vector     string `json:"vector,omitzero"`     // embeddings: as Chunk.Vector
 	Incomplete string `json:"incomplete,omitzero"` // why the model stopped: max_output_tokens
 	Refused    string `json:"refused,omitzero"`    // the refusal's text, or the refusing reply's
+	// Spans is chunking's: each chunk's [start, end) bytes of the source text, in order, [] for a
+	// text of no chunks.
+	Spans [][2]int `json:"spans,omitzero"`
 }
 
 func decodeHeld(b []byte) (Held, bool) {

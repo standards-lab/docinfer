@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/standards-lab/docinfer"
+	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/protocol"
 )
@@ -126,6 +127,7 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 			Client: profiledClient(t, "http://localhost/v1", conventions(&ai.InputConvention{Prefix: "passage: "}, queryPrefix)),
 			Model:  "embedding", Served: "intfloat/multilingual-e5-large",
 		}.Identity(),
+		chunkIdentity(chunk.Splitter{Bound: 512, Model: "intfloat/multilingual-e5-large"}),
 	}
 	if len(ids) != len(goldenKeys) {
 		t.Fatalf("%d identities for %d golden keys", len(ids), len(goldenKeys))

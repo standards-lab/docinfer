@@ -108,6 +108,8 @@ func TestHeldJSON(t *testing.T) {
 		{docinfer.Held{Vector: "AACAPw=="}, `{"vector":"AACAPw=="}`},
 		{docinfer.Held{Text: "a ca", Incomplete: "max_output_tokens"}, `{"text":"a ca","incomplete":"max_output_tokens"}`},
 		{docinfer.Held{Refused: "I can't help with that."}, `{"refused":"I can't help with that."}`},
+		{docinfer.Held{Spans: [][2]int{{0, 24}, {26, 65}}}, `{"spans":[[0,24],[26,65]]}`},
+		{docinfer.Held{Spans: [][2]int{}}, `{"spans":[]}`},
 	} {
 		b, err := json.Marshal(tc.held)
 		if err != nil {

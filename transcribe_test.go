@@ -311,7 +311,7 @@ func TestRunTranscribesWindows(t *testing.T) {
 				t.Errorf("transcript's usage %+v, want its three requests'", inf.Usage)
 			}
 			for _, w := range []win{win0, win1, win2} {
-				if h := heldWindow(t, cfg.Cache, mode, w.clip); h == nil || *h != (docinfer.Held{Text: w.said}) {
+				if h := heldWindow(t, cfg.Cache, mode, w.clip); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: w.said}) {
 					t.Errorf("window %d held as %+v, want its transcript", w.index, h)
 				}
 			}
@@ -654,7 +654,7 @@ func TestRunWindowRefusedStatus(t *testing.T) {
 			o := runWindow(t, cfg, docinfer.Options{})
 			checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeRefused, joinedAt(t, []string{""}), []int{0}, false)
 			want := (&ai.APIError{Status: status, Message: "clip refused"}).Error()
-			if h := heldWindow(t, cfg.Cache, ai.TranscribeRoute, win0.clip); h == nil || *h != (docinfer.Held{Refused: want}) {
+			if h := heldWindow(t, cfg.Cache, ai.TranscribeRoute, win0.clip); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: want}) {
 				t.Errorf("held %+v, want the refusal", h)
 			}
 			checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Refused: 1, Requests: 1, Transcripts: 1}, 0, false))
@@ -794,7 +794,7 @@ func TestRunWindowIncomplete(t *testing.T) {
 	o := runWindow(t, cfg, docinfer.Options{})
 	tr := joinedAt(t, []string{""})
 	checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, tr, []int{0}, false)
-	if h := heldWindow(t, cfg.Cache, ai.TranscribeChat, win0.clip); h == nil || *h != (docinfer.Held{Incomplete: "content_filter"}) {
+	if h := heldWindow(t, cfg.Cache, ai.TranscribeChat, win0.clip); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Incomplete: "content_filter"}) {
 		t.Errorf("held %+v, want the window incomplete for content_filter", h)
 	}
 	checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Requests: 1, Transcripts: 1}, 0, false))

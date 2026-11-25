@@ -7,17 +7,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"unicode/utf8"
 
+	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/go-ai"
 )
 
 func (r *run) embed(st *inputState, text string) {
-	pieces, err := r.p.cfg.Chunker.Split(r.ctx, text)
-	if err != nil {
-		if r.ctx.Err() != nil {
-			return
-		}
-		r.fail(&chunkError{fmt.Errorf("docinfer: run: chunk part %s: %w", st.part.ID, err)})
+	pieces, ok := r.split(st, text)
+	if !ok {
 		return
 	}
 	items := make([]item, len(pieces))
@@ -34,6 +32,58 @@ func (r *run) embed(st *inputState, text string) {
 	if extract {
 		r.extract(st, text)
 	}
+}
+
+func (r *run) split(st *inputState, text string) ([]chunk.Chunk, bool) {
+	sha := sha256Hex([]byte(text))
+	key := Key(r.chunkID, sha)
+	values, err := r.p.cfg.Cache.Get(r.ctx, key)
+	if err != nil {
+		r.fail(fmt.Errorf("docinfer: run: cache get for the chunks of text %s of part %s: %w", sha, st.part.ID, err))
+		return nil, false
+	}
+	if h, ok := decodeHeld(values[0]); ok {
+		if pieces, ok := fromSpans(text, h.Spans); ok {
+			return pieces, true
+		}
+	}
+	pieces, err := r.p.cfg.Chunker.Split(r.ctx, text)
+	if err != nil {
+		if r.ctx.Err() == nil {
+			r.fail(&chunkError{fmt.Errorf("docinfer: run: chunk part %s: %w", st.part.ID, err)})
+		}
+		return nil, false
+	}
+	spans := make([][2]int, len(pieces))
+	for i, c := range pieces {
+		spans[i] = [2]int{c.Span.Start, c.Span.End}
+	}
+	b, err := json.Marshal(Held{Spans: spans})
+	if err == nil {
+		err = r.p.cfg.Cache.Put(r.ctx, key, b)
+	}
+	if err != nil {
+		r.fail(fmt.Errorf("docinfer: run: hold the chunks of text %s of part %s: %w", sha, st.part.ID, err))
+		return nil, false
+	}
+	return pieces, true
+}
+
+func fromSpans(text string, spans [][2]int) ([]chunk.Chunk, bool) {
+	if spans == nil {
+		return nil, false
+	}
+	pieces := make([]chunk.Chunk, len(spans))
+	end := 0
+	for i, sp := range spans {
+		s, e := sp[0], sp[1]
+		if s < end || e <= s || e > len(text) || !utf8.RuneStart(text[s]) || (e < len(text) && !utf8.RuneStart(text[e])) {
+			return nil, false
+		}
+		pieces[i] = chunk.Chunk{Text: text[s:e], Span: chunk.Span{Start: s, End: e}}
+		end = e
+	}
+	return pieces, true
 }
 
 func (r *run) key(digest string) string { return Key(r.embedID, digest) }

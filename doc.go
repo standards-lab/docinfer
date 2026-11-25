@@ -2,8 +2,8 @@
 // chunks and embeds text, extracts by a caller's prompt and JSON schema, and holds each model
 // result in a [Cache].
 //
-// The cache holds one result per [Key], a [Held] as JSON. A key hashes [Version], the result's
-// [Identity], and its content's SHA-256, so a new shape of a held value, a new model, or new
+// The cache holds one result per [Key], a [Held] as JSON: a model's result, or a text's chunk
+// spans. A key hashes [Version], the result's [Identity], and its content's SHA-256, so a new shape of a held value, a new model, or new
 // settings misses rather than decoding wrong. An identity's model is the one the deployment serves,
 // each capability's Served, which the host resolves, not Model, the name its request sends: another
 // model served under the same name misses, and the same model served under another name hits. A
@@ -34,7 +34,11 @@
 // over the embeddings' client's Tokenize with ai.InputDocument, and its Model names the served
 // model whose tokenizer counts. docinfer builds no client for it. Each text is split with the
 // job's context, and [Profile].Chunker reports the chunker's Settings, its version, bound, and
-// model, keying nothing.
+// model. Each text's chunk spans are held under [CapabilityChunk], keyed by those Settings, the
+// Model, and the text's SHA-256, so a rerun over the same cache rebuilds its chunks with no count;
+// a held value whose spans don't fit the text, out of range, empty, out of order, overlapping, or
+// cutting a character, is a miss. A text of no chunks holds its empty spans, and a count's
+// failure holds nothing.
 //
 // [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
 // Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
@@ -85,8 +89,8 @@
 //     [MemoryCache.Get] and [MemoryCache.Put]
 //   - [Key], a result's cache key, and [Held], a held value's JSON
 //   - [Version], the version of the shapes, which Key hashes
-//   - [Capability] and its four constants, [CapabilityVision], [CapabilityTranscription],
-//     [CapabilityExtraction], and [CapabilityEmbeddings]
+//   - [Capability] and its five constants, [CapabilityVision], [CapabilityTranscription],
+//     [CapabilityExtraction], [CapabilityEmbeddings], and [CapabilityChunk]
 //   - [Identity], a result's capability, served model, and settings, and [Profile], a pipeline's,
 //     with the query convention a consumer applies to its search queries
 //   - [Inference], one text a model made, its [Outcome], and its [Usage]; the six Outcome
