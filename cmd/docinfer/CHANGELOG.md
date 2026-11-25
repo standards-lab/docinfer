@@ -52,6 +52,13 @@ the postgres module keep their own.
   object with unique member names, or a non-empty one in route mode, which sends no JSON body,
   fails the configuration's Build before docproc's run is read, naming the fix: `native` `{}`, or
   `mode` chat.
+- `vision.max_pixels`, override `DOCINFER_VISION_MAX_PIXELS`: the most pixels, width × height, an
+  image is sent at, wired to `docinfer.Vision.MaxPixels` and keyed into vision's identity. A
+  larger PNG or JPEG is downscaled to it, its aspect ratio kept, and re-encoded in its own format;
+  any other image goes as it is. It starts at 2,580,480, the vision row's Gemma 4 budget at 1,120
+  soft tokens (1,120 × 9 patches × 16² px): Gemma 4's processor resizes every image, aspect kept,
+  to at most that, so more is wasted transfer and server decode. 0 sends every image as it is; a
+  negative one fails the configuration's Build before docproc's run is read.
 
 ### Changed
 
@@ -59,9 +66,10 @@ the postgres module keep their own.
   starting value; a configuration without them fails its Build before docproc's run is read.
 - **Breaking:** `embeddings.chunk_size` is in tokens, as the tokenizer counts them, its document
   prefix included, starting at 480, in place of 2,000 characters.
-- `vision.native` starts at `{"temperature":0}`, so a page's text is the same on every run. A
-  configured `vision.native` replaces it whole, and `{}` sends no native member, vision's identity
-  then carrying none.
+- `vision.native` starts at Gemma 4's card sampling, `{"temperature":1.0,"top_p":0.95,"top_k":64}`,
+  sent explicitly so it is keyed into vision's identity; temperature 0 made real pages loop at the
+  vision row's image budget. A configured `vision.native` replaces it whole, and `{}` sends no
+  native member, vision's identity then carrying none.
 - Transcription's identity settings gain `"max_tokens"`, and `"native"` when one is sent, and its
   request version is "2", so every transcript held before misses and is transcribed again.
 - The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held

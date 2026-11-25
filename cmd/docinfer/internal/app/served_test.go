@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -195,7 +197,7 @@ func TestRun_VisionSendsItsNative(t *testing.T) {
 	for _, tt := range []struct {
 		name, native, want string
 	}{
-		{"unset starts at temperature 0", "", `{"temperature":0}`},
+		{"unset starts at Gemma 4's card sampling", "", `{"temperature":1.0,"top_k":64,"top_p":0.95}`},
 		{"configured replaces the start", `{"top_p": 0.5}`, `{"top_p":0.5}`},
 		{"empty sends none", `{}`, ""},
 	} {
@@ -242,6 +244,65 @@ func TestRun_VisionSendsItsNative(t *testing.T) {
 			settings := capabilityOf(t, m, docinfer.CapabilityVision).Settings
 			if tt.want == "" && strings.Contains(settings, `"native"`) || tt.want != "" && !strings.Contains(settings, `"native":`+tt.want) {
 				t.Errorf("vision settings = %s, want native %q", settings, tt.want)
+			}
+		})
+	}
+}
+
+func TestRun_VisionKeysAndAppliesItsMaxPixels(t *testing.T) {
+	var src bytes.Buffer
+	if err := png.Encode(&src, image.NewGray(image.Rect(0, 0, 40, 20))); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name         string
+		maxPixels    *int
+		settings     string
+		wantW, wantH int
+	}{
+		{"unset starts at Gemma 4's budget", nil, `"max_pixels":2580480,`, 40, 20},
+		{"configured downscales", new(200), `"max_pixels":200,`, 20, 10},
+		{"0 sends as is", new(0), `"max_pixels":0,`, 40, 20},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var asked recorded[aitest.ChatRequest]
+			e := aitest.Serve(t, aitest.Routes{
+				Models:     listed,
+				Embeddings: unitVectors,
+				Tokenize:   wordTokens,
+				ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
+					asked.add(req)
+					return aitest.ChatReply{Text: "a grey page"}
+				},
+			})
+			cfg := inferConfig(e.URL(), true)
+			cfg.Vision.MaxPixels = tt.maxPixels
+			root := t.TempDir()
+			docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
+			dr := newDocprocRun(t, docproc)
+			part := inputPart("a.png", []byte("png-bytes"))
+			dr.output("/in/a.png", part, dispatch.ImageOutput, "image/png", src.Bytes())
+			dr.part("/in/a.png", part, 1)
+			dr.end()
+			a, stderr := inferApp(t, cfg, new(bytes.Buffer))
+
+			code := a.Run(context.Background(), []string{"run", docproc, "--out", out})
+
+			if code != process.ExitOK {
+				t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
+			}
+			reqs := asked.all()
+			if len(reqs) != 1 || len(reqs[0].Messages) != 1 || len(reqs[0].Messages[0].Images) != 1 {
+				t.Fatalf("vision requests = %+v, want one of one image", reqs)
+			}
+			sent := reqs[0].Messages[0].Images[0].Data
+			c, format, err := image.DecodeConfig(bytes.NewReader(sent))
+			if err != nil || format != "png" || c.Width != tt.wantW || c.Height != tt.wantH {
+				t.Errorf("sent a %s of %d×%d (%v), want a png of %d×%d", format, c.Width, c.Height, err, tt.wantW, tt.wantH)
+			}
+			_, m := openOut(t, out)
+			if settings := capabilityOf(t, m, docinfer.CapabilityVision).Settings; !strings.Contains(settings, tt.settings) {
+				t.Errorf("vision settings = %s, want %s", settings, tt.settings)
 			}
 		})
 	}

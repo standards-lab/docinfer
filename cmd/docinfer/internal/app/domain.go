@@ -43,6 +43,7 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 				Prompt:    v.Prompt,
 				MaxTokens: *v.MaxTokens,
 				Reasoning: v.Reasoning,
+				MaxPixels: *v.MaxPixels,
 				Native:    native(v.Native),
 			}
 			rc.Endpoints[docinfer.CapabilityVision] = endpoint(cfg, v.Endpoint)

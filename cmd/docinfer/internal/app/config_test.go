@@ -93,6 +93,7 @@ func TestConfig_StartingValues(t *testing.T) {
 	v, tr, em, run := p.cfg.Vision, p.cfg.Transcription, p.cfg.Embeddings, p.cfg.Run
 	for name, got := range map[string][2]int{
 		"vision max_tokens":              {*v.MaxTokens, 2048},
+		"vision max_pixels":              {*v.MaxPixels, 2580480},
 		"vision concurrency":             {*v.Concurrency, 4},
 		"transcription words_per_second": {*tr.WordsPerSecond, 8},
 		"transcription max_tokens":       {*tr.MaxTokens, 0},
@@ -114,8 +115,8 @@ func TestConfig_StartingValues(t *testing.T) {
 	if v.Prompt == "" {
 		t.Error("vision prompt is empty, want the starting prompt")
 	}
-	if got := string(v.Native); got != `{"temperature":0}` {
-		t.Errorf("vision native = %s, want {\"temperature\":0}", got)
+	if got := string(v.Native); got != `{"temperature":1.0,"top_p":0.95,"top_k":64}` {
+		t.Errorf("vision native = %s, want Gemma 4's card sampling", got)
 	}
 	if got := p.transcription.TranscriptionMode(); got != ai.TranscribeRoute {
 		t.Errorf("transcription client's mode = %v, want route", got)
@@ -148,6 +149,7 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 		"DOCINFER_TRANSCRIPTION_NATIVE":              `{"temperature":0.1}`,
 		"DOCINFER_VISION_SERVED_MODEL":               "org/vision",
 		"DOCINFER_VISION_NATIVE":                     `{"temperature":0}`,
+		"DOCINFER_VISION_MAX_PIXELS":                 "1000",
 		"DOCINFER_EMBEDDINGS_BATCH":                  "32",
 		"DOCINFER_EMBEDDINGS_CHUNK_RUNES":            "4096",
 		"DOCINFER_EMBEDDINGS_INPUT_TYPES":            `{"query":{"prefix":"query: "}}`,
@@ -180,8 +182,8 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	if got := *p.cfg.Embeddings.ChunkRunes; got != 4096 {
 		t.Errorf("embeddings chunk_runes = %d, want 4096", got)
 	}
-	if v := p.cfg.Vision; v == nil || v.ServedModel != "org/vision" || string(v.Native) != `{"temperature":0}` {
-		t.Errorf("vision = %+v, want the overrides' served_model and native", v)
+	if v := p.cfg.Vision; v == nil || v.ServedModel != "org/vision" || string(v.Native) != `{"temperature":0}` || *v.MaxPixels != 1000 {
+		t.Errorf("vision = %+v, want the overrides' served_model, native, and max_pixels", v)
 	}
 	if got := p.embeddings.EmbeddingProfile().InputTypes[ai.InputQuery].Prefix; got != "query: " {
 		t.Errorf("embeddings client's query prefix = %q, want the override's", got)
@@ -305,6 +307,8 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "native override not an object", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v"}`), env: map[string]string{"DOCINFER_VISION_NATIVE": "0.2"}, want: "vision: native 0.2 is not a JSON object"},
 		{name: "chunk_runes below 1", config: withEndpoint(completions, embeddingsWith(`,"input_types":{},"tokenizer":"gb10","chunk_runes":0`)), want: "embeddings: chunk_runes 0 is below 1"},
 		{name: "chunk_runes within the prefix", config: withEndpoint(completions, embeddingsWith(`,"input_types":{"document":{"prefix":"passage: "}},"tokenizer":"gb10","chunk_runes":9`)), want: "embeddings: chunk_runes 9 leaves no character beside the document prefix's 9"},
+		{name: "negative max_pixels", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","max_pixels":-1}`), want: "vision: max_pixels -1 is below zero"},
+		{name: "negative max_pixels override", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v"}`), env: map[string]string{"DOCINFER_VISION_MAX_PIXELS": "-5"}, want: "vision: max_pixels -5 is below zero"},
 		{name: "count below 1", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","concurrency":0}`), want: "vision: concurrency 0 is below 1"},
 		{name: "unknown format", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"grpc"}`, embeddings), want: `endpoints "gb10": format "grpc" is not completions, messages, or responses`},
 		{name: "unknown profile member", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"completions","profile":{"completions":{"bogus":true}}}`, embeddings), want: `endpoints "gb10": profile: `},
