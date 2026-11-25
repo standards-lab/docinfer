@@ -10,6 +10,11 @@ keeps its own.
 
 ## [Unreleased]
 
+### Changed
+
+- The `sqlate` requirement is v0.8.0 and `sqlate/postgres` v0.9.0, both additive (extension
+  management), with nothing to adapt.
+
 ## [v0.1.0] - 2026-11-20
 
 The first release. The module is new: the spike has no PostgreSQL cache to copy. It requires
