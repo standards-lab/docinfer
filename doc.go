@@ -21,6 +21,14 @@
 // it is, and held in the settings canonically, so a change to it misses and a change of whitespace
 // or member order alone doesn't.
 //
+// The host declares the embedding model's input-type conventions on the embeddings' client, in
+// go-ai's ai.Options.Embedding, such as e5's "passage: " and "query: " prefixes; docinfer ships
+// none. docinfer sends every chunk as ai.InputDocument, so the client applies the document
+// convention. [Embeddings.Identity] keys on the document convention the client reports, so a
+// changed prefix or native misses, and with none declared its settings are "" as they always were.
+// The query convention is never keyed, since docinfer embeds no queries; [Profile] carries it as
+// EmbeddingQuery, for a consumer to apply to its search queries so they land in the same space.
+//
 // [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
 // Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
 // as their embeddings complete and its [Counts] last. It echoes each input as [Result.Input] as
@@ -52,7 +60,8 @@
 //
 // The package exports:
 //
-//   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity
+//   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity,
+//     the embeddings' query convention among it
 //   - [Pipeline.Run], one job's run, over [Input]s, with [Options], yielding [Result]s, among
 //     them [Result.Input], each input's echo, and [Result.Settled], each input's settlement;
 //     [MetadataText], the one builder of an input's metadata text; [MissingError], a content
@@ -62,7 +71,7 @@
 //   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client, the
 //     model its request names and the model served under it, and settings, Vision's and
 //     Extraction's among them a Native, the native tier, and each one's
-//     Identity, [Vision.Identity], [Transcription.Identity],
+//     Identity, Embeddings' keyed on its client's document convention, [Vision.Identity], [Transcription.Identity],
 //     [Extraction.Identity], and [Embeddings.Identity]; [Extract], a caller's prompt and schema
 //   - [Cache], its Get and Put, and its two implementations, [FileCache] from [NewFileCache] and
 //     [MemoryCache] from [NewMemoryCache], each with its [FileCache.Get] and [FileCache.Put], and
@@ -71,7 +80,8 @@
 //   - [Version], the version of the shapes, which Key hashes
 //   - [Capability] and its four constants, [CapabilityVision], [CapabilityTranscription],
 //     [CapabilityExtraction], and [CapabilityEmbeddings]
-//   - [Identity], a result's capability, served model, and settings, and [Profile], a pipeline's
+//   - [Identity], a result's capability, served model, and settings, and [Profile], a pipeline's,
+//     with the query convention a consumer applies to its search queries
 //   - [Inference], one text a model made, its [Outcome], and its [Usage]; the six Outcome
 //     constants, [OutcomeDescribed], [OutcomeTranscribed], [OutcomeExtracted],
 //     [OutcomeIncomplete], [OutcomeRefused], and [OutcomeFailed]; [Progress], an extraction's text

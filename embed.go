@@ -146,7 +146,9 @@ func (r *run) call(st *inputState, items []item, l *lease) {
 	err := r.p.cfg.Bounds.do(r.ctx, CapabilityEmbeddings, func(ctx context.Context) error {
 		sent = true
 		var err error
-		reply, err = r.p.cfg.Embeddings.Client.Embed(ctx, &ai.EmbeddingRequest{Model: r.p.cfg.Embeddings.Model, Input: texts})
+		reply, err = r.p.cfg.Embeddings.Client.Embed(ctx, &ai.EmbeddingRequest{
+			Model: r.p.cfg.Embeddings.Model, Input: texts, InputType: ai.InputDocument,
+		})
 		return err
 	})
 	if r.ctx.Err() != nil {

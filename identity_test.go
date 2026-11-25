@@ -122,6 +122,10 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 		docinfer.Embeddings{Client: route, Model: "embedding", Served: "text-embedding-3-small"}.Identity(),
 		sampledVision.Identity(),
 		sampledExtraction.Identity(extract),
+		docinfer.Embeddings{
+			Client: profiledClient(t, "http://localhost/v1", conventions(&ai.InputConvention{Prefix: "passage: "}, queryPrefix)),
+			Model:  "embedding", Served: "intfloat/multilingual-e5-large",
+		}.Identity(),
 	}
 	if len(ids) != len(goldenKeys) {
 		t.Fatalf("%d identities for %d golden keys", len(ids), len(goldenKeys))

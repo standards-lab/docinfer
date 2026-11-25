@@ -6,6 +6,7 @@ import (
 
 	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/docinfer/join"
+	"github.com/standards-lab/go-ai"
 )
 
 // Config is a [Pipeline]'s configuration. Nothing in it has a default: [New] refuses a count or
@@ -117,9 +118,10 @@ func New(cfg Config) (*Pipeline, error) {
 
 	p := &Pipeline{cfg: cfg, now: time.Now}
 	p.profile = Profile{
-		Embeddings: cfg.Embeddings.Identity(),
-		Dimensions: cfg.Dimensions,
-		Chunker:    cfg.Chunker.Settings(),
+		Embeddings:     cfg.Embeddings.Identity(),
+		EmbeddingQuery: cfg.Embeddings.query(),
+		Dimensions:     cfg.Dimensions,
+		Chunker:        cfg.Chunker.Settings(),
 	}
 	if cfg.Vision != nil {
 		p.profile.Vision = new(cfg.Vision.Identity())
@@ -133,8 +135,9 @@ func New(cfg Config) (*Pipeline, error) {
 	return p, nil
 }
 
-// Profile returns the pipeline's resolved identity: each capability's [Identity], the
-// embeddings' Dimensions, and the Chunker's Settings, known before any job runs. Each identity's
+// Profile returns the pipeline's resolved identity: each capability's [Identity], the query
+// convention the embeddings' client declares, the embeddings' Dimensions, and the Chunker's
+// Settings, known before any job runs. Each identity's
 // Model is the capability's Served, the model the deployment serves, not the one its request
 // names, so a consumer recording the embedding space records the model. An unset
 // capability's identity is nil, and the extraction's settings are {"request","max_tokens",
@@ -146,6 +149,9 @@ func (p *Pipeline) Profile() Profile {
 		if *id != nil {
 			*id = new(**id)
 		}
+	}
+	if q := pr.EmbeddingQuery; q != nil {
+		pr.EmbeddingQuery = &ai.InputConvention{Prefix: q.Prefix, Native: q.Native.Clone()}
 	}
 	return pr
 }

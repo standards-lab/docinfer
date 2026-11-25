@@ -20,6 +20,10 @@ each nested module keeps its own.
   strings in their shortest form, and each object's members sorted by name, numbers as given. An
   identity with no `Native` keeps its settings and key, so `Version` stays "1". `New` refuses a
   `Native` that isn't a JSON object with unique member names, matching `ErrRequest`.
+- `EmbeddingQuery` on `Profile`, JSON `embedding_query`: the query convention, an
+  `ai.InputConvention`, the embeddings' client declares in `ai.Options.Embedding`, which a consumer
+  applies to its search queries so they land in the space the chunks were embedded in. It is
+  omitted when the client declares none; the other members are unchanged.
 
 ### Changed
 
@@ -29,6 +33,15 @@ each nested module keeps its own.
   and `New` refuses an empty one, matching `ErrRequest`. `Version` stays "1": the shapes and the
   key's format are unchanged, and a value held under a request's name misses under the served
   model's rather than decoding wrong.
+- Every embeddings request is sent as `ai.InputDocument`, so the client applies the document
+  convention its `ai.Options.Embedding` declares; with none declared, chunks go as they are, as
+  before. `Embeddings.Identity`, and so each embedding's `Key` and `Pipeline.Profile`, keys on that
+  convention, read from the client: its settings become `{"request","input_type","prefix",
+  "native"}`, `"native"` there only when the convention's native is set, canonical as `Native`'s.
+  A client with no document convention keeps the settings `""` and its keys, so `Version` stays
+  "1". The query convention is never keyed: changing it re-embeds nothing. `Embeddings.Identity`
+  now needs its `Client` set.
+- The module requires the go-ai release with embedding input types and `Tokenize`.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.
 

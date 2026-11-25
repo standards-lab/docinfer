@@ -65,6 +65,13 @@ var goldenKeys = []goldenKey{
 		},
 		Content: sha("a source text"),
 	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityEmbeddings, Model: "intfloat/multilingual-e5-large",
+			Settings: `{"request":"1","input_type":"document","prefix":"passage: "}`,
+		},
+		Content: sha("a chunk's text"),
+	},
 }
 
 func TestGoldenKeys(t *testing.T) {

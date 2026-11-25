@@ -34,7 +34,7 @@ const (
 	dimensions      = 2
 )
 
-var embeddingID = docinfer.Embeddings{Model: embeddingModel, Served: embeddingServed}.Identity()
+var embeddingID = docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: embeddingServed}
 
 func vectorOf(text string) []float32 {
 	return []float32{float32(len(text)), float32(strings.Count(text, " "))}

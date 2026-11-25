@@ -16,6 +16,7 @@ const (
 	visionRequest        = "1"
 	transcriptionRequest = "1"
 	extractionRequest    = "1"
+	embeddingRequest     = "1"
 )
 
 // Vision is how a [Pipeline] describes images: a client its host built, and the request's
@@ -151,7 +152,11 @@ func (x Extraction) profile() Identity {
 	}
 }
 
-// Embeddings is how a [Pipeline] embeds chunks: a client its host built, and its models.
+// Embeddings is how a [Pipeline] embeds chunks: a client its host built, and its models. The host
+// declares the model's input-type conventions on the client, in ai.Options.Embedding; docinfer
+// sends every chunk as ai.InputDocument, so the client applies the document convention, the
+// identity keys on it, and the [Profile] carries the query convention a consumer applies to its
+// search queries.
 type Embeddings struct {
 	Client *ai.Client
 	Model  string // the model the request names
@@ -160,10 +165,34 @@ type Embeddings struct {
 	Served string
 }
 
-// Identity returns the embeddings' identity: its capability, Served, and settings "", since a
-// vector depends on the model and the chunk's text alone.
+type embeddingSettings struct {
+	Request   string         `json:"request"`
+	InputType ai.InputType   `json:"input_type"`
+	Prefix    string         `json:"prefix"`
+	Native    jsontext.Value `json:"native,omitempty"`
+}
+
+// Identity returns the embeddings' identity: its capability, Served, and settings, read from the
+// document convention the Client's EmbeddingProfile declares, so the key can't disagree with what
+// the client sends. With none declared, a chunk goes as it is and the settings are "", since a
+// vector depends on the model and the chunk's text alone. With one, they are the JSON
+// {"request","input_type","prefix","native"} in that member order, "input_type" "document",
+// "native" there only when the convention's Native is set, canonical as in [Vision.Identity]. The
+// query convention isn't keyed, since docinfer embeds no queries. Client must be set.
 func (e Embeddings) Identity() Identity {
-	return Identity{Capability: CapabilityEmbeddings, Model: e.Served}
+	id := Identity{Capability: CapabilityEmbeddings, Model: e.Served}
+	if conv, ok := e.Client.EmbeddingProfile().InputTypes[ai.InputDocument]; ok {
+		id.Settings = encodeSettings(embeddingSettings{embeddingRequest, ai.InputDocument, conv.Prefix, canonical(conv.Native)})
+	}
+	return id
+}
+
+func (e Embeddings) query() *ai.InputConvention {
+	conv, ok := e.Client.EmbeddingProfile().InputTypes[ai.InputQuery]
+	if !ok {
+		return nil
+	}
+	return &conv
 }
 
 func encodeSettings(s any) string {

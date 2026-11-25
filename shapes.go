@@ -11,6 +11,7 @@ import (
 	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/docinfer/join"
 	"github.com/standards-lab/docproc/dispatch"
+	"github.com/standards-lab/go-ai"
 )
 
 // Version is the version of docinfer's shapes, grown by addition only: of the shapes below,
@@ -39,8 +40,9 @@ type Identity struct {
 	// names, so a model swapped in under the same name misses.
 	Model string `json:"model"`
 	// Settings is the JSON of the capability's settings, its first member "request", the request's
-	// version, changed when the request's construction changes; the embeddings' is "", since a
-	// vector depends on the model and the chunk's text alone.
+	// version, changed when the request's construction changes; the embeddings' is "" when the
+	// client declares no document convention, since a vector then depends on the model and the
+	// chunk's text alone.
 	Settings string `json:"settings"`
 }
 
@@ -51,8 +53,12 @@ type Profile struct {
 	Transcription *Identity `json:"transcription,omitempty"`
 	Extraction    *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
 	Embeddings    Identity  `json:"embeddings"`
-	Dimensions    int       `json:"dimensions"` // the embedding space's, checked per vector
-	Chunker       string    `json:"chunker"`    // the chunk.Splitter's Settings
+	// EmbeddingQuery is the query convention the embeddings' client declares, which a consumer
+	// applies to its search queries so they land in the space the chunks were embedded in; nil
+	// when the client declares none, and the queries go as they are.
+	EmbeddingQuery *ai.InputConvention `json:"embedding_query,omitempty"`
+	Dimensions     int                 `json:"dimensions"` // the embedding space's, checked per vector
+	Chunker        string              `json:"chunker"`    // the chunk.Splitter's Settings
 }
 
 // Usage is the tokens a model's request took, less their total.
