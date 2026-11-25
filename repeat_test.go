@@ -32,7 +32,23 @@ func readFixture(t *testing.T, name string) string {
 	return string(b)
 }
 
-func TestTrimRepeatLoops(t *testing.T) {
+func describeCutOff(t *testing.T, text string) (string, bool) {
+	t.Helper()
+	e := aitest.Serve(t, aitest.Routes{
+		ChatCompletions: chatRoute(t, aitest.ChatReply{Text: text, Finish: "length", PromptTokens: 11, CompletionTokens: 9}),
+		Embeddings:      embedAll,
+	})
+	p := newPipeline(t, visionConfig(t, e, nil, nil))
+	content := dispatch.NewMemoryContent()
+	o := collect(t, p.Run(t.Context(), content, seq(imageInput(t, content, imageBytes, imageType)), docinfer.Options{}))
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	inf := oneInference(t, o)
+	return inf.Text, inf.Reason == "repetition"
+}
+
+func TestRunImageRepetitionLoops(t *testing.T) {
 	kept := map[string]int{
 		"17490794.2048.txt":    2019,
 		"17490794.6144.txt":    1875,
@@ -58,21 +74,21 @@ func TestTrimRepeatLoops(t *testing.T) {
 		name := filepath.Base(f)
 		t.Run(name, func(t *testing.T) {
 			text := readFixture(t, filepath.Join("loop", name))
-			got, ok := docinfer.TrimRepeat(text)
+			got, ok := describeCutOff(t, text)
 			if !ok || !strings.HasPrefix(text, got) {
-				t.Fatalf("TrimRepeat: %t, a prefix %t; want the looping tail trimmed", ok, strings.HasPrefix(text, got))
+				t.Fatalf("trimmed %t, a prefix %t; want the looping tail trimmed", ok, strings.HasPrefix(text, got))
 			}
 			if n := utf8.RuneCountInString(got); n != kept[name] {
 				t.Errorf("kept %d of %d runes, want %d", n, utf8.RuneCountInString(text), kept[name])
 			}
-			if again, ok := docinfer.TrimRepeat(got); ok {
+			if again, ok := describeCutOff(t, got); ok {
 				t.Errorf("the trimmed text trims again, to %d runes", utf8.RuneCountInString(again))
 			}
 		})
 	}
 }
 
-func TestTrimRepeatCompleteTexts(t *testing.T) {
+func TestRunImageRepetitionCompleteTexts(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join("testdata", "repetition", "complete", "*.txt"))
 	if err != nil {
 		t.Fatal(err)
@@ -83,13 +99,13 @@ func TestTrimRepeatCompleteTexts(t *testing.T) {
 	for _, f := range files {
 		name := filepath.Base(f)
 		text := readFixture(t, filepath.Join("complete", name))
-		if got, ok := docinfer.TrimRepeat(text); ok || got != text {
+		if got, ok := describeCutOff(t, text); ok || got != text {
 			t.Errorf("%s: trimmed %d runes of a text that doesn't loop", name, utf8.RuneCountInString(text)-utf8.RuneCountInString(got))
 		}
 	}
 }
 
-func TestTrimRepeat(t *testing.T) {
+func TestRunImageRepetitionRule(t *testing.T) {
 	cases := []struct {
 		name, text, want string
 		trimmed          bool
@@ -104,9 +120,9 @@ func TestTrimRepeat(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := docinfer.TrimRepeat(tc.text)
+			got, ok := describeCutOff(t, tc.text)
 			if got != tc.want || ok != tc.trimmed {
-				t.Errorf("TrimRepeat = %q, %t; want %q, %t", got, ok, tc.want, tc.trimmed)
+				t.Errorf("described %q, %t; want %q, %t", got, ok, tc.want, tc.trimmed)
 			}
 		})
 	}

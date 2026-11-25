@@ -14,7 +14,3 @@ func OnSlotWait(b *Bounds, f func(Capability)) { b.onWait = f }
 // SetClock sets the clock p coalesces an extraction's progress by, so a test steps it per text
 // delta rather than sleep. It is set before p runs a job.
 func SetClock(p *Pipeline, now func() time.Time) { p.now = now }
-
-// TrimRepeat is the detector of a looping reply's tail: the text up to one copy of the unit its
-// tail repeats, and whether it found one.
-func TrimRepeat(text string) (string, bool) { return trimRepeat(text) }
