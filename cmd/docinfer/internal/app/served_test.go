@@ -118,8 +118,8 @@ func TestRun_E5Configuration(t *testing.T) {
 	if c.ChunkSize != 480 {
 		t.Errorf("embeddings chunk_size = %d, want the starting 480 tokens", c.ChunkSize)
 	}
-	if s := m.Space; s == nil || s.Chunker != `{"version":"2","bound":480,"model":"intfloat/multilingual-e5-large"}` {
-		t.Errorf("manifest embedding space = %+v, want the chunker's bound and served model", s)
+	if s := m.Space; s == nil || s.Chunker != `{"version":"2","bound":480,"runes":8183,"model":"intfloat/multilingual-e5-large"}` {
+		t.Errorf("manifest embedding space = %+v, want the chunker's bound, 8192 runes less the prefix's 9, and served model", s)
 	}
 }
 

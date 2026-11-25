@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/standards-lab/go-core/config"
 	"github.com/standards-lab/go-core/graph"
@@ -190,9 +191,12 @@ type Transcription struct {
 // "query: "}}, required and with no starting value, {} declaring none; tokenizer, the endpoint,
 // by its key in endpoints, whose tokenize route counts a chunk's tokens, required: through a
 // gateway the embeddings' own endpoint, straight to vLLM one whose base_url is the server's root,
-// such as http://framework-2:8003; the texts one request carries, batch, starting at 16; and the
+// such as http://framework-2:8003; the texts one request carries, batch, starting at 16; the
 // most tokens a chunk holds as the model's tokenizer counts it, its document prefix included,
-// chunk_size, starting at 480.
+// chunk_size, starting at 480; and the most characters, Unicode code points, a chunk holds, its
+// document prefix included, chunk_runes, starting at 8192, the length vLLM refuses an input over
+// at a max_model_len of 512, 16 characters a token, before tokenizing it. The chunker's own bound
+// is chunk_runes less the document prefix's characters, which must leave it at least 1.
 type Embeddings struct {
 	Capability
 	Dimensions *int                                `json:"dimensions"`
@@ -200,6 +204,7 @@ type Embeddings struct {
 	Tokenizer  string                              `json:"tokenizer"`
 	Batch      *int                                `json:"batch"`
 	ChunkSize  *int                                `json:"chunk_size"`
+	ChunkRunes *int                                `json:"chunk_runes"`
 }
 
 // Run is the run's own settings: a job's inputs admitted and not yet finished, pending, starting
@@ -222,6 +227,7 @@ const (
 	startWordsPerSecond        = 8
 	startEmbeddingsBatch       = 16
 	startChunkSize             = 480
+	startChunkRunes            = 8192
 	startPending               = 16
 	startBatchBytes            = 512 << 10
 )
@@ -310,6 +316,7 @@ func (e *Embeddings) merge(src *Embeddings) {
 	set(&e.Tokenizer, src.Tokenizer)
 	set(&e.Batch, src.Batch)
 	set(&e.ChunkSize, src.ChunkSize)
+	set(&e.ChunkRunes, src.ChunkRunes)
 }
 
 func set[T comparable](dst *T, src T) {
@@ -333,7 +340,7 @@ func mergeMap(dst, src map[string]string) map[string]string {
 // Finalize applies the overrides prefix composes, gives each setting still unset its starting
 // value, and checks what is docinfer's to check: each endpoint's format and profile and a
 // response_header_timeout not below zero, each capability's endpoint among endpoints, each
-// count at least 1, chat transcription on the completions format, the embeddings' input_types
+// count at least 1, chunk_runes over the document prefix's characters, chat transcription on the completions format, the embeddings' input_types
 // set and their tokenizer among endpoints, vision's native a JSON object with unique member
 // names, and no two endpoint names composing the same overrides. What ai.New refuses, such as a base URL or a retry policy, the
 // client nodes report, named for their endpoint. An empty prefix reads no override.
@@ -403,6 +410,7 @@ func (c *Config) overrides(prefix string) (*Config, error) {
 		setFromEnv(&o.Embeddings.Tokenizer, config.EnvName(prefix, "embeddings", "tokenizer"), parseString),
 		config.SetFromEnv(&o.Embeddings.Batch, config.EnvName(prefix, "embeddings", "batch"), parseCount),
 		config.SetFromEnv(&o.Embeddings.ChunkSize, config.EnvName(prefix, "embeddings", "chunk_size"), parseCount),
+		config.SetFromEnv(&o.Embeddings.ChunkRunes, config.EnvName(prefix, "embeddings", "chunk_runes"), parseCount),
 		config.SetFromEnv(&o.Run.Pending, config.EnvName(prefix, "run", "pending"), parseCount),
 		config.SetFromEnv(&o.Run.BatchBytes, config.EnvName(prefix, "run", "batch_bytes"), parseCount),
 	)
@@ -498,6 +506,7 @@ func (c *Config) start() {
 	startAt(&c.Embeddings.Concurrency, startConcurrency)
 	startAt(&c.Embeddings.Batch, startEmbeddingsBatch)
 	startAt(&c.Embeddings.ChunkSize, startChunkSize)
+	startAt(&c.Embeddings.ChunkRunes, startChunkRunes)
 	startAt(&c.Run.Pending, startPending)
 	startAt(&c.Run.BatchBytes, startBatchBytes)
 }
@@ -537,6 +546,7 @@ func (c *Config) validate() error {
 		c.checkEmbeddings(),
 		atLeastOne("embeddings", "batch", c.Embeddings.Batch),
 		atLeastOne("embeddings", "chunk_size", c.Embeddings.ChunkSize),
+		c.checkChunkRunes(),
 		atLeastOne("run", "pending", c.Run.Pending),
 		atLeastOne("run", "batch_bytes", c.Run.BatchBytes))
 	return errors.Join(errs...)
@@ -566,6 +576,23 @@ func (c *Config) checkEmbeddings() error {
 	}
 	return errors.Join(errs...)
 }
+
+func (c *Config) checkChunkRunes() error {
+	if err := atLeastOne("embeddings", "chunk_runes", c.Embeddings.ChunkRunes); err != nil {
+		return err
+	}
+	if prefix := c.Embeddings.prefixRunes(); *c.Embeddings.ChunkRunes <= prefix {
+		return fmt.Errorf("embeddings: chunk_runes %d leaves no character beside the document prefix's %d",
+			*c.Embeddings.ChunkRunes, prefix)
+	}
+	return nil
+}
+
+func (e *Embeddings) prefixRunes() int {
+	return utf8.RuneCountInString(e.InputTypes[ai.InputDocument].Prefix)
+}
+
+func (e *Embeddings) chunkRunes() int { return *e.ChunkRunes - e.prefixRunes() }
 
 func checkNative(section string, native json.RawMessage) error {
 	if native == nil {

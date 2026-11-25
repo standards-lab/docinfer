@@ -46,7 +46,7 @@ func validConfig(t *testing.T) docinfer.Config {
 			Client: c, Model: "agent", Served: "org/extraction-1", MaxTokens: 2, Reasoning: protocol.ReasoningEffortMedium,
 		},
 		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding", Served: "org/embedding-1"},
-		Chunker:    chunk.Splitter{Bound: 2, Count: runes, Model: "org/embedding-1"},
+		Chunker:    chunk.Splitter{Bound: 2, Runes: 2, Count: runes, Model: "org/embedding-1"},
 		Dimensions: 2,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     newBounds(t, 1, 1, 1, 1),
@@ -60,7 +60,7 @@ func validConfig(t *testing.T) docinfer.Config {
 func TestNewAcceptsLeastValues(t *testing.T) {
 	cfg := validConfig(t)
 	cfg.Vision.MaxTokens, cfg.Extraction.MaxTokens = 1, 1
-	cfg.Chunker.Bound, cfg.Dimensions, cfg.Pending, cfg.EmbedBatch, cfg.BatchBytes = 1, 1, 1, 1, 1
+	cfg.Chunker.Bound, cfg.Chunker.Runes, cfg.Dimensions, cfg.Pending, cfg.EmbedBatch, cfg.BatchBytes = 1, 1, 1, 1, 1, 1
 	cfg.Join.WordsPerSecond = 1
 	if _, err := docinfer.New(cfg); err != nil {
 		t.Fatalf("New with every count 1: %v", err)
@@ -107,6 +107,7 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		set   func(*docinfer.Config, int)
 	}{
 		{"Chunker.Bound", func(c *docinfer.Config, n int) { c.Chunker.Bound = n }},
+		{"Chunker.Runes", func(c *docinfer.Config, n int) { c.Chunker.Runes = n }},
 		{"Dimensions", func(c *docinfer.Config, n int) { c.Dimensions = n }},
 		{"Pending", func(c *docinfer.Config, n int) { c.Pending = n }},
 		{"EmbedBatch", func(c *docinfer.Config, n int) { c.EmbedBatch = n }},

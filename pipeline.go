@@ -17,7 +17,7 @@ type Config struct {
 	Transcription *Transcription // nil skips windows, counted
 	Extraction    *Extraction    // nil: a run that asks for extraction fails, permanent
 	Embeddings    Embeddings     // required
-	Chunker       chunk.Splitter // its Bound at least 1, its Count set, its Model not empty
+	Chunker       chunk.Splitter // its Bound and Runes at least 1, its Count set, its Model not empty
 	// Dimensions is the embedding space's, at least 1: a vector of another length, made or held,
 	// fails the job, permanent.
 	Dimensions int
@@ -41,7 +41,7 @@ type Pipeline struct {
 // New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
-// Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens), a nil
+// Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens), a nil
 // Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision or Extraction Native that isn't a JSON object with unique
 // member names. It copies the capabilities cfg points to, so a later change to them changes
 // nothing.
@@ -71,6 +71,7 @@ func New(cfg Config) (*Pipeline, error) {
 	}
 	counts := []count{
 		{"Chunker.Bound", cfg.Chunker.Bound},
+		{"Chunker.Runes", cfg.Chunker.Runes},
 		{"Dimensions", cfg.Dimensions},
 		{"Pending", cfg.Pending},
 		{"EmbedBatch", cfg.EmbedBatch},

@@ -55,7 +55,7 @@ func runConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) do
 	t.Helper()
 	cfg := docinfer.Config{
 		Embeddings: docinfer.Embeddings{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: embeddingModel, Served: embeddingServed},
-		Chunker:    chunk.Splitter{Bound: 40, Count: runes, Model: embeddingServed},
+		Chunker:    chunk.Splitter{Bound: 40, Runes: 1 << 20, Count: runes, Model: embeddingServed},
 		Dimensions: dimensions,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     newBounds(t, 1, 1, 1, 4),

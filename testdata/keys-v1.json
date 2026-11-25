@@ -106,5 +106,14 @@
     },
     "content": "526b017302033df79011f6698d73be884c8d7c0b07787ce1e6835187a2fa63e6",
     "key": "extraction/3609ee57d60ab2abb3eca455603f755d571377eded94c925c9cd99bd9cc77685"
+  },
+  {
+    "identity": {
+      "capability": "chunk",
+      "model": "intfloat/multilingual-e5-large",
+      "settings": "{\"version\":\"2\",\"bound\":480,\"runes\":8183,\"model\":\"intfloat/multilingual-e5-large\"}"
+    },
+    "content": "526b017302033df79011f6698d73be884c8d7c0b07787ce1e6835187a2fa63e6",
+    "key": "chunk/47a12a0ff0117166d876d57086bd7add2371b88baaed3715a26b3ee403512201"
   }
 ]

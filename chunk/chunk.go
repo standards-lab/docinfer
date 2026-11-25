@@ -15,8 +15,8 @@ import (
 // corpus, testdata/chunks-v<Version>.json, is named for it and fails on such a change.
 const Version = "2"
 
-// ErrRequest is the cause of a refused request: a Splitter's Bound below 1 or nil Count, or a
-// Bound below the tokens one character of the text measures.
+// ErrRequest is the cause of a refused request: a Splitter's Bound or Runes below 1 or nil Count,
+// or a Bound below the tokens one character of the text measures.
 var ErrRequest = errors.New("chunk: invalid request")
 
 // Chunk is one chunk of a text: its Text, the text's bytes at its Span. Its JSON is
@@ -37,10 +37,11 @@ type Span struct {
 // measures any text, the empty one too, and its error stops the text's splitting.
 type Counter func(ctx context.Context, text string) (int, error)
 
-// Splitter cuts texts into chunks of at most Bound tokens as Count measures them. Nothing has a
-// default: Bound must be at least 1 and Count set.
+// Splitter cuts texts into chunks of at most Bound tokens as Count measures them and at most Runes
+// characters. Nothing has a default: Bound and Runes must be at least 1 and Count set.
 type Splitter struct {
 	Bound int     // the most tokens a chunk measures
+	Runes int     // the most characters, Unicode code points, a chunk holds
 	Count Counter // the host's measure
 	Model string  // the served model whose tokenizer Count measures by, which Settings reports
 }
@@ -48,14 +49,15 @@ type Splitter struct {
 type settings struct {
 	Version string `json:"version"`
 	Bound   int    `json:"bound"`
+	Runes   int    `json:"runes"`
 	Model   string `json:"model"`
 }
 
-// Settings returns the splitting's version and the Splitter's Bound and Model as one JSON object,
-// {"version":…,"bound":…,"model":…}, in that member order: the chunker's identity, which
-// docinfer's Profile reports.
+// Settings returns the splitting's version and the Splitter's Bound, Runes, and Model as one JSON
+// object, {"version":…,"bound":…,"runes":…,"model":…}, in that member order: the chunker's
+// identity, which docinfer's Profile reports.
 func (s Splitter) Settings() string {
-	b, err := json.Marshal(settings{Version: Version, Bound: s.Bound, Model: s.Model})
+	b, err := json.Marshal(settings{Version: Version, Bound: s.Bound, Runes: s.Runes, Model: s.Model})
 	if err != nil {
 		panic(err)
 	}
@@ -69,19 +71,22 @@ const (
 	hard
 )
 
-// Split cuts text into chunks of at most s.Bound tokens as s.Count measures them, along its
-// structure, as the package says, in the text's order, passing ctx to each count. An empty or
-// white-space-only text yields none. A Bound below 1, a nil Count, or a character of the text
-// that alone measures over the Bound is an error wrapping ErrRequest; a count's error is returned
-// wrapped, with no chunk.
+// Split cuts text into chunks of at most s.Bound tokens as s.Count measures them and at most
+// s.Runes characters, along its structure, as the package says, in the text's order, passing ctx
+// to each count. An empty or white-space-only text yields none. A Bound or Runes below 1, a nil
+// Count, or a character of the text that alone measures over the Bound is an error wrapping
+// ErrRequest; a count's error is returned wrapped, with no chunk.
 func (s Splitter) Split(ctx context.Context, text string) ([]Chunk, error) {
 	if s.Bound < 1 {
 		return nil, fmt.Errorf("%w: bound %d is below 1", ErrRequest, s.Bound)
 	}
+	if s.Runes < 1 {
+		return nil, fmt.Errorf("%w: runes %d is below 1", ErrRequest, s.Runes)
+	}
 	if s.Count == nil {
 		return nil, fmt.Errorf("%w: no count", ErrRequest)
 	}
-	sp := &splitter{ctx: ctx, text: text, bound: s.Bound, count: s.Count, empty: -1}
+	sp := &splitter{ctx: ctx, text: text, bound: s.Bound, runes: s.Runes, count: s.Count, empty: -1}
 	if err := sp.split(0, len(text), headings, -1); err != nil {
 		return nil, err
 	}
@@ -92,12 +97,19 @@ type splitter struct {
 	ctx   context.Context
 	text  string
 	bound int
+	runes int
 	count Counter
 	empty int
 	out   []Chunk
 }
 
 type unit struct{ start, end, n int }
+
+func (p *splitter) long(s, e int) bool {
+	return utf8.RuneCountInString(p.text[s:e]) > p.runes
+}
+
+func (u unit) over(bound int) bool { return u.n < 0 || u.n > bound }
 
 func (p *splitter) measure(s, e int) (int, error) {
 	n, err := p.count(p.ctx, p.text[s:e])
@@ -127,15 +139,17 @@ func (p *splitter) split(s, e, level, n int) error {
 	if s == e {
 		return nil
 	}
-	if n < 0 {
-		var err error
-		if n, err = p.measure(s, e); err != nil {
-			return err
+	if !p.long(s, e) {
+		if n < 0 {
+			var err error
+			if n, err = p.measure(s, e); err != nil {
+				return err
+			}
 		}
-	}
-	if n <= p.bound {
-		p.emit(s, e)
-		return nil
+		if n <= p.bound {
+			p.emit(s, e)
+			return nil
+		}
 	}
 	if level == hard {
 		return p.cut(s, e, n)
@@ -152,6 +166,10 @@ func (p *splitter) split(s, e, level, n int) error {
 		return p.split(s, e, level+1, n)
 	}
 	for i := range units {
+		units[i].n = -1
+		if p.long(units[i].start, units[i].end) {
+			continue
+		}
 		m, err := p.measure(units[i].start, units[i].end)
 		if err != nil {
 			return err
@@ -163,7 +181,7 @@ func (p *splitter) split(s, e, level, n int) error {
 
 func (p *splitter) pack(units []unit, level int) error {
 	for i := 0; i < len(units); {
-		if units[i].n > p.bound {
+		if units[i].over(p.bound) {
 			if err := p.split(units[i].start, units[i].end, level+1, units[i].n); err != nil {
 				return err
 			}
@@ -171,7 +189,12 @@ func (p *splitter) pack(units []unit, level int) error {
 			continue
 		}
 		j, estimate := i, units[i].n
-		for j+1 < len(units) && units[j+1].n <= p.bound {
+		length := utf8.RuneCountInString(p.text[units[i].start:units[i].end])
+		for j+1 < len(units) && !units[j+1].over(p.bound) {
+			more := utf8.RuneCountInString(p.text[units[j].end:units[j+1].end])
+			if length+more > p.runes {
+				break
+			}
 			o, err := p.overhead()
 			if err != nil {
 				return err
@@ -179,7 +202,7 @@ func (p *splitter) pack(units []unit, level int) error {
 			if estimate+units[j+1].n-o > p.bound {
 				break
 			}
-			j, estimate = j+1, estimate+units[j+1].n-o
+			j, estimate, length = j+1, estimate+units[j+1].n-o, length+more
 		}
 		for ; j > i; j-- {
 			m, err := p.measure(units[i].start, units[j].end)
@@ -304,6 +327,18 @@ func (p *splitter) cut(s, e, n int) error {
 	a := 0
 	for {
 		lo, hi, nLo, nHi := a, last, 0, n
+		if a+p.runes < last {
+			hi = a + p.runes
+			m, err := p.measure(trim(p.text, at[a], at[hi]))
+			if err != nil {
+				return err
+			}
+			if m <= p.bound {
+				lo, nLo = hi, m
+			} else {
+				nHi = m
+			}
+		}
 		for step := 0; hi-lo > 1 && hi-lo > (lo-a)/32; step++ {
 			var mid int
 			switch {
@@ -337,13 +372,15 @@ func (p *splitter) cut(s, e, n int) error {
 		for a = lo; at[a] < rs; {
 			a++
 		}
-		var err error
-		if n, err = p.measure(rs, e); err != nil {
-			return err
-		}
-		if n <= p.bound {
-			p.emit(rs, e)
-			return nil
+		if n = -1; !p.long(rs, e) {
+			var err error
+			if n, err = p.measure(rs, e); err != nil {
+				return err
+			}
+			if n <= p.bound {
+				p.emit(rs, e)
+				return nil
+			}
 		}
 	}
 }

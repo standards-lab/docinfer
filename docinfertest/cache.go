@@ -90,7 +90,7 @@ func Cache(t *testing.T, newCache func(t *testing.T) docinfer.Cache) {
 
 	t.Run("chunk spans come back byte for byte", func(t *testing.T) {
 		c := newCache(t)
-		id := docinfer.Identity{Capability: docinfer.CapabilityChunk, Model: "docinfertest", Settings: `{"version":"2","bound":512,"model":"docinfertest"}`}
+		id := docinfer.Identity{Capability: docinfer.CapabilityChunk, Model: "docinfertest", Settings: `{"version":"2","bound":512,"runes":8192,"model":"docinfertest"}`}
 		spans, none := docinfer.Key(id, hash("a text")), docinfer.Key(id, hash("a blank text"))
 		want := [][]byte{[]byte(`{"spans":[[0,24],[26,65],[67,1093]]}`), []byte(`{"spans":[]}`)}
 		put(t, c, spans, want[0])

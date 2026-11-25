@@ -37,6 +37,7 @@ const (
 	visionTokens     = 256
 	extractionTokens = 1024
 	chunkBound       = 400
+	chunkRunes       = 8000
 	pending          = 2
 	embedBatch       = 8
 	batchBytes       = 1 << 16
@@ -122,6 +123,7 @@ func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*doc
 		Embeddings: emb,
 		Chunker: chunk.Splitter{
 			Bound: chunkBound,
+			Runes: chunkRunes,
 			Count: func(ctx context.Context, text string) (int, error) {
 				tokens, err := counter.Tokenize(ctx, &ai.TokenizeRequest{Model: emb.Model, Text: text, InputType: ai.InputDocument})
 				if err != nil {

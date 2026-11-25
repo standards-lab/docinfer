@@ -33,8 +33,10 @@
 // Count gives a text's tokens as the embedding of that text would take them, such as a closure
 // over the embeddings' client's Tokenize with ai.InputDocument, and its Model names the served
 // model whose tokenizer counts. docinfer builds no client for it. Each text is split with the
-// job's context, and [Profile].Chunker reports the chunker's Settings, its version, bound, and
-// model. Each text's chunk spans are held under [CapabilityChunk], keyed by those Settings, the
+// job's context, and [Profile].Chunker reports the chunker's Settings, its version, bound, runes,
+// and model. Its Runes bounds a chunk's characters as its Bound does its tokens, for a server that
+// refuses an input by its length before tokenizing; the input on the wire is the chunk's text
+// after any document prefix, so a host leaves the prefix room. Each text's chunk spans are held under [CapabilityChunk], keyed by those Settings, the
 // Model, and the text's SHA-256, so a rerun over the same cache rebuilds its chunks with no count;
 // a held value whose spans don't fit the text, out of range, empty, out of order, overlapping, or
 // cutting a character, is a miss. A text of no chunks holds its empty spans, and a count's

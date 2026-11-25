@@ -27,7 +27,7 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 			Embeddings:  docinfer.Embeddings{Client: s.Use(n.EmbeddingsClient), Model: e.Model, Served: e.ServedModel},
 			Endpoints:   map[docinfer.Capability]run.Endpoint{docinfer.CapabilityEmbeddings: endpoint(cfg, e.Endpoint)},
 			Concurrency: map[docinfer.Capability]int{docinfer.CapabilityEmbeddings: *e.Concurrency},
-			Chunker:     chunk.Splitter{Bound: *e.ChunkSize, Count: counter(s.Use(n.TokenizerClient), e.Model)},
+			Chunker:     chunk.Splitter{Bound: *e.ChunkSize, Runes: e.chunkRunes(), Count: counter(s.Use(n.TokenizerClient), e.Model)},
 			Dimensions:  *e.Dimensions,
 			EmbedBatch:  *e.Batch,
 			Pending:     *cfg.Run.Pending,

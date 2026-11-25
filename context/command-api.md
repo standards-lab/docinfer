@@ -51,7 +51,9 @@ transcription        endpoint, model, served_model, prompt, language, mode route
                        concurrency 4
 embeddings           endpoint, model, served_model, dimensions, input_types (required, no
                        starting value), tokenizer (required, no starting value), batch 16,
-                       chunk_size 480 tokens, concurrency 4
+                       chunk_size 480 tokens, chunk_runes 8192 characters (vLLM's 16 a token
+                       at max_model_len 512), each with the document prefix, the chunker's
+                       Runes chunk_runes less the prefix's characters, concurrency 4
 run                  pending 16, batch_bytes 524288
 ```
 

@@ -31,6 +31,12 @@ the postgres module keep their own.
   unique member names fails the configuration.
 - The manifest's capabilities gain `request_model`, the model the requests named, beside the
   identity's `model`, now the served model.
+- `embeddings.chunk_runes`, override `DOCINFER_EMBEDDINGS_CHUNK_RUNES`: the most characters,
+  Unicode code points, an embedded input holds, its document prefix included, starting at 8,192,
+  the length vLLM refuses an input over, before tokenizing it, at a `max_model_len` of 512. The
+  chunker's `Runes` is `chunk_runes` less the document prefix's characters, 8,183 under e5's
+  `"passage: "`; a `chunk_runes` below 1, or not over the prefix's characters, fails the
+  configuration's Build before docproc's run is read.
 
 ### Changed
 
@@ -41,8 +47,16 @@ the postgres module keep their own.
 - `vision.native` starts at `{"temperature":0}`, so a page's text is the same on every run. A
   configured `vision.native` replaces it whole, and `{}` sends no native member, vision's identity
   then carrying none.
+- The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held
+  under the former settings miss and are recut.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.
+
+### Fixed
+
+- A text of long white-space runs, such as a multi-column PDF's layout extraction, gave chunks
+  within `chunk_size`'s tokens but tens of thousands of characters, which vLLM refused with a 400
+  before tokenizing them, recorded as refusals; `chunk_runes` now bounds them.
 
 ## [v0.1.0] - 2026-11-23
 

@@ -2,18 +2,21 @@
   {
     "name": "empty",
     "bound": 10,
+    "runes": 1000,
     "text": "",
     "chunks": null
   },
   {
     "name": "white space only",
     "bound": 10,
+    "runes": 1000,
     "text": " \n\n\t  \r\n ",
     "chunks": null
   },
   {
     "name": "fits",
     "bound": 100,
+    "runes": 1000,
     "text": "\n  Hello, world.  \n",
     "chunks": [
       {
@@ -28,6 +31,7 @@
   {
     "name": "headings",
     "bound": 60,
+    "runes": 1000,
     "text": "# Intro\nA short opening line.\n\n## Background\nSome context that matters here.\n### Detail\nMore.\n# Code\n```\n# not a heading\nprint(1)\n```\n#tag is no heading\n####### nor is seven\n## Last\nThe end.",
     "chunks": [
       {
@@ -49,6 +53,7 @@
   {
     "name": "paragraphs",
     "bound": 50,
+    "runes": 1000,
     "text": "The first paragraph has a sentence or two. It goes on.\n\nA second, shorter one.\n\n\nA third.\n\nAnd a fourth paragraph that runs a little longer than the bound allows it.",
     "chunks": [
       {
@@ -70,6 +75,7 @@
   {
     "name": "long sentences",
     "bound": 40,
+    "runes": 1000,
     "text": "She said \"it shipped.\" Then v1.2 broke! Did anyone notice? (Nobody did.) This one sentence is far too long to fit within the bound, so it is cut hard.\n- an item\n- another item\n- a third item",
     "chunks": [
       {
@@ -98,6 +104,7 @@
   {
     "name": "multibyte",
     "bound": 6,
+    "runes": 1000,
     "text": "日本語のテキストです。とても長い文章になります！短い？\n\nÜnïcödé façade naïve café — résumé. 😀😀😀🎉🎉🎉😀😀😀🎉",
     "chunks": [
       {
@@ -168,6 +175,7 @@
   {
     "name": "scripts",
     "bound": 12,
+    "runes": 1000,
     "text": "Το κείμενο είναι ελληνικό και αρκετά μακρύ. Это русский текст, и он довольно длинный.\n\nهذا نص عربي طويل بما فيه الكفاية. זה טקסט בעברית שהוא ארוך מספיק.\n\nयह हिंदी पाठ काफी लंबा है। 한국어 텍스트는 충분히 깁니다. 中文文本足够长了。",
     "chunks": [
       {
@@ -252,6 +260,7 @@
   {
     "name": "recut",
     "bound": 14,
+    "runes": 1000,
     "text": "one two three four\n\nfive six seven\n\neight nine ten eleven\n\ntwelve",
     "chunks": [
       {
@@ -280,6 +289,7 @@
   {
     "name": "hard cut",
     "bound": 7,
+    "runes": 1000,
     "text": "abcdefghijabcdefghijabcdefghijabcdefghijabcdefghij",
     "chunks": [
       {
@@ -315,6 +325,7 @@
   {
     "name": "bound three",
     "bound": 3,
+    "runes": 1000,
     "text": "a b\ncd é😀",
     "chunks": [
       {
@@ -343,6 +354,114 @@
         "span": {
           "start": 7,
           "end": 13
+        }
+      }
+    ]
+  },
+  {
+    "name": "runes",
+    "bound": 60,
+    "runes": 30,
+    "text": "One short sentence. Another one here. A third.\n\nA paragraph of its own.",
+    "chunks": [
+      {
+        "text": "One short sentence.",
+        "span": {
+          "start": 0,
+          "end": 19
+        }
+      },
+      {
+        "text": "Another one here. A third.",
+        "span": {
+          "start": 20,
+          "end": 46
+        }
+      },
+      {
+        "text": "A paragraph of its own.",
+        "span": {
+          "start": 48,
+          "end": 71
+        }
+      }
+    ]
+  },
+  {
+    "name": "white-space runs",
+    "bound": 60,
+    "runes": 400,
+    "count": "space runs",
+    "text": "Left column                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  middle                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            right\none                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          two                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               three\n                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          a page number 7\nend                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    of                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            columns",
+    "chunks": [
+      {
+        "text": "Left column",
+        "span": {
+          "start": 0,
+          "end": 11
+        }
+      },
+      {
+        "text": "middle",
+        "span": {
+          "start": 621,
+          "end": 627
+        }
+      },
+      {
+        "text": "right",
+        "span": {
+          "start": 1167,
+          "end": 1172
+        }
+      },
+      {
+        "text": "one",
+        "span": {
+          "start": 1173,
+          "end": 1176
+        }
+      },
+      {
+        "text": "two",
+        "span": {
+          "start": 1794,
+          "end": 1797
+        }
+      },
+      {
+        "text": "three",
+        "span": {
+          "start": 2340,
+          "end": 2345
+        }
+      },
+      {
+        "text": "a page number 7",
+        "span": {
+          "start": 3636,
+          "end": 3651
+        }
+      },
+      {
+        "text": "end",
+        "span": {
+          "start": 3652,
+          "end": 3655
+        }
+      },
+      {
+        "text": "of",
+        "span": {
+          "start": 4555,
+          "end": 4557
+        }
+      },
+      {
+        "text": "columns",
+        "span": {
+          "start": 5257,
+          "end": 5264
         }
       }
     ]

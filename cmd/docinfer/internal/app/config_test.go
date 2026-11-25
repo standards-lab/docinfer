@@ -98,6 +98,7 @@ func TestConfig_StartingValues(t *testing.T) {
 		"transcription concurrency":      {*tr.Concurrency, 4},
 		"embeddings batch":               {*em.Batch, 16},
 		"embeddings chunk_size":          {*em.ChunkSize, 480},
+		"embeddings chunk_runes":         {*em.ChunkRunes, 8192},
 		"embeddings concurrency":         {*em.Concurrency, 4},
 		"run pending":                    {*run.Pending, 16},
 		"run batch_bytes":                {*run.BatchBytes, 524288},
@@ -142,6 +143,7 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 		"DOCINFER_VISION_SERVED_MODEL":               "org/vision",
 		"DOCINFER_VISION_NATIVE":                     `{"temperature":0}`,
 		"DOCINFER_EMBEDDINGS_BATCH":                  "32",
+		"DOCINFER_EMBEDDINGS_CHUNK_RUNES":            "4096",
 		"DOCINFER_EMBEDDINGS_INPUT_TYPES":            `{"query":{"prefix":"query: "}}`,
 		"DOCINFER_EMBEDDINGS_TOKENIZER":              "gb10",
 		"DOCINFER_RUN_PENDING":                       "2",
@@ -162,6 +164,9 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	}
 	if got := *p.cfg.Embeddings.Batch; got != 32 {
 		t.Errorf("embeddings batch = %d, want 32", got)
+	}
+	if got := *p.cfg.Embeddings.ChunkRunes; got != 4096 {
+		t.Errorf("embeddings chunk_runes = %d, want 4096", got)
 	}
 	if v := p.cfg.Vision; v == nil || v.ServedModel != "org/vision" || string(v.Native) != `{"temperature":0}` {
 		t.Errorf("vision = %+v, want the overrides' served_model and native", v)
@@ -270,6 +275,8 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "native not an object", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","native":[1]}`), want: "vision: native [1] is not a JSON object with unique member names"},
 		{name: "native with a repeated member", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","native":{"seed":1,"seed":2}}`), want: "vision: native "},
 		{name: "native override not an object", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v"}`), env: map[string]string{"DOCINFER_VISION_NATIVE": "0.2"}, want: "vision: native 0.2 is not a JSON object"},
+		{name: "chunk_runes below 1", config: withEndpoint(completions, embeddingsWith(`,"input_types":{},"tokenizer":"gb10","chunk_runes":0`)), want: "embeddings: chunk_runes 0 is below 1"},
+		{name: "chunk_runes within the prefix", config: withEndpoint(completions, embeddingsWith(`,"input_types":{"document":{"prefix":"passage: "}},"tokenizer":"gb10","chunk_runes":9`)), want: "embeddings: chunk_runes 9 leaves no character beside the document prefix's 9"},
 		{name: "count below 1", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","concurrency":0}`), want: "vision: concurrency 0 is below 1"},
 		{name: "unknown format", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"grpc"}`, embeddings), want: `endpoints "gb10": format "grpc" is not completions, messages, or responses`},
 		{name: "unknown profile member", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"completions","profile":{"completions":{"bogus":true}}}`, embeddings), want: `endpoints "gb10": profile: `},

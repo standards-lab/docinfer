@@ -3,10 +3,12 @@ package docinfer_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docinfer/chunk"
@@ -149,5 +151,64 @@ func TestRunBoundBelowACharacter(t *testing.T) {
 		seq(outputInput(t, content, childPart, dispatch.TextOutput, countedText)), docinfer.Options{}))
 	if !errors.Is(o.err, chunk.ErrRequest) || !docinfer.Permanent(o.err) {
 		t.Errorf("Run with every character over the bound: %v, Permanent %t; want chunk.ErrRequest, permanent", o.err, docinfer.Permanent(o.err))
+	}
+}
+
+func columnText(lines int) string {
+	var b strings.Builder
+	for i := range lines {
+		b.WriteString("Left " + strings.Repeat(" ", 900+13*i) + "middle " + strings.Repeat(" ", 2628) + "right\n")
+	}
+	return b.String()
+}
+
+func TestRunChunksWithinTheRunes(t *testing.T) {
+	text := columnText(12)
+	if spaces := float64(strings.Count(text, " ")) / float64(len(text)); spaces < 0.97 {
+		t.Fatalf("the text is %.3f spaces, want at least 0.97", spaces)
+	}
+	const bound, limit = 480, 4096
+	if n := wordTokens("passage: " + text); n > bound {
+		t.Fatalf("the text measures %d tokens, want it within the bound", n)
+	}
+	var embeds embedRequests
+	refuseLong := func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
+		for _, in := range req.Input {
+			if n := utf8.RuneCountInString(in); n > limit {
+				return aitest.ErrorReply{Status: http.StatusBadRequest, Message: fmt.Sprintf("%d characters, more than %d", n, limit)}
+			}
+		}
+		return embeds.route(ctx, req)
+	}
+	counts := tokenizeRequests{reply: countByWords}
+	e := aitest.Serve(t, aitest.Routes{Embeddings: refuseLong, Tokenize: counts.route})
+	cfg := tokenizeConfig(t, e, bound)
+	cfg.Chunker.Runes = limit - utf8.RuneCountInString(passage.Prefix)
+	content := dispatch.NewMemoryContent()
+	o := collect(t, newPipeline(t, cfg).Run(t.Context(), content,
+		seq(outputInput(t, content, childPart, dispatch.TextOutput, text)), docinfer.Options{}))
+	if o.err != nil {
+		t.Fatalf("Run: %v", o.err)
+	}
+	chunks := o.chunks()
+	if len(chunks) < 2 {
+		t.Fatalf("%d chunks, want the text cut by its runes", len(chunks))
+	}
+	embedded := map[string]bool{}
+	for _, req := range embeds.all() {
+		for _, in := range req.Input {
+			embedded[in] = true
+		}
+	}
+	for _, c := range chunks {
+		if n := utf8.RuneCountInString(c.chunk.Text); n > cfg.Chunker.Runes {
+			t.Errorf("a chunk holds %d runes, over the bound %d", n, cfg.Chunker.Runes)
+		}
+		if c.chunk.Vector == "" || !embedded["passage: "+c.chunk.Text] {
+			t.Errorf("chunk at %v wasn't embedded", c.chunk.Span)
+		}
+		if text[c.chunk.Span.Start:c.chunk.Span.End] != c.chunk.Text {
+			t.Errorf("chunk at %v isn't its span's text", c.chunk.Span)
+		}
 	}
 }

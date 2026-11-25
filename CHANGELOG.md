@@ -74,6 +74,18 @@ each nested module keeps its own.
   `Chunker.Count` and an empty `Chunker.Model`, matching `ErrRequest`. A failure of the count
   stops the job, nothing held: `Permanent` reports a permanent status and a refused one, which no
   chunk can hold, and `chunk.ErrRequest`.
+- Breaking: `chunk.Splitter` gains `Runes`, the most characters, Unicode code points, a chunk
+  holds, beside `Bound`'s tokens, for a server that refuses an input by its length before
+  tokenizing it, as vLLM refuses one over 16 characters a token of `max_model_len`. Every chunk is
+  within both; a stretch over `Runes` is cut by structure, then hard, with no count of its own,
+  and a chunk's `Text` is still the text's own bytes, its white space uncollapsed. `Runes` has no
+  default: `Split` refuses one below 1 with `chunk.ErrRequest`, and `New` refuses a
+  `Chunker.Runes` below 1, matching `ErrRequest`. `Settings` is `{"version","bound","runes",
+  "model"}`, so the chunker's identity, `Pipeline.Profile`'s `Chunker`, changes and spans held
+  under the former settings miss and are recut. `chunk.Version` stays "2": a `Runes` no chunk
+  reaches cuts every text as before, which `chunks-v2.json`'s earlier cases, unchanged, pin; the
+  corpus gains each case's `runes` and cases the rune bound cuts, a text of long white-space runs
+  among them.
 - The module requires the go-ai release with embedding input types and `Tokenize`.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.

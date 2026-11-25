@@ -128,7 +128,7 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 			Client: profiledClient(t, "http://localhost/v1", conventions(&ai.InputConvention{Prefix: "passage: "}, queryPrefix)),
 			Model:  "embedding", Served: "intfloat/multilingual-e5-large",
 		}.Identity(),
-		chunkIdentity(chunk.Splitter{Bound: 512, Model: "intfloat/multilingual-e5-large"}),
+		chunkIdentity(chunk.Splitter{Bound: 480, Runes: 8183, Model: "intfloat/multilingual-e5-large"}),
 	}
 	for i, id := range ids {
 		if !slices.ContainsFunc(goldenKeys, func(g goldenKey) bool { return g.Identity == id }) {
@@ -158,7 +158,7 @@ func TestProfile(t *testing.T) {
 		},
 		Embeddings: docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "org/embedding-1"},
 		Dimensions: 2,
-		Chunker:    `{"version":"2","bound":2,"model":"org/embedding-1"}`,
+		Chunker:    `{"version":"2","bound":2,"runes":2,"model":"org/embedding-1"}`,
 	}
 	cfg.Vision.Prompt, cfg.Transcription.Language, cfg.Extraction.MaxTokens = "changed", "de", 3
 	first := p.Profile()

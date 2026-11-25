@@ -21,7 +21,8 @@
 //   - domain.go: defineDomain and mountDomain: the run configuration, internal/run's Config, in
 //     the library's shapes over the capabilities' clients, each capability's served_model as its
 //     Served, and the chunker counting through the tokenizer's client, Tokenize of the
-//     embeddings' model as a document, with each capability's endpoint and the build's versions
+//     embeddings' model as a document, its Runes embeddings.chunk_runes less the document
+//     prefix's characters, with each capability's endpoint and the build's versions
 //     its manifests record, and the run command over it, and the report command, which declares
 //     no nodes;
 //   - version.go: the version command, which declares no nodes and prints two lines, the

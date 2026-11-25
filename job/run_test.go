@@ -90,7 +90,7 @@ func newPipeline(t *testing.T, e *aitest.Endpoint) *docinfer.Pipeline {
 	p, err := docinfer.New(docinfer.Config{
 		Extraction: &docinfer.Extraction{Client: c, Model: extractModel, Served: extractServed, MaxTokens: 100},
 		Embeddings: docinfer.Embeddings{Client: c, Model: embeddingModel, Served: embeddingServed},
-		Chunker:    chunk.Splitter{Bound: 1000, Count: runes, Model: embeddingServed},
+		Chunker:    chunk.Splitter{Bound: 1000, Runes: 1000, Count: runes, Model: embeddingServed},
 		Dimensions: 2,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     bounds,

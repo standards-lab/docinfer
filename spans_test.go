@@ -78,7 +78,7 @@ func TestRunHoldsChunkSpans(t *testing.T) {
 	for name, newCache := range caches {
 		t.Run(name, func(t *testing.T) {
 			s := spansRun{cache: newCache(t), content: dispatch.NewMemoryContent(), text: spansText}
-			splitter := chunk.Splitter{Bound: 10, Model: embeddingServed}
+			splitter := chunk.Splitter{Bound: 10, Runes: 1000, Model: embeddingServed}
 
 			first, counts, embeds := s.run(t, splitter)
 			if counts == 0 || embeds == 0 || len(first) < 2 {
@@ -99,8 +99,9 @@ func TestRunHoldsChunkSpans(t *testing.T) {
 			}
 
 			for what, other := range map[string]chunk.Splitter{
-				"another bound": {Bound: 11, Model: embeddingServed},
-				"another model": {Bound: 10, Model: "org/other-tokenizer"},
+				"another bound": {Bound: 11, Runes: 1000, Model: embeddingServed},
+				"another runes": {Bound: 10, Runes: 999, Model: embeddingServed},
+				"another model": {Bound: 10, Runes: 1000, Model: "org/other-tokenizer"},
 			} {
 				if _, counts, _ := s.run(t, other); counts == 0 {
 					t.Errorf("a run with %s counted nothing, want the held spans missed", what)
@@ -135,7 +136,7 @@ func TestRunHoldsChunkSpans(t *testing.T) {
 
 func TestRunHoldsNoChunks(t *testing.T) {
 	s := spansRun{cache: docinfer.NewMemoryCache(), content: dispatch.NewMemoryContent(), text: " \n\t "}
-	splitter := chunk.Splitter{Bound: 10, Model: embeddingServed}
+	splitter := chunk.Splitter{Bound: 10, Runes: 1000, Model: embeddingServed}
 	if chunks, _, _ := s.run(t, splitter); len(chunks) != 0 {
 		t.Fatalf("a blank text: %d chunks, want none", len(chunks))
 	}
@@ -151,7 +152,7 @@ func TestRunHoldsNoSpansOnACountFailure(t *testing.T) {
 	cache := docinfer.NewMemoryCache()
 	content := dispatch.NewMemoryContent()
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
-	splitter := chunk.Splitter{Bound: 10, Model: embeddingServed, Count: func(context.Context, string) (int, error) {
+	splitter := chunk.Splitter{Bound: 10, Runes: 1000, Model: embeddingServed, Count: func(context.Context, string) (int, error) {
 		return 0, errors.New("no count")
 	}}
 	cfg := runConfig(t, e, func(c *docinfer.Config) { c.Cache, c.Chunker = cache, splitter })
