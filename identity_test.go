@@ -104,20 +104,31 @@ func TestIdentityNamesTheServedModel(t *testing.T) {
 
 func TestGoldenKeysAreIdentities(t *testing.T) {
 	route := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
-	ids := map[docinfer.Capability]docinfer.Identity{
-		docinfer.CapabilityVision: docinfer.Vision{
-			Client: route, Model: "vision", Served: "gpt-4.1-mini", Prompt: "Describe the image.", MaxTokens: 1024,
-			Reasoning: protocol.ReasoningEffortLow,
-		}.Identity(),
-		docinfer.CapabilityTranscription: docinfer.Transcription{Client: route, Model: "audio", Served: "whisper-1", Language: "en"}.Identity(),
-		docinfer.CapabilityExtraction: docinfer.Extraction{
-			Client: route, Model: "agent", Served: "gpt-4.1", MaxTokens: 4096, Reasoning: protocol.ReasoningEffortMedium,
-		}.Identity(docinfer.Extract{Name: "invoice", Prompt: "prompt", Schema: jsontext.Value("schema")}),
-		docinfer.CapabilityEmbeddings: docinfer.Embeddings{Client: route, Model: "embedding", Served: "text-embedding-3-small"}.Identity(),
+	vision := docinfer.Vision{
+		Client: route, Model: "vision", Served: "gpt-4.1-mini", Prompt: "Describe the image.", MaxTokens: 1024,
+		Reasoning: protocol.ReasoningEffortLow,
 	}
-	for _, g := range goldenKeys {
-		if id := ids[g.Identity.Capability]; id != g.Identity {
-			t.Errorf("golden %s identity\n %+v, the capability's\n %+v", g.Identity.Capability, g.Identity, id)
+	extraction := docinfer.Extraction{
+		Client: route, Model: "agent", Served: "gpt-4.1", MaxTokens: 4096, Reasoning: protocol.ReasoningEffortMedium,
+	}
+	extract := docinfer.Extract{Name: "invoice", Prompt: "prompt", Schema: jsontext.Value("schema")}
+	sampledVision, sampledExtraction := vision, extraction
+	sampledVision.Native = jsontext.Value(`{"top_p": 0.95, "top_k": 64, "temperature": 0.2}`)
+	sampledExtraction.Native = jsontext.Value(`{"temperature": 0}`)
+	ids := []docinfer.Identity{
+		vision.Identity(),
+		docinfer.Transcription{Client: route, Model: "audio", Served: "whisper-1", Language: "en"}.Identity(),
+		extraction.Identity(extract),
+		docinfer.Embeddings{Client: route, Model: "embedding", Served: "text-embedding-3-small"}.Identity(),
+		sampledVision.Identity(),
+		sampledExtraction.Identity(extract),
+	}
+	if len(ids) != len(goldenKeys) {
+		t.Fatalf("%d identities for %d golden keys", len(ids), len(goldenKeys))
+	}
+	for i, g := range goldenKeys {
+		if g.Identity != ids[i] {
+			t.Errorf("golden %s identity %d\n %+v, the capability's\n %+v", g.Identity.Capability, i, g.Identity, ids[i])
 		}
 	}
 }

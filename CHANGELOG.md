@@ -13,6 +13,13 @@ each nested module keeps its own.
 
 - `Served` on `Vision`, `Transcription`, `Extraction`, and `Embeddings`: the model the deployment
   serves under `Model`, which the host resolves. Requests still send `Model`.
+- `Native` on `Vision` and `Extraction`: go-ai's native tier, a JSON object of members the
+  endpoint defines, such as temperature, sent on every request as `protocol.Request.Native`. Empty
+  sends none. It enters the capability's identity settings, and so its `Key` and
+  `Pipeline.Profile`, as a `"native"` member after `"effort"`, canonical: whitespace stripped,
+  strings in their shortest form, and each object's members sorted by name, numbers as given. An
+  identity with no `Native` keeps its settings and key, so `Version` stays "1". `New` refuses a
+  `Native` that isn't a JSON object with unique member names, matching `ErrRequest`.
 
 ### Changed
 

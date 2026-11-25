@@ -40,8 +40,9 @@ type Pipeline struct {
 // New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
-// Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens) and an
-// empty Model or Served. It copies the capabilities cfg points to, so a later change to them changes
+// Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each MaxTokens), an
+// empty Model or Served, and a Vision or Extraction Native that isn't a JSON object with unique
+// member names. It copies the capabilities cfg points to, so a later change to them changes
 // nothing.
 func New(cfg Config) (*Pipeline, error) {
 	if cfg.Cache == nil {
@@ -81,6 +82,7 @@ func New(cfg Config) (*Pipeline, error) {
 		counts = append(counts, count{"Vision.MaxTokens", v.MaxTokens})
 		models = append(models, model{"Vision.Model", v.Model}, model{"Vision.Served", v.Served})
 		cfg.Vision = new(*v)
+		cfg.Vision.Native = v.Native.Clone()
 	}
 	if t := cfg.Transcription; t != nil {
 		models = append(models, model{"Transcription.Model", t.Model}, model{"Transcription.Served", t.Served})
@@ -90,6 +92,7 @@ func New(cfg Config) (*Pipeline, error) {
 		counts = append(counts, count{"Extraction.MaxTokens", x.MaxTokens})
 		models = append(models, model{"Extraction.Model", x.Model}, model{"Extraction.Served", x.Served})
 		cfg.Extraction = new(*x)
+		cfg.Extraction.Native = x.Native.Clone()
 	}
 	for _, c := range counts {
 		if c.n < 1 {
@@ -99,6 +102,16 @@ func New(cfg Config) (*Pipeline, error) {
 	for _, m := range models {
 		if m.model == "" {
 			return nil, fmt.Errorf("docinfer: New: %w: %s is empty", ErrRequest, m.field)
+		}
+	}
+	if v := cfg.Vision; v != nil {
+		if err := probeNative("Vision.Native", v.Native); err != nil {
+			return nil, err
+		}
+	}
+	if x := cfg.Extraction; x != nil {
+		if err := probeNative("Extraction.Native", x.Native); err != nil {
+			return nil, err
 		}
 	}
 
@@ -125,7 +138,8 @@ func New(cfg Config) (*Pipeline, error) {
 // Model is the capability's Served, the model the deployment serves, not the one its request
 // names, so a consumer recording the embedding space records the model. An unset
 // capability's identity is nil, and the extraction's settings are {"request","max_tokens",
-// "effort"}, less the name, prompt, and schema each run's [Extract] gives.
+// "effort","native"}, "native" there only when Native is set, less the name, prompt, and schema
+// each run's [Extract] gives.
 func (p *Pipeline) Profile() Profile {
 	pr := p.profile
 	for _, id := range []**Identity{&pr.Vision, &pr.Transcription, &pr.Extraction} {

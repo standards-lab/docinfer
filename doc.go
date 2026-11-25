@@ -16,7 +16,10 @@
 // [Bounds] from [NewBounds], which caps each capability's requests in flight across every pipeline
 // built on it. Nothing has a default. Each capability's [Identity] holds its served model and its
 // settings, one JSON encoding led by its request's version, and [Pipeline.Profile] reports them, so
-// a consumer records the models served, not the names requests send.
+// a consumer records the models served, not the names requests send. [Vision] and [Extraction]
+// each take a Native, go-ai's native tier, such as sampling: a JSON object sent on each request as
+// it is, and held in the settings canonically, so a change to it misses and a change of whitespace
+// or member order alone doesn't.
 //
 // [Pipeline.Run] runs one job: it reads the job's [Input]s, as many admitted at once as
 // Config.Pending allows, and yields each [Result] as it is made, its batches of embedded chunks
@@ -57,7 +60,8 @@
 //     an error no redelivery changes
 //   - [Bounds] and [NewBounds], the requests in flight per capability
 //   - [Vision], [Transcription], [Extraction], and [Embeddings], each capability's client, the
-//     model its request names and the model served under it, and settings, and each one's
+//     model its request names and the model served under it, and settings, Vision's and
+//     Extraction's among them a Native, the native tier, and each one's
 //     Identity, [Vision.Identity], [Transcription.Identity],
 //     [Extraction.Identity], and [Embeddings.Identity]; [Extract], a caller's prompt and schema
 //   - [Cache], its Get and Put, and its two implementations, [FileCache] from [NewFileCache] and

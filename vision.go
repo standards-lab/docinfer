@@ -67,6 +67,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		Input:           []protocol.Item{protocol.Message{Role: protocol.RoleUser, Content: content}},
 		Reasoning:       protocol.ReasoningParam{Effort: v.Reasoning},
 		MaxOutputTokens: v.MaxTokens,
+		Native:          v.Native,
 	}
 	var (
 		resp *protocol.Response

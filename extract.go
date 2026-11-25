@@ -54,6 +54,7 @@ func extractRequest(x *Extraction, e Extract, text string) *protocol.Request {
 		Text:            protocol.TextParam{Format: protocol.JSONSchemaFormat{Name: e.Name, Schema: e.Schema, Strict: true}},
 		Reasoning:       protocol.ReasoningParam{Effort: x.Reasoning},
 		MaxOutputTokens: x.MaxTokens,
+		Native:          x.Native,
 	}
 }
 
