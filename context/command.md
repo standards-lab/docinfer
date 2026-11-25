@@ -89,8 +89,9 @@ go, each override name is composed where it is read, and the test asserts the ov
 **C9. issue: no inference request has a deadline.** `app/infrastructure.go:28-33`,
 `models/models.go:39`. Against `baseline-standards.md`, `timeouts.md`, and `cmd/docproc`'s
 `DOCPROC_UNIT_TIMEOUT` and `DOCPROC_STREAM_IDLE`. **accepted**, docinfer: each endpoint's transport
-ships a `ResponseHeaderTimeout` starting at 180 s, above vision's slowest observed image, 38.9 s
-under mixed load (data-intelligence, "Gateway load"), and its client a retry starting at 3
+ships a `ResponseHeaderTimeout` starting at 180 s, and vision's endpoint at 600 s, since
+acceptance found a non-streaming reply's header waits for up to `max_tokens` of generation, ~200 s
+at the vision row's loaded speed, and its client a retry starting at 3
 attempts, 500 ms, 30 s; the library adds no deadline (`docs/no-defaults.md`, A request's
 time). With no extraction, the command sets no stream timeout.
 Rejected: a deadline the command sets around each call; the host bounds a request at the transport,
