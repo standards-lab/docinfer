@@ -51,6 +51,10 @@ func unitVectors(_ context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 	return reply
 }
 
+func wordTokens(_ context.Context, req aitest.TokenizeRequest) aitest.Reply {
+	return aitest.TokenizeReply{Count: len(strings.Fields(req.Prompt)) + 2}
+}
+
 var listed = modelList(
 	`{"id":"vision-model","object":"model","status":{"value":"loaded"}}`,
 	`{"id":"embed-model","object":"model","status":{"value":"loaded"}}`,
@@ -100,6 +104,7 @@ func TestRun_EndsWithAFailedImageRecorded(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{
 		Models:     listed,
 		Embeddings: unitVectors,
+		Tokenize:   wordTokens,
 		ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
 			for _, m := range req.Messages {
 				for _, img := range m.Images {
@@ -261,7 +266,8 @@ const waitLimit = 10 * time.Second
 func TestRun_CancelledKeepsWhatItMade(t *testing.T) {
 	var gate aitest.Gate
 	e := aitest.Serve(t, aitest.Routes{
-		Models: listed,
+		Models:   listed,
+		Tokenize: wordTokens,
 		Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 			if slices.ContainsFunc(req.Input, func(s string) bool { return strings.Contains(s, "park-me") }) {
 				if err := gate.Wait(ctx); err != nil {
@@ -349,7 +355,7 @@ func TestRun_RunNamesNoDocprocRun(t *testing.T) {
 }
 
 func TestRun_ReadsTheLatestRunThatEnded(t *testing.T) {
-	e := aitest.Serve(t, aitest.Routes{Models: listed, Embeddings: unitVectors})
+	e := aitest.Serve(t, aitest.Routes{Models: listed, Embeddings: unitVectors, Tokenize: wordTokens})
 	root := t.TempDir()
 	docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
 	ended := newDocprocRunID(t, docproc, firstRun)

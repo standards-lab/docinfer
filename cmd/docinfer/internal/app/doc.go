@@ -9,16 +9,21 @@
 //   - infrastructure.go: defineInfrastructure: the lifecycle configuration; [Config], read from
 //     the directory the root flag --config or DOCINFER_CONFIG names, the flag winning; each
 //     endpoint's one HTTP client, over a clone of the default transport with the endpoint's
-//     ResponseHeaderTimeout; and each capability's own *ai.Client, vision's, transcription's,
-//     and embeddings', in its endpoint's format and with its endpoint's options, transcription's
-//     in its configured mode, a capability the configuration leaves unset having none. A client
-//     go-ai's ai.New refuses is reported named for its endpoint. It holds [Config] too, with its
+//     ResponseHeaderTimeout; each capability's own *ai.Client, vision's, transcription's, and
+//     embeddings', in its endpoint's format and with its endpoint's options, transcription's in
+//     its configured mode and embeddings' with its input_types as go-ai's EmbeddingProfile, a
+//     capability the configuration leaves unset having none; and the tokenizer's *ai.Client, on
+//     the endpoint embeddings.tokenizer names, with the same EmbeddingProfile, so a document's
+//     count takes its prefix. A client go-ai's ai.New refuses is reported named for its
+//     endpoint. It holds [Config] too, with its
 //     starting values, its overrides, and its checks, so a configuration error fails the Build,
 //     labelled "config", before any command reads anything;
 //   - domain.go: defineDomain and mountDomain: the run configuration, internal/run's Config, in
-//     the library's shapes over the capabilities' clients, with each capability's endpoint and
-//     the build's versions its manifests record, and the run command over it, and the report
-//     command, which declares no nodes;
+//     the library's shapes over the capabilities' clients, each capability's served_model as its
+//     Served, and the chunker counting through the tokenizer's client, Tokenize of the
+//     embeddings' model as a document, with each capability's endpoint and the build's versions
+//     its manifests record, and the run command over it, and the report command, which declares
+//     no nodes;
 //   - version.go: the version command, which declares no nodes and prints two lines, the
 //     command's version, the main module's, and the library's, the docinfer module's the binary
 //     was built with, each read from the build info, or (devel) when the binary carries none, as

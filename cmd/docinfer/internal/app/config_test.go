@@ -33,7 +33,7 @@ func configDir(t *testing.T, files map[string]string) string {
 
 func embeddingsJSON(baseURL string) string {
 	return `{"endpoints":{"gb10":{"base_url":"` + baseURL + `","format":"completions"}},
-		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768}}`
+		"embeddings":{"endpoint":"gb10","model":"embed-model","served_model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`
 }
 
 type probed struct {
@@ -41,6 +41,8 @@ type probed struct {
 	httpClients   map[string]*http.Client
 	vision        *ai.Client
 	transcription *ai.Client
+	embeddings    *ai.Client
+	tokenizer     *ai.Client
 }
 
 func probeConfig(t *testing.T, configJSON string) probed {
@@ -55,6 +57,8 @@ func probeConfig(t *testing.T, configJSON string) probed {
 			httpClients:   inv.Get(n.HTTPClients),
 			vision:        inv.Get(n.VisionClient),
 			transcription: inv.Get(n.TranscriptionClient),
+			embeddings:    inv.Get(n.EmbeddingsClient),
+			tokenizer:     inv.Get(n.TokenizerClient),
 		}
 	})
 
@@ -77,7 +81,7 @@ func TestConfig_StartingValues(t *testing.T) {
 	p := probeConfig(t, `{"endpoints":{"gb10":{"base_url":"`+unusedURL+`","format":"completions"}},
 		"vision":{"endpoint":"gb10","model":"vision-model"},
 		"transcription":{"endpoint":"gb10","model":"audio-model"},
-		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768}}`)
+		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`)
 
 	if got := responseHeaderTimeout(t, p, "gb10"); got != 180*time.Second {
 		t.Errorf("transport ResponseHeaderTimeout = %v, want 180s", got)
@@ -93,7 +97,7 @@ func TestConfig_StartingValues(t *testing.T) {
 		"transcription words_per_second": {*tr.WordsPerSecond, 8},
 		"transcription concurrency":      {*tr.Concurrency, 4},
 		"embeddings batch":               {*em.Batch, 16},
-		"embeddings chunk_size":          {*em.ChunkSize, 2000},
+		"embeddings chunk_size":          {*em.ChunkSize, 480},
 		"embeddings concurrency":         {*em.Concurrency, 4},
 		"run pending":                    {*run.Pending, 16},
 		"run batch_bytes":                {*run.BatchBytes, 524288},
@@ -132,7 +136,11 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 		"DOCINFER_TRANSCRIPTION_ENDPOINT":            "gb10",
 		"DOCINFER_TRANSCRIPTION_MODEL":               "audio-model",
 		"DOCINFER_TRANSCRIPTION_MODE":                "chat",
+		"DOCINFER_VISION_SERVED_MODEL":               "org/vision",
+		"DOCINFER_VISION_NATIVE":                     `{"temperature":0}`,
 		"DOCINFER_EMBEDDINGS_BATCH":                  "32",
+		"DOCINFER_EMBEDDINGS_INPUT_TYPES":            `{"query":{"prefix":"query: "}}`,
+		"DOCINFER_EMBEDDINGS_TOKENIZER":              "gb10",
 		"DOCINFER_RUN_PENDING":                       "2",
 	} {
 		t.Setenv(name, value)
@@ -152,8 +160,35 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	if got := *p.cfg.Embeddings.Batch; got != 32 {
 		t.Errorf("embeddings batch = %d, want 32", got)
 	}
+	if v := p.cfg.Vision; v == nil || v.ServedModel != "org/vision" || string(v.Native) != `{"temperature":0}` {
+		t.Errorf("vision = %+v, want the overrides' served_model and native", v)
+	}
+	if got := p.embeddings.EmbeddingProfile().InputTypes[ai.InputQuery].Prefix; got != "query: " {
+		t.Errorf("embeddings client's query prefix = %q, want the override's", got)
+	}
 	if got := *p.cfg.Run.Pending; got != 2 {
 		t.Errorf("run pending = %d, want 2", got)
+	}
+}
+
+func TestConfig_InputTypesOnTheEmbeddingsAndTokenizerClients(t *testing.T) {
+	p := probeConfig(t, `{"endpoints":{
+			"gateway":{"base_url":"`+unusedURL+`","format":"completions"},
+			"root":{"base_url":"http://127.0.0.1:1","format":"completions"}},
+		"embeddings":{"endpoint":"gateway","model":"e5","dimensions":1024,"tokenizer":"root",
+			"input_types":{"document":{"prefix":"passage: "},"query":{"prefix":"query: "}}}}`)
+
+	want := map[ai.InputType]string{ai.InputDocument: "passage: ", ai.InputQuery: "query: "}
+	for name, c := range map[string]*ai.Client{"embeddings": p.embeddings, "tokenizer": p.tokenizer} {
+		got := c.EmbeddingProfile().InputTypes
+		if len(got) != len(want) {
+			t.Errorf("%s client's input types = %v, want %v", name, got, want)
+		}
+		for typ, prefix := range want {
+			if got[typ].Prefix != prefix {
+				t.Errorf("%s client's %s prefix = %q, want %q", name, typ, got[typ].Prefix, prefix)
+			}
+		}
 	}
 }
 
@@ -161,7 +196,7 @@ func TestConfig_ChatModeIsTranscriptionsOwn(t *testing.T) {
 	p := probeConfig(t, `{"endpoints":{"gb10":{"base_url":"`+unusedURL+`","format":"completions"}},
 		"vision":{"endpoint":"gb10","model":"vision-model"},
 		"transcription":{"endpoint":"gb10","model":"audio-model","mode":"chat"},
-		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768}}`)
+		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`)
 
 	if got := p.transcription.TranscriptionMode(); got != ai.TranscribeChat {
 		t.Errorf("transcription client's mode = %v, want chat", got)
@@ -204,7 +239,10 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 	withEndpoint := func(endpoint, sections string) string {
 		return `{"endpoints":{"gb10":` + endpoint + `},` + sections + `}`
 	}
-	embeddings := `"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768}`
+	embeddingsWith := func(members string) string {
+		return `"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768` + members + `}`
+	}
+	embeddings := embeddingsWith(`,"input_types":{},"tokenizer":"gb10"`)
 	completions := `{"base_url":"` + unusedURL + `","format":"completions"}`
 	tests := []struct {
 		name   string
@@ -216,9 +254,19 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "no directory", want: "no configuration directory: set --config or DOCINFER_CONFIG"},
 		{name: "not a directory", dir: file, want: "is no directory"},
 		{name: "unknown key", config: withEndpoint(completions, embeddings+`,"extraction":{}`), want: "extraction"},
-		{name: "no embeddings endpoint", config: withEndpoint(completions, `"embeddings":{"model":"m","dimensions":768}`), want: "embeddings: no endpoint"},
-		{name: "unknown endpoint", config: withEndpoint(completions, `"embeddings":{"endpoint":"other","model":"m","dimensions":768}`), want: `embeddings: endpoint "other" is not one of endpoints`},
-		{name: "no dimensions", config: withEndpoint(completions, `"embeddings":{"endpoint":"gb10","model":"m"}`), want: "embeddings: no dimensions"},
+		{name: "no embeddings endpoint", config: withEndpoint(completions, `"embeddings":{"model":"m","dimensions":768,"input_types":{},"tokenizer":"gb10"}`), want: "embeddings: no endpoint"},
+		{name: "unknown endpoint", config: withEndpoint(completions, `"embeddings":{"endpoint":"other","model":"m","dimensions":768,"input_types":{},"tokenizer":"gb10"}`), want: `embeddings: endpoint "other" is not one of endpoints`},
+		{name: "no dimensions", config: withEndpoint(completions, `"embeddings":{"endpoint":"gb10","model":"m","input_types":{},"tokenizer":"gb10"}`), want: "embeddings: no dimensions"},
+		{name: "no input_types", config: withEndpoint(completions, embeddingsWith(`,"tokenizer":"gb10"`)), want: "embeddings: no input_types"},
+		{name: "null input_types", config: withEndpoint(completions, embeddingsWith(`,"input_types":null,"tokenizer":"gb10"`)), want: "embeddings: no input_types"},
+		{name: "unknown input type", config: withEndpoint(completions, embeddingsWith(`,"input_types":{"passage":{"prefix":"passage: "}},"tokenizer":"gb10"`)), want: `unknown input type "passage"`},
+		{name: "unknown convention member", config: withEndpoint(completions, embeddingsWith(`,"input_types":{"query":{"prefx":"query: "}},"tokenizer":"gb10"`)), want: "prefx"},
+		{name: "input_types override not an object", config: withEndpoint(completions, embeddingsWith(`,"tokenizer":"gb10"`)), env: map[string]string{"DOCINFER_EMBEDDINGS_INPUT_TYPES": "[]"}, want: "DOCINFER_EMBEDDINGS_INPUT_TYPES"},
+		{name: "no tokenizer", config: withEndpoint(completions, embeddingsWith(`,"input_types":{}`)), want: "embeddings: no tokenizer"},
+		{name: "unknown tokenizer", config: withEndpoint(completions, embeddingsWith(`,"input_types":{},"tokenizer":"vllm"`)), want: `embeddings: tokenizer "vllm" is not one of endpoints`},
+		{name: "native not an object", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","native":[1]}`), want: "vision: native [1] is not a JSON object with unique member names"},
+		{name: "native with a repeated member", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","native":{"seed":1,"seed":2}}`), want: "vision: native "},
+		{name: "native override not an object", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v"}`), env: map[string]string{"DOCINFER_VISION_NATIVE": "0.2"}, want: "vision: native 0.2 is not a JSON object"},
 		{name: "count below 1", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","concurrency":0}`), want: "vision: concurrency 0 is below 1"},
 		{name: "unknown format", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"grpc"}`, embeddings), want: `endpoints "gb10": format "grpc" is not completions, messages, or responses`},
 		{name: "unknown profile member", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"completions","profile":{"completions":{"bogus":true}}}`, embeddings), want: `endpoints "gb10": profile: `},
@@ -227,7 +275,7 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "unknown reasoning", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","reasoning":"extreme"}`), want: "extreme"},
 		{name: "override not a count", config: withEndpoint(completions, embeddings), env: map[string]string{"DOCINFER_RUN_PENDING": "many"}, want: "DOCINFER_RUN_PENDING"},
 		{name: "negative response header timeout", config: withEndpoint(completions, embeddings), env: map[string]string{"DOCINFER_ENDPOINTS_GB10_RESPONSE_HEADER_TIMEOUT": "-1s"}, want: `endpoints "gb10": response_header_timeout -1s is below zero`},
-		{name: "endpoints sharing overrides", config: `{"endpoints":{"a-b":` + completions + `,"a_b":` + completions + `},"embeddings":{"endpoint":"a-b","model":"m","dimensions":768}}`, want: `endpoints "a-b" and "a_b" compose the same overrides, DOCINFER_ENDPOINTS_A_B_*`},
+		{name: "endpoints sharing overrides", config: `{"endpoints":{"a-b":` + completions + `,"a_b":` + completions + `},"embeddings":{"endpoint":"a-b","model":"m","dimensions":768,"input_types":{},"tokenizer":"a-b"}}`, want: `endpoints "a-b" and "a_b" compose the same overrides, DOCINFER_ENDPOINTS_A_B_*`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

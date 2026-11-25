@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -38,7 +39,9 @@ func TestCLI_RunAndReport(t *testing.T) {
 	eps := liveEndpoints(t)
 	caps := capabilities(eps)
 	for r, ep := range eps {
-		ep.model = model(t, r, ep)
+		if r != tokenize {
+			ep.model, ep.served = model(t, r, ep)
+		}
 		eps[r] = ep
 	}
 	configDir := writeConfig(t, compose(eps, caps, dimensions(t, eps[embedding])))
@@ -96,6 +99,14 @@ func liveEndpoints(t *testing.T) map[role]endpoint {
 			eps[r] = ep
 		}
 	}
+	switch ep, ok, err := endpointOf(tokenize, os.Getenv); {
+	case err != nil:
+		t.Fatal(err)
+	case ok:
+		eps[tokenize] = ep
+	default:
+		t.Logf("%s is unset: the run counts tokens through %s's tokenize route", tokenize.variable("BASE_URL"), embedding.variable("BASE_URL"))
+	}
 	return eps
 }
 
@@ -118,21 +129,33 @@ func client(t *testing.T, r role, ep endpoint) *ai.Client {
 	return c
 }
 
-func model(t *testing.T, r role, ep endpoint) string {
+func model(t *testing.T, r role, ep endpoint) (id, served string) {
 	t.Helper()
-	if ep.model != "" {
-		return ep.model
-	}
 	ctx, cancel := context.WithTimeout(t.Context(), probeTimeout)
 	defer cancel()
 	models, err := client(t, r, ep).Models(ctx)
+	if _, ok := errors.AsType[*ai.APIError](err); ok && ep.model != "" {
+		return ep.model, ep.model
+	}
 	if err != nil {
 		t.Fatalf("Models of %s: %v", r.variable("BASE_URL"), err)
 	}
-	if len(models) != 1 || models[0].ID == "" {
-		t.Fatalf("%s lists %d models, want exactly one, or its model named in %s", r.variable("BASE_URL"), len(models), r.variable("MODEL"))
+	id = ep.model
+	if id == "" {
+		if len(models) != 1 || models[0].ID == "" {
+			t.Fatalf("%s lists %d models, want exactly one, or its model named in %s", r.variable("BASE_URL"), len(models), r.variable("MODEL"))
+		}
+		id = models[0].ID
 	}
-	return models[0].ID
+	for _, m := range models {
+		var entry struct {
+			Root string `json:"root"`
+		}
+		if m.ID == id && json.Unmarshal(m.Native, &entry) == nil && entry.Root != "" {
+			return id, ""
+		}
+	}
+	return id, id
 }
 
 func dimensions(t *testing.T, ep endpoint) int {

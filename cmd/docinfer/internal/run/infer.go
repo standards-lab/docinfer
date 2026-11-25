@@ -181,14 +181,22 @@ func pipeline(cfg Config, cache docinfer.Cache) (*docinfer.Pipeline, error) {
 
 func manifest(cfg Config, pr docinfer.Profile, d outdir.Docproc) outdir.Manifest {
 	m := outdir.Manifest{Docinfer: cfg.Build, Docproc: d, Inputs: []outdir.Input{}}
+	requested := map[docinfer.Capability]string{docinfer.CapabilityEmbeddings: cfg.Embeddings.Model}
+	if v := cfg.Vision; v != nil {
+		requested[docinfer.CapabilityVision] = v.Model
+	}
+	if t := cfg.Transcription; t != nil {
+		requested[docinfer.CapabilityTranscription] = t.Model
+	}
 	capability := func(id docinfer.Identity) outdir.Capability {
 		e := cfg.Endpoints[id.Capability]
 		return outdir.Capability{
-			Identity:    id,
-			Endpoint:    e.Name,
-			BaseURL:     e.BaseURL,
-			Format:      e.Format,
-			Concurrency: cfg.Concurrency[id.Capability],
+			Identity:     id,
+			RequestModel: requested[id.Capability],
+			Endpoint:     e.Name,
+			BaseURL:      e.BaseURL,
+			Format:       e.Format,
+			Concurrency:  cfg.Concurrency[id.Capability],
 		}
 	}
 	for _, c := range []struct {

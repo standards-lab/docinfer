@@ -67,17 +67,19 @@ type Input struct {
 }
 
 // Capability is one capability a run ran: its docinfer.Identity, inline, the key its held results
-// are under, and the endpoint it sent to, by name, base URL, and format, with its bounds:
-// "concurrency", its requests in flight, and for embeddings "batch", the texts per request, and
-// "chunk_size", the runes per chunk.
+// are under, whose "model" is the model the deployment serves; "request_model", the model its
+// requests named, which the deployment serves as "model"; and the endpoint it sent to, by name,
+// base URL, and format, with its bounds: "concurrency", its requests in flight, and for
+// embeddings "batch", the texts per request, and "chunk_size", the tokens per chunk.
 type Capability struct {
 	docinfer.Identity
-	Endpoint    string `json:"endpoint"`
-	BaseURL     string `json:"base_url"`
-	Format      string `json:"format"`
-	Concurrency int    `json:"concurrency"`
-	Batch       int    `json:"batch,omitzero"`
-	ChunkSize   int    `json:"chunk_size,omitzero"`
+	RequestModel string `json:"request_model"`
+	Endpoint     string `json:"endpoint"`
+	BaseURL      string `json:"base_url"`
+	Format       string `json:"format"`
+	Concurrency  int    `json:"concurrency"`
+	Batch        int    `json:"batch,omitzero"`
+	ChunkSize    int    `json:"chunk_size,omitzero"`
 }
 
 // Skipped is a capability a run didn't run: "name", the capability, and "reason", why.

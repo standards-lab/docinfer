@@ -18,7 +18,9 @@ import (
 
 // Config is what the run command runs under, in the library's shapes: each capability the
 // configuration sets, with the client the composition root built for it, and the pipeline's
-// settings, each at the configuration's value or its starting value.
+// settings, each at the configuration's value or its starting value. Each capability's Served is
+// the configuration's served_model, empty when it sets none, and the Chunker's Model is empty:
+// the run resolves each against the model listing before it reads anything.
 type Config struct {
 	// Vision describes images; nil skips them.
 	Vision *docinfer.Vision
@@ -103,7 +105,7 @@ func command(cfg *graph.Node[Config]) *cli.Command {
 			if err != nil {
 				return err
 			}
-			run, err := infer(ctx, inv.Stdout, c, target{docproc: inv.Args[0], out: out, run: id})
+			run, err := infer(ctx, inv.Stdout, c.withServed(check.served), target{docproc: inv.Args[0], out: out, run: id})
 			if err != nil || !render {
 				return err
 			}

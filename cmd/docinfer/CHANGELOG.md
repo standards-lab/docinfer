@@ -10,8 +10,34 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+### Added
+
+- `served_model` on each capability, `vision`, `transcription`, and `embeddings`: the model the
+  deployment serves under the capability's `model`, which keys its results. `run` takes the served
+  model from the model listing's entry for `model`, its `root`, as vLLM lists it, or else from
+  `served_model`, which has no starting value. A `served_model` the listing's `root` disagrees
+  with, or a capability with neither, stops the run before it reads docproc's run, naming the
+  capability, both values, and the `served_model` to set.
+- `embeddings.input_types`, the embedding model's input-type conventions, go-ai's
+  `EmbeddingProfile` `input_types` object, such as multilingual-e5's
+  `{"document":{"prefix":"passage: "},"query":{"prefix":"query: "}}`, set on the embeddings
+  client, which sends every chunk as a document; `{}` declares none.
+- `embeddings.tokenizer`, the endpoint whose tokenize route counts a chunk's tokens, built as its
+  own client with the embeddings' `input_types`, so a document's count takes its prefix: through a
+  gateway the embeddings' own endpoint, straight to vLLM an endpoint whose `base_url` is the
+  server's root, such as `http://framework-2:8003`.
+- `vision.native`, a JSON object of members the endpoint defines, such as `{"temperature":0}`,
+  sent in every vision request and keyed into vision's identity; one that isn't a JSON object with
+  unique member names fails the configuration.
+- The manifest's capabilities gain `request_model`, the model the requests named, beside the
+  identity's `model`, now the served model.
+
 ### Changed
 
+- **Breaking:** `embeddings.input_types` and `embeddings.tokenizer` are required, with no
+  starting value; a configuration without them fails its Build before docproc's run is read.
+- **Breaking:** `embeddings.chunk_size` is in tokens, as the tokenizer counts them, its document
+  prefix included, starting at 480, in place of 2,000 characters.
 - The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
   images, with its exported API unchanged.
 

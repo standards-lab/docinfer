@@ -40,13 +40,17 @@ endpoints.<name>     base_url; format: completions, messages, or responses; prof
                        response_header_timeout 180s, above vision's slowest observed image,
                        38.9 s, and no stream timeout, the command running no extraction (C9);
                        token and headers in the secrets file (C6)
-vision               endpoint, model, prompt, max_tokens 2048, reasoning none (a
-                       protocol.ReasoningEffort, refused by its UnmarshalText, C7), concurrency 4
-transcription        endpoint, model, prompt, language, mode route (the start) or chat, set on
-                       this capability's own client as ai.TranscribeRoute or ai.TranscribeChat,
-                       chat for an endpoint with no transcription route and refused without the
-                       completions format (C6), words_per_second 8, concurrency 4
-embeddings           endpoint, model, dimensions, batch 16, chunk_size 2000, concurrency 4
+vision               endpoint, model, served_model, prompt, max_tokens 2048, reasoning none (a
+                       protocol.ReasoningEffort, refused by its UnmarshalText, C7), native,
+                       concurrency 4
+transcription        endpoint, model, served_model, prompt, language, mode route (the start) or
+                       chat, set on this capability's own client as ai.TranscribeRoute or
+                       ai.TranscribeChat, chat for an endpoint with no transcription route and
+                       refused without the completions format (C6), words_per_second 8,
+                       concurrency 4
+embeddings           endpoint, model, served_model, dimensions, input_types (required, no
+                       starting value), tokenizer (required, no starting value), batch 16,
+                       chunk_size 480 tokens, concurrency 4
 run                  pending 16, batch_bytes 524288
 ```
 

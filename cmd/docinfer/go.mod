@@ -11,3 +11,7 @@ require (
 )
 
 require golang.org/x/text v0.44.0 // indirect
+
+replace github.com/standards-lab/docinfer => ../..
+
+replace github.com/standards-lab/go-ai => ../../../go-ai

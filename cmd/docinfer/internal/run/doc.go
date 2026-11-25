@@ -15,22 +15,28 @@
 //   - unreachable: the listing failed any other way, which stops the run
 //   - skipped: the configuration leaves the capability unset
 //
+// The check resolves each capability's served model, the docinfer Served its results are keyed
+// under, from the listing's entry for its model: the entry's root, as vLLM lists it, or else the
+// capability's served_model in the configuration. A served_model the root disagrees with stops
+// the run, and so does a capability with neither, each error naming the capability, the values,
+// and the served_model to set. The embeddings' served model is the chunker's Model too.
+//
 // A stopped check returns its error once the table is printed.
 //
-// The run then reads docproc's run directory through docproc's rundir: the latest run that
-// ended, Dir.Latest's, or the run --run names, which rundir refuses when it isn't one of the
-// directory's runs; a --run naming a run that hasn't ended is refused too, matching
-// rundir.ErrNotEnded. It opens docinfer's directory at --out with outdir.Create and begins a run
-// there, its manifest recording the build, the docproc run and its directory relative to --out,
-// each capability's identity, endpoint, and bounds, and the capabilities skipped. It feeds every
-// line of docproc's record to docinfer.Pipeline.Run, each input's depth-0 part line with its
-// metadata text, as the job's last delivery, docinfer.Options.Final, so an image, window, or
-// chunk a model fails on is recorded failed and the run goes on. Each inference's text goes into
-// the directory's texts, each inference into its inferences record, and each batch into its
-// chunk record, as the pipeline yields them, over the directory's held results. Each line names
-// the input its part was found in by the input's path, from the docproc record lines fed so far:
-// an inference by its content SHA-256, a chunk by its part's ID and SHA-256, a part or output two
-// inputs share named by the later.
+// The run then reads docproc's run directory through docproc's rundir: the latest run that ended,
+// Dir.Latest's, or the run --run names, which rundir refuses when it isn't one of the directory's
+// runs; a --run naming a run that hasn't ended is refused too, matching rundir.ErrNotEnded. It
+// opens docinfer's directory at --out with outdir.Create and begins a run there, its manifest
+// recording the build, the docproc run and its directory relative to --out, each capability's
+// identity, its model as its requests name it, endpoint, and bounds, and the capabilities skipped.
+// It feeds every line of docproc's record to docinfer.Pipeline.Run, each input's depth-0 part line
+// with its metadata text, as the job's last delivery, docinfer.Options.Final, so an image, window,
+// or chunk a model fails on is recorded failed and the run goes on. Each inference's text goes into
+// the directory's texts, each inference into its inferences record, and each batch into its chunk
+// record, as the pipeline yields them, over the directory's held results. Each line names the input
+// its part was found in by the input's path, from the docproc record lines fed so far: an inference
+// by its content SHA-256, a chunk by its part's ID and SHA-256, a part or output two inputs share
+// named by the later.
 //
 // Its lines come from the pipeline's results alone: a first line naming the run and docproc's,
 // a line per docproc input once everything derived from it is out, its path, images, windows,
