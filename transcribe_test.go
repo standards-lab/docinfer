@@ -635,11 +635,7 @@ func TestRunWindowsNotTranscribed(t *testing.T) {
 			}
 			o := collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(inputs...), docinfer.Options{Final: tc.final}))
 			inf := transcript(t, o, shas(contents...)...)
-			seams := make([]float64, len(texts)-1)
-			for i := range seams {
-				seams[i] = 2
-			}
-			tr := joinedAt(t, texts, seams...)
+			tr := joinedAt(t, texts, slices.Repeat([]float64{2}, len(texts)-1)...)
 			checkTranscript(t, inf, tc.outcome, tr, failed, false)
 			if h := heldWindow(t, cfg.Cache, tc.mode, win1.clip); !reflect.DeepEqual(h, tc.held1) {
 				t.Errorf("window 1 held as %+v, want %+v", h, tc.held1)

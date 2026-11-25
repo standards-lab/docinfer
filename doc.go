@@ -131,9 +131,9 @@
 //   - A completed reply with a protocol.Refusal part and no output text is outcome refused, held,
 //     the refusal's text its Held.Refused and Inference.Reason.
 //   - An *ai.IncompleteTranscriptError is the window's outcome incomplete, held under its
-//     settings, its Reason the Held.Incomplete and its Text the Held.Text, which the window joins
-//     as. A Text cut off at max_output_tokens that ends in a loop is held trimmed, its reason
-//     "repetition", by the rule under Repetition below; an empty Text joins as empty.
+//     settings, its Reason the Held.Incomplete and its Text the Held.Text, the text the window
+//     joins as, empty when it carried none. A Text cut off at max_output_tokens that ends in a
+//     loop is held trimmed, its reason "repetition", by the rule under Repetition below.
 //   - Refused: an *ai.APIError of 400, 413, 415, or 422 is the inference's outcome refused, or the
 //     chunk's Error, its text the error's, recorded and held. An embedding batch so refused is
 //     re-sent a text at a time, and only then.

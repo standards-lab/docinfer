@@ -144,11 +144,11 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // inputs. A video plan record ends none. Once every window placed in it is in, the group is joined
 // by Config.Join, each seam's seconds the earlier window's MetaSeamAfter or else the later one's
 // MetaSeamBefore, and its transcript is yielded as one [Inference], then chunked as a source of
-// kind transcript. A window incomplete joins as its held text, "" when it has none, and a window
-// refused, failed, or never cut joins as ""; each is listed in the inference's Failed; the transcript is outcome transcribed when every window was, else failed
-// when one failed, refused when one was refused, and incomplete otherwise. A window holds its
-// input's slot only until its own transcript is in, so a group of more windows than Config.Pending
-// never waits on inputs it can't pull.
+// kind transcript. A window refused, failed, or never cut joins as "", and one incomplete joins as
+// its held text, "" when it has none; each is listed in the inference's Failed. The transcript is
+// outcome transcribed when every window was, else failed when one failed, refused when one was
+// refused, and incomplete otherwise. A window holds its input's slot only until its own transcript
+// is in, so a group of more windows than Config.Pending never waits on inputs it can't pull.
 //
 // With Options.Extract set, Run refuses, matching [ErrRequest], an Extract whose prompt is empty or
 // isn't UTF-8, or whose name or schema go-ai's json_schema format refuses, and stops, [Permanent],
