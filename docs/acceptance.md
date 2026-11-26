@@ -29,6 +29,25 @@ The rows are tuned by ai-hosting as general endpoints, accuracy first, then thro
 docinfer's requests. docinfer shapes its requests to each row's measured limits: window length,
 `max_tokens`, sampling, image size, and concurrency.
 
+### Recipes
+
+The recipes these runs and measurements were made with are committed in
+[`acceptance/`](../acceptance/README.md), each taking its directories and endpoint as arguments and
+sending to the model gateway by default; the paths below under `~/runs/docinfer` name where each
+result was written.
+
+| Recipe here | Committed as | Run as |
+|---|---|---|
+| `run-acceptance.sh` | [`acceptance/run.sh`](../acceptance/run.sh) | `acceptance/run.sh --work DIR --docproc DIR`, the rerun the same again |
+| `tools/check-run.py` | [`acceptance/check-run.py`](../acceptance/check-run.py) | `python3 -I acceptance/check-run.py OUT/runs/<id>` |
+| `tools/sweep/` `run-sweep.sh`, `run-native.sh`, `run-reprobe.sh`, `run-confirm.sh` | [`acceptance/sweep/`](../acceptance/sweep): `run.sh sweep`, `native`, `reprobe`, `confirm` | `acceptance/sweep/run.sh reprobe --out DIR --docproc DIR --only FILE` |
+| `tools/sweep/compare.py` | [`acceptance/sweep/compare.py`](../acceptance/sweep/compare.py), its base label an argument | `python3 -I acceptance/sweep/compare.py DIR BASE LABEL...` |
+| `tools/transcribe-eval/` `run-eval.sh`, `run-t0.sh` | [`acceptance/transcribe-eval/`](../acceptance/transcribe-eval): `run.sh eval`, `t0` | `acceptance/transcribe-eval/run.sh eval --out DIR --docproc DIR` |
+| `tools/transcribe-eval/compare.py`, `score.py` | the same names, `score.py` reading a docs-corpus checkout's truth files | `python3 -I acceptance/transcribe-eval/score.py CORPUS RESULTS TEXTS LABEL...` |
+
+Runs 1–9 and the measurements sent straight to the rows; the committed recipes send through the
+gateway unless given a base URL.
+
 ## Run 1 and its rerun
 
 Binary from docinfer `19c37a0` with go-ai `00dbfdb` (`~/runs/docinfer/BUILD.txt`), config

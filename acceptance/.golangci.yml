@@ -1,0 +1,40 @@
+# golangci-lint v2 configuration for the acceptance module, run by `mise run check` from here: the
+# standard set plus depguard, testpackage, and nolintlint.
+# See acceptance/README.md
+# See architecture/principles/comments.md
+version: "2"
+
+run:
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - depguard
+    - nolintlint
+    - testpackage
+  settings:
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    testpackage:
+      skip-regexp: export_test\.go
+      allow-packages: [""]
+    depguard:
+      rules:
+        acceptance:
+          list-mode: strict
+          files:
+            - "**/*.go"
+          allow:
+            - $gostd
+            - github.com/standards-lab/docinfer$
+            - github.com/standards-lab/docinfer/
+            - github.com/standards-lab/docproc/
+            - github.com/standards-lab/go-ai$
+            - github.com/standards-lab/go-ai/
+          deny:
+            - pkg: github.com/standards-lab/docinfer/postgres
+              desc: the recipes measure the base module with a memory cache
+            - pkg: github.com/standards-lab/docinfer/cmd/docinfer
+              desc: the recipes run the built command, never import it

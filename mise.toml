@@ -15,16 +15,18 @@ fnox = "1.50.0"
 go = "1.27.4"
 golangci-lint = "2.15.0"
 jq = "1.8.2"
+python = "3.15.2"
+shellcheck = "0.11.0"
 yq = "4.54.3"
 
 [secrets.fnox]
 
 [env]
-GO_MODULES = ". postgres cmd/docinfer"
+GO_MODULES = ". postgres cmd/docinfer acceptance"
 DOCINFER_DSN = "postgres://app:app@127.0.0.1:{{ get_env(name='DOCINFER_POSTGRES_PORT', default='5437') }}/app?sslmode=disable"
 
 [tasks.check]
-description = "Build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL, stopping at the first failure, then run lint-context, lint-references, and scripts/lint-secrets.sh, which needs no key; writes nothing"
+description = "Build, vet, format, fix, tidy, test, and lint every module, then sqlint the postgres module's SQL, stopping at the first failure, then shellcheck every tracked shell script, parse every tracked Python script, and run lint-context, lint-references, and scripts/lint-secrets.sh, which needs no key; writes nothing"
 run = '''
 set -eu
 export GOWORK=off
@@ -48,6 +50,23 @@ cd "$MISE_PROJECT_ROOT/postgres"
 go tool sqlint .
 cd "$MISE_PROJECT_ROOT"
 fail=0
+echo "check: shellcheck"
+if ! command -v shellcheck >/dev/null; then
+  echo "FAIL: shellcheck is not on PATH; run mise install" >&2
+  fail=1
+else
+  git ls-files -z '*.sh' | xargs -0 shellcheck || fail=1
+fi
+echo "check: python"
+if ! command -v python3 >/dev/null; then
+  echo "FAIL: python3 is not on PATH; run mise install" >&2
+  fail=1
+else
+  git ls-files -z '*.py' | xargs -0 python3 -I -c 'import ast, sys
+for path in sys.argv[1:]:
+    with open(path, encoding="utf-8") as f:
+        ast.parse(f.read(), path)' || fail=1
+fi
 for lint in lint-context lint-references; do
   echo "check: $lint"
   if ! command -v "$lint" >/dev/null; then
