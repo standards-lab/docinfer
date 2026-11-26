@@ -140,8 +140,8 @@ each nested module keeps its own.
   corpus gains each case's `runes` and cases the rune bound cuts, a text of long white-space runs
   among them.
 - The module requires the go-ai release with embedding input types and `Tokenize`.
-- The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
-  images, with its exported API unchanged.
+- The module requires docproc v0.9.0, docproc's release before the capstone; docinfer's use of
+  its API is unchanged, and it reads run directories docproc v0.4 wrote as before.
 
 ### Fixed
 

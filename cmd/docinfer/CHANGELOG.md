@@ -81,8 +81,8 @@ the postgres module keep their own.
   description held before misses and is described again.
 - The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held
   under the former settings miss and are recut.
-- The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
-  images, with its exported API unchanged.
+- The module requires docproc v0.9.0, docproc's release before the capstone; docinfer's use of
+  its API is unchanged, and it reads run directories docproc v0.4 wrote as before.
 - The endpoint `vision.endpoint` names starts its `response_header_timeout` at 600s, every other
   endpoint keeping 180s, since a non-streaming reply's header waits for the whole reply, up to
   vision's `max_tokens`; an endpoint vision shares with another capability takes vision's start,
