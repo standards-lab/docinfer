@@ -20,6 +20,8 @@ and `context/command-report.md`, and apply to the base module, `postgres`, and `
 - `architecture/principles/resolution.md`: docinfer calls go-ai's client as go-ai presents it:
   no helper restating go-ai, no `/models` request of its own, and no re-validation of what go-ai
   validates (`context/command.md`, C5, C7).
+- `architecture/principles/model-cards.md`: an embedding model's input-type prefixes are the
+  card's, declared by the host on go-ai's client; docinfer ships none.
 - `architecture/principles/rolling-currency.md`: every module's requirements and the root's mise
   pins are current; `cmd/docinfer` starts from go-cli-sdk-template's latest `template/v*`
   release (`context/command.md`, C2).
