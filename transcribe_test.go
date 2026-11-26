@@ -968,12 +968,17 @@ func TestRunWindowMaxTokens(t *testing.T) {
 			t.Run(fmt.Sprint(tc.name, "/", n), func(t *testing.T) {
 				s := speakerOf(ai.TranscribeChat)
 				s.maxTokens = n
-				s.replies[win0.clip] = aitest.ChatReply{Text: tc.reply, Finish: "length"}
+				s.replies[win0.clip] = aitest.ChatReply{Text: tc.reply, Finish: "length", PromptTokens: 40, CompletionTokens: 512}
 				e := s.serve(t)
 				cfg := transcriptionConfig(t, e, ai.TranscribeChat, func(c *docinfer.Config) { c.Transcription.MaxTokens = n })
 				tr := joinedAt(t, []string{tc.held.Text})
 				o := runWindow(t, cfg, docinfer.Options{})
-				checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, tr, []int{0}, false)
+				inf := transcript(t, o, sha(win0.clip))
+				checkTranscript(t, inf, docinfer.OutcomeIncomplete, tr, []int{0}, false)
+				capped := docinfer.Usage{Input: 40, Output: 512}
+				if inf.Usage != capped {
+					t.Errorf("transcript's usage %+v, want the capped window's %+v", inf.Usage, capped)
+				}
 				key := docinfer.Key(cfg.Transcription.Identity(), sha(win0.clip))
 				values, err := cfg.Cache.Get(t.Context(), key)
 				if err != nil {
@@ -983,10 +988,16 @@ func TestRunWindowMaxTokens(t *testing.T) {
 				if err := json.Unmarshal(values[0], &h); err != nil || !reflect.DeepEqual(h, tc.held) {
 					t.Errorf("held %s (%v), want %+v", values[0], err, tc.held)
 				}
-				checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Requests: 1, Transcripts: 1}, 0, false))
+				want := transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Requests: 1, Transcripts: 1}, 0, false)
+				want.Tokens.Transcription = &capped
+				checkCounts(t, o, want)
 
 				o = runWindow(t, cfg, docinfer.Options{})
-				checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, tr, []int{0}, true)
+				inf = transcript(t, o, sha(win0.clip))
+				checkTranscript(t, inf, docinfer.OutcomeIncomplete, tr, []int{0}, true)
+				if inf.Usage != (docinfer.Usage{}) {
+					t.Errorf("held transcript's usage %+v, want none", inf.Usage)
+				}
 				checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Held: 1, Transcripts: 1}, 0, true))
 			})
 		}

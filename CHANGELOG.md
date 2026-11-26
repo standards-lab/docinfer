@@ -86,6 +86,10 @@ each nested module keeps its own.
   transcript's `Failed`, and the transcript's `Source.Incomplete` stays its outcome. A replay from
   the cache joins the same text. Transcription's request version "3" keeps a transcript held
   empty under "2" from replaying.
+- A window's incomplete transcript counts the tokens its request took, the
+  `*ai.IncompleteTranscriptError`'s `Usage`, as a transcribed window's do: in the transcript's
+  `Inference.Usage` and in `Counts.Tokens.Transcription`, in place of none. A replay from the cache
+  counts none, as a transcribed window's replay does. Keys and request versions are unchanged.
 - Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
 - A vision or extraction reply cut off at `protocol.ReasonMaxOutputTokens` whose text ends in a
   loop, a line, a sentence, or a short cycle repeated to the bound, is held trimmed after the

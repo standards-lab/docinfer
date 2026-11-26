@@ -325,12 +325,11 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 	}
 	what := "window " + ev.Output.SHA256
 	if err == nil {
-		usage := Usage{Input: reply.Usage.InputTokens, Output: reply.Usage.OutputTokens}
 		h := Held{Text: reply.Text}
 		if !r.hold(l, key, "the transcript of "+what, h) {
 			return
 		}
-		r.send(windowEvent{w: w, h: h, requests: requests, usage: usage})
+		r.send(windowEvent{w: w, h: h, requests: requests, usage: transcriptionUsage(reply.Usage)})
 		return
 	}
 
@@ -347,7 +346,7 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 		if !r.hold(l, key, "the incomplete transcript of "+what, h) {
 			return
 		}
-		r.send(windowEvent{w: w, h: h, requests: requests})
+		r.send(windowEvent{w: w, h: h, requests: requests, usage: transcriptionUsage(inc.Usage)})
 		return
 	}
 	switch classify(err) {
@@ -377,6 +376,10 @@ type contentError struct{ err error }
 
 func (e *contentError) Error() string { return "docinfer: open window content: " + e.err.Error() }
 func (e *contentError) Unwrap() error { return e.err }
+
+func transcriptionUsage(u ai.TranscriptionUsage) Usage {
+	return Usage{Input: u.InputTokens, Output: u.OutputTokens}
+}
 
 func incompleteReason(e *ai.IncompleteTranscriptError) string {
 	switch {
