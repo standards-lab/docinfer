@@ -202,8 +202,8 @@ and 188.2 s (`texts-confirm-pages/index.jsonl`).
 | concurrency | 32 | the audio row's load target |
 | a reply capped at `max_tokens` | its text kept, trimmed of the repeat, joined, and held incomplete (escalation 8: go-ai `35208a1`; docinfer `d6236ad`, transcription request 3) | in run 4, a 27 s window of normal speech looped to the cap and joined empty |
 
-Observed, not fixed: a capped window's token usage is not counted, as go-ai's
-`IncompleteTranscriptError` carries no usage.
+A capped window's tokens are counted: go-ai's `IncompleteTranscriptError` carries the reply's
+usage (`9742456`), and docinfer counts it (`b8c4cf2`), found at BRIEF and fixed before SHIP.
 
 ## Live tiers
 
