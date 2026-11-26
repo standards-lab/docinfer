@@ -127,8 +127,8 @@ through the gateway.
 
 From the retired `~/docs` pool, 2026-11-25; not rerun over docs-corpus v0.2.0.
 
-The 32-image seed-2 sample at 4 in flight, `max_tokens` 2,048, before ai-hosting's re-tune
-(`~/runs/docinfer/tools/sweep/incomplete-probe.jsonl`, `native-probe.jsonl`):
+The 32-image seed-2 sample at 4 in flight, `max_tokens` 2,048, before ai-hosting's re-tune;
+the results were not kept:
 
 | Native sampling | Described | Incomplete | Images/min | Read |
 |---|---|---|---|---|
@@ -144,8 +144,8 @@ No penalty is safe; temperature 0 was taken (`eab052e`), and later reversed.
 
 From the retired `~/docs` pool, 2026-11-25; not rerun over docs-corpus v0.2.0.
 
-160 images drawn with seed 1, temperature 0, at 280 image tokens
-(`~/runs/docinfer/tools/sweep/results.jsonl`, `sweep.log`). No HTTP error or failure at any value.
+160 images drawn with seed 1, temperature 0, at 280 image tokens; the
+results were not kept. No HTTP error or failure at any value.
 
 | In flight | Images/min | Described | Incomplete | p50 s | p95 s |
 |---|---|---|---|---|---|
@@ -245,8 +245,8 @@ incomplete, the sample 29 and 3, and timed the scans six-fold faster downscaled,
 
 From the retired `~/docs` pool, 2026-11-25; not rerun over docs-corpus v0.2.0.
 
-602 distinct windows of 49 inputs drawn with seed 1, 32 in flight, chat mode
-(`~/runs/docinfer/tools/transcribe-eval`: `results.jsonl`, `eval.log`, `texts/`).
+602 distinct windows of 49 inputs drawn with seed 1, 32 in flight, chat mode; the
+results were not kept.
 
 | Label | `max_tokens` | Sampling | Wall s | Incomplete | Completion tokens: max, median |
 |---|---|---|---|---|---|
@@ -302,8 +302,8 @@ usage (`9742456`), and docinfer counts it (`b8c4cf2`), found at BRIEF and fixed 
 | docinfer base tier: extraction on the agent row, the transcription route, and chat | `65c99d9` with go-ai `35208a1` | pass |
 | cmd's `TestCLI_RunAndReport` | `65c99d9` with go-ai `35208a1` | pass |
 
-The last three rows ran 2026-11-25 ~20:16, all four rows direct with dummy tokens
-(`~/runs/docinfer/logs/live-tiers-2026-11-25.log`).
+The last three rows ran 2026-11-25 ~20:16, all four rows direct with dummy tokens; the
+log was not kept.
 
 ## Findings from the retired ~/docs runs, 2026-11-25
 
