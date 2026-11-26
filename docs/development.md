@@ -11,8 +11,10 @@ them, and turns off mise's automatic install, so a task never fetches a tool mid
 tool is a `mise install` away.
 
 - **Modules.** `GO_MODULES` is the space-separated list of module directories, kept in sync with
-  `go.work`'s use list: `.` is the base module, `postgres` the PostgreSQL cache's, and
-  `cmd/docinfer` the command's.
+  `go.work`'s use list: `.` is the base module, `postgres` the PostgreSQL cache's,
+  `cmd/docinfer` the command's, and `acceptance` the acceptance recipes' tools, a module never
+  tagged, so their code enters no published module's zip and adds no requirement to one
+  ([`acceptance/README.md`](../acceptance/README.md)).
 - **The live tier's DSN.** `DOCINFER_DSN` names the compose harness's PostgreSQL, whose port
   follows `DOCINFER_POSTGRES_PORT` as `compose/postgres.yml`'s does. Each test creates and drops
   its own database on it.
@@ -20,10 +22,12 @@ tool is a `mise install` away.
   each module twice, the second time with the `integration` build tag, so the integration tiers
   are checked without running. sqlint is the postgres module's tool, so it runs from that
   directory and resolves the engine `sqlint.toml` names through the module's own requirements.
-  The module steps and sqlint stop at the first failure; `lint-context`, `lint-references`, and
-  `scripts/lint-secrets.sh` then all run before the check fails on any, and a lint missing from
-  PATH fails it naming `mise install`. `lint-secrets` checks `fnox.toml` with no key
-  ([Secrets](#secrets)).
+  The module steps and sqlint stop at the first failure. The later steps all run before the check
+  fails on any: shellcheck over every tracked shell script, a parse of every tracked Python script
+  with Python's `ast`, which writes no bytecode, `lint-context`, `lint-references`, and
+  `scripts/lint-secrets.sh`. A lint missing from PATH fails the check, naming `mise install`.
+  `mise.toml` pins shellcheck and Python for the two script steps, which cover the acceptance
+  recipes' scripts. `lint-secrets` checks `fnox.toml` with no key ([Secrets](#secrets)).
 - **`test:integration`** runs each module's `integration/` package, where one exists, against the
   endpoints go-ai's tier's variables name, which pass through from the caller's environment:
   `AI_EMBEDDING_BASE_URL`, which every scenario needs, `AI_VISION_BASE_URL`,
@@ -114,7 +118,8 @@ check, and keeps its data in tmpfs, so every start begins empty.
 ## Workspace
 
 `go.work` spans the modules in `GO_MODULES`, so a change to the base module is seen by the
-postgres and `cmd/docinfer` modules, which require it, before it is tagged. `go.work` and
+postgres, `cmd/docinfer`, and `acceptance` modules, which require it, before it is tagged; the
+acceptance recipes build their tools in the workspace, so they measure the checkout. `go.work` and
 `go.work.sum` are committed: the repository is multi-module by design, and the committed sum keeps
 the check's tree clean.
 
@@ -124,8 +129,8 @@ Each module's `.golangci.yml` enables the standard set (errcheck, govet, ineffas
 unused) plus depguard, which holds the module to its allowed imports, testpackage, which keeps
 tests black-box, and nolintlint, which requires each suppression to name its linter and give its
 reason. golangci-lint reads the configuration nearest the directory it runs in, so the root's
-serves the base module and the postgres and `cmd/docinfer` modules each carry their own, the
-root's but for depguard's lists.
+serves the base module and the postgres, `cmd/docinfer`, and `acceptance` modules each carry
+their own, the root's but for depguard's lists.
 
 - Test files are linted with the code they test, so the depguard rules hold them too.
 - testpackage's skip regexp is narrowed to `export_test.go`, the one white-box file allowed.

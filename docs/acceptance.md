@@ -1,68 +1,134 @@
 # Acceptance
 
-The evidence that docinfer runs against the live rows: the timed runs over docproc's kept run,
-the vision and transcription measurements that set the request shapes, and the live tiers. The
-raw results stay out of git, under `~/runs/docinfer`: runs 1 and 2 in `acceptance`, the fresh
-runs 3–8 in `acceptance-2`, the architect's new directory. Each table names the file it is read
-from.
+The evidence that docinfer runs against the live rows: the timed run over docs-corpus v0.2.0, the
+vision and transcription measurements that set the request shapes, and the live tiers. The raw
+results stay out of git, under `~/runs/docs-corpus/baseline/v0.2.0/docinfer`: the run and its
+rerun in `acceptance`, the re-probe in `reprobe`, the confirmation in `confirm`. Each table names
+the file it is read from. The earlier runs, over the retired `~/docs` pool, are kept as their
+[findings](#findings-from-the-retired-docs-runs-2026-11-25).
 
-## What ran
+## docs-corpus v0.2.0
 
-docinfer read docproc run `01a208e5-e581-7b95-b43a-0f91f8d3b40e` in `~/runs/docproc/final`, which
-nothing writes into: 592 inputs, 11,188 outputs; runs 1–4 read it. Runs 5–8 read
-`~/runs/docproc/final-no-synthetic`, the same run less the images of onenote.rs's two generated
-timing sections: 9,190 outputs. Those pseudo-word pages are not realistic content and were noise
-in the vision measurements, so escalation 7 removed them ([the fresh run](#the-fresh-run-runs-38)).
-Each run's binary is in `~/runs/docinfer/BUILD.txt` and its section's table. Each run is `docinfer run --report` through
-`~/runs/docinfer/run-acceptance.sh`, under `env -i` so no `AI_*` variable or gateway key reaches
-it, as a detached `systemd-run --user` unit. The live tiers send dummy `AI_<ROLE>_TOKEN`s. Every
-request goes straight to a row:
+docinfer ran over docproc's baseline run of
+[docs-corpus v0.2.0](https://github.com/standards-lab/docs-corpus/blob/main/docs/baseline.md), the
+page that holds the tag's figures: 299 files, read in 2.3 h and reread from the cache in 1.4 s.
+Vision described 2,551 of 2,558 images, 6 incomplete and 1 refused; transcription 1,054 of 1,055
+windows, 1 incomplete; embeddings 18,814 chunks, none rejected. None failed; the run's 2 failures
+are the refusal and the incomplete window.
 
-| Role | Row | Served model | docinfer's use |
+### What ran
+
+| | |
+|---|---|
+| docproc run | `01a218c9-8847-7ec5-b98e-cf5803c6a989` (docproc v0.9.0, cmd/docproc v0.2.7), in `~/runs/docs-corpus/baseline/v0.2.0/docproc` |
+| docinfer runs | run `01a218e4-ddaa-7101-949b-0c9030a50690` and its rerun, `01a21964-5204-75c7-9d78-7f13ce1279db` |
+| Build | docinfer `bef66ff` (`v0.3.0-6-gbef66ff`), cmd/docinfer `cmd/docinfer/v0.2.0-4-gbef66ff` (pseudo-version `v0.2.1-0.20261126172518-bef66ff13b6a`), with go-ai v0.5.0 and docproc v0.9.0, go1.27.4, built by `acceptance/run.sh` (`BUILD.txt`) |
+| Machine | the laptop, `terminal`: Intel Core Ultra 9 185H, 22 threads, Omarchy on kernel 7.2.15-1-omarchy |
+| Command | `acceptance/run.sh --work ~/runs/docs-corpus/baseline/v0.2.0/docinfer/acceptance --docproc ~/runs/docs-corpus/baseline/v0.2.0/docproc --vision 32 --audio 48 --embedding 16`, twice |
+| Configuration | the run directory's `acceptance/config/config.json`, which `run.sh` writes: vision 32 in flight, transcription 48 (chat mode), embeddings 16, e5's `passage: `/`query: ` prefixes, 1,024 dimensions, tokens counted through the embedding alias; every other setting at cmd/docinfer's starting value |
+| Gateway | `http://gb10-2:3000`, docinfer's consumer key, each capability at its alias's `/<alias>/v1` |
+
+The concurrencies are the row caps acceptance leaves. Every request went to its alias's row, per
+the gateway's request log:
+
+| Alias | Row | Served model | docinfer's use |
 |---|---|---|---|
-| vision | `gb10-2:8001` | Gemma-4-26B-A4B-NVFP4 | image descriptions |
-| audio | `framework:8002` | `google/gemma-4-E4B-it` | transcription, chat mode |
-| embedding | `framework-2:8003` | multilingual-e5-large | embeddings; tokenize at the row's root (`http://framework-2:8003`) |
-| agent | `gb10-1:8000` | `openai/gpt-oss-120b` | extraction, live tier only |
+| `vision` | `gb10-2:8001` | `nvidia/Gemma-4-26B-A4B-NVFP4` | image descriptions |
+| `audio` | `framework:8002` | `google/gemma-4-E4B-it` | transcription, chat mode |
+| `embedding` | `framework-2:8003` | `intfloat/multilingual-e5-large` | embeddings and their token counts |
 
-The rows are tuned by ai-hosting as general endpoints, accuracy first, then throughput, never to
-docinfer's requests. docinfer shapes its requests to each row's measured limits: window length,
-`max_tokens`, sampling, image size, and concurrency.
+### The run and its rerun
 
-## Run 1 and its rerun
+From `acceptance/logs/run-1.log` and `run-2.log`; vectors and runes from `acceptance/check-run.py`
+over each run's directory.
 
-Binary from docinfer `19c37a0` with go-ai `00dbfdb` (`~/runs/docinfer/BUILD.txt`), config
-`~/runs/docinfer/config-run1.json`: vision 16 in flight, audio 8 (chat mode), embedding 4,
-`input_types` `passage: `/`query: `. Output in `~/runs/docinfer/acceptance`; logs
-`~/runs/docinfer/logs/run-1.log` and `run-2.log`.
-
-| | Run 1 | Run 2 (rerun) |
+| | Run | Rerun |
 |---|---|---|
+| Run ID | `01a218e4-ddaa-7101-949b-0c9030a50690` | `01a21964-5204-75c7-9d78-7f13ce1279db` |
+| Started | 2026-11-26T12:26:21-05:00 | 2026-11-26T14:45:34-05:00 |
 | Exit | 0 | 0 |
-| Time | 8,961 s | 2.3 s |
-| Vision | 4,718 images, 3,471 requests: 3,438 described, 1,278 incomplete, 2 refused | 0 requests, 4,718 held |
-| Transcription | 1,212 windows, 24 requests: 24 transcribed | 0 requests |
-| Embeddings | 34,507 embedded, 8 rejected; 7,385 requests | 0 requests, 34,515 held |
-| Chunks | 34,515 | 34,515; lines identical but for `input` on parts the two large OneNote files share |
-| Failures | 10 (2 vision refusals, 8 embedding rejections) | 10, replayed |
+| Wall time | 8,330.5 s (2.3 h) | 1.4 s |
+| Vision | 2,558 images: 2,551 described, 6 incomplete, 1 refused, 0 failed; 2,454 requests, 104 held | 0 requests, 2,558 held; outcomes unchanged |
+| Transcription | 1,055 windows: 1,054 transcribed, 1 incomplete, 0 refused, 0 failed, 0 unplaced; 1,043 requests, 12 held; 56 transcripts, 874 seams matched, 125 unmatched | 0 requests, 1,055 held; outcomes unchanged |
+| Embeddings | 1,964 texts and 299 metadata: 18,814 embedded, 0 rejected; 5,001 requests, 966 held | 0 requests, 18,814 held |
+| Totals | 299 inputs, 6,068 outputs, 18,814 chunks, 2 failures (the refusal and the incomplete window) | the same |
+| Vectors | 18,814, all 1,024 dimensions; worst \|norm − 1\| 8.86e-08 | the same |
+| Chunk lines | 18,814; 20,046,162 covered runes, 19,644,307 distinct | identical as a set: both runs' sorted `chunks.jsonl` hash to sha256 `19ffce9f…` |
 
-| Finding | Evidence | Fix |
+Covered runes by kind, the same in both runs:
+
+| Kind | Lines | Distinct | Runes | Distinct runes |
+|---|---|---|---|---|
+| metadata | 299 | 297 | 34,620 | 34,423 |
+| output | 13,523 | 12,945 | 15,273,177 | 14,898,558 |
+| transcript | 265 | 261 | 346,783 | 346,588 |
+| vision | 4,727 | 4,426 | 4,391,582 | 4,364,738 |
+| **total** | **18,814** | **17,929** | **20,046,162** | **19,644,307** |
+
+The gateway's route timeout answered 4 vision attempts 504 during the run; docinfer retried each,
+and every image was answered.
+
+### The Azure check
+
+No request was answered by Azure, in the run, the rerun, the
+[re-probe](#re-probe-at-1120-image-tokens), or the [confirmation](#confirmation). The check reads the gateway's request log, Postgres's
+`request_logs` on gb10-2, through `docker exec gateway-postgres-1 psql`: the rows whose
+`agentgateway_user` is `docinfer`, from each run's start to its end, grouped by alias,
+`gen_ai_provider_name`, the upstream in `attributes_json`'s `endpoint`, and HTTP status. An Azure
+provider writes `azure` in `gen_ai_provider_name` (ai-hosting's `docs/gateway.md`, "Overflow"), a
+row `custom`.
+
+| Run | Rows | Provider | Endpoint | Azure rows |
+|---|---|---|---|---|
+| Run | 8,502: audio 1,043, embedding 5,001, vision 2,458 (2,453 200, one 400, four 504) | `custom` | the alias's row | 0 |
+| Rerun | 0 | | | 0 |
+| Re-probe | 76 vision, all 200 | `custom` | `gb10-2:8001` | 0 |
+| Confirmation | 37 vision, all 200 | `custom` | `gb10-2:8001` | 0 |
+
+No `docinfer` row from 12:26:21 to 15:03:35 names a provider but `custom` or holds `azure` in its
+attributes.
+
+### Incomplete and refused
+
+Every one is classified, and none is docinfer's fault, so the run surfaced no new defect.
+
+| Item | Outcome | Reason |
 |---|---|---|
-| Transcription groups were keyed by part ID and stage alone, so every whole-file input (part `/`) shared one group; the first window closed it and ~1,188 later windows were dropped uncounted | run 1: 1,212 windows, 24 transcribed, 4 transcripts | `137a724` (`Input.Origin`; groups keyed by origin, part, and stage; `Unplaced` counted), `6d0c74f` (a window past its group's joined count is `Unplaced`) |
-| e5's row refuses an input over 8,192 characters (vLLM's 16 a token × `max_model_len`) before tokenizing; mostly-space docproc texts gave chunks within 480 tokens but 12,777–59,747 characters | 8 embedding rejections (400): olmocr-bench `multi_column-09f9…`, `cfr-2024-title32-vol1.pdf` | `f121620` (`chunk.Splitter.Runes`; cmd `embeddings.chunk_runes` starting 8,192, the document prefix subtracted: 8,183 for e5) |
-| A part two inputs share was named by whichever input's record line cmd had read last, so attribution depended on timing | run 2's `input` differences on the two large OneNote files | `73d600c` (each line names the `Origin` its result carries) |
-| Vision replies looped to `max_tokens` | 670 of 3,471 distinct images incomplete: 657 trimmed loops, 13 out of tokens; 95 of them real CFR pages | `76581d0` before the run (a looping reply is trimmed and held incomplete, reason `repetition`); after it, ai-hosting's re-tune and the request shape in [Vision](#vision) |
-| `msg_22.eml`'s two attachments refused as unloadable images | 2 vision refusals | none: a legitimate refusal |
+| `email/mimekit/jwz.mbox`, message 60, attachment 1 | refused (400, `Failed to load image: image file is truncated`) | a legitimate refusal: the attachment is truncated |
+| `email/mimekit/jwz.mbox`, message 56, attachment 2 (`a44fac59…`) | incomplete, `repetition` | a looping reply, held incomplete; described at both samplings in the re-probe |
+| `pdf/large/cfr-2024-title32-vol1.pdf`, `c7ba76ec…` | incomplete, `repetition` | a looping reply; described at both samplings in the re-probe |
+| `pdf/large/cfr-2024-title32-vol1.pdf`, `9f30f767…` | incomplete, `max_output_tokens` | a table page; incomplete at both samplings in the re-probe, described in the confirmation |
+| `pdf/scanned/olmocr-bench/tables-fa18a15c…_pg2_pg1.pdf` | incomplete, `max_output_tokens` | a long table past 2,048 tokens, a known limit ([Decisions](#decisions)) |
+| `pdf/scanned/olmocr-bench/old_scans-70.pdf`, `old_scans-71.pdf` | incomplete, `repetition` and `max_output_tokens` | the 8,000-pixel newspaper scans, a known limit |
+| `video/tears-of-steel/tos-clip-180s-480p-subs.mkv`, window 5 | incomplete | the capped window, its trimmed text kept and joined ([Transcription](#transcription)) |
 
-1,158 of run 1's vision loops were onenote.rs's generated pages, removed from the input by
-escalation 7 ([the fresh run](#the-fresh-run-runs-38)).
+### Recipes
+
+The recipes these runs and measurements were made with are committed in
+[`acceptance/`](../acceptance/README.md), each taking its directories and endpoint as arguments and
+sending to the model gateway by default. The retired `~/docs` runs used earlier copies of them,
+under the names in the first column.
+
+| Recipe there | Committed as | Run as |
+|---|---|---|
+| `run-acceptance.sh` | [`acceptance/run.sh`](../acceptance/run.sh) | `acceptance/run.sh --work DIR --docproc DIR`, the rerun the same again |
+| `tools/check-run.py` | [`acceptance/check-run.py`](../acceptance/check-run.py) | `python3 -I acceptance/check-run.py OUT/runs/<id>` |
+| `tools/sweep/` `run-sweep.sh`, `run-native.sh`, `run-reprobe.sh`, `run-confirm.sh` | [`acceptance/sweep/`](../acceptance/sweep): `run.sh sweep`, `native`, `reprobe`, `confirm` | `acceptance/sweep/run.sh reprobe --out DIR --docproc DIR --only FILE` |
+| `tools/sweep/compare.py` | [`acceptance/sweep/compare.py`](../acceptance/sweep/compare.py), its base label an argument | `python3 -I acceptance/sweep/compare.py DIR BASE LABEL...` |
+| `tools/transcribe-eval/` `run-eval.sh`, `run-t0.sh` | [`acceptance/transcribe-eval/`](../acceptance/transcribe-eval): `run.sh eval`, `t0` | `acceptance/transcribe-eval/run.sh eval --out DIR --docproc DIR` |
+| `tools/transcribe-eval/compare.py`, `score.py` | the same names, `score.py` reading a docs-corpus checkout's truth files | `python3 -I acceptance/transcribe-eval/score.py CORPUS RESULTS TEXTS LABEL...` |
+
+The `~/docs` runs and measurements sent straight to the rows; the v0.2.0 runs and measurements went
+through the gateway.
 
 ## Vision
 
 ### Sampling at 280 image tokens
 
-The 32-image seed-2 sample at 4 in flight, `max_tokens` 2,048, before ai-hosting's re-tune
-(`~/runs/docinfer/tools/sweep/incomplete-probe.jsonl`, `native-probe.jsonl`):
+From the retired `~/docs` pool, 2026-11-25; not rerun over docs-corpus v0.2.0.
+
+The 32-image seed-2 sample at 4 in flight, `max_tokens` 2,048, before ai-hosting's re-tune;
+the results were not kept:
 
 | Native sampling | Described | Incomplete | Images/min | Read |
 |---|---|---|---|---|
@@ -76,8 +142,10 @@ No penalty is safe; temperature 0 was taken (`eab052e`), and later reversed.
 
 ### Concurrency sweep
 
-160 images drawn with seed 1, temperature 0, at 280 image tokens
-(`~/runs/docinfer/tools/sweep/results.jsonl`, `sweep.log`). No HTTP error or failure at any value.
+From the retired `~/docs` pool, 2026-11-25; not rerun over docs-corpus v0.2.0.
+
+160 images drawn with seed 1, temperature 0, at 280 image tokens; the
+results were not kept. No HTTP error or failure at any value.
 
 | In flight | Images/min | Described | Incomplete | p50 s | p95 s |
 |---|---|---|---|---|---|
@@ -91,8 +159,9 @@ No penalty is safe; temperature 0 was taken (`eab052e`), and later reversed.
 | 16 | 20.39 | 126 | 34 | 34.9 | 120.4 |
 
 The winner was 16 (15 is 3.3% behind, outside 3%), and run 1 ran at it. It is superseded: after
-ai-hosting's re-tune the row caps at 4 in flight, so the acceptance config runs vision at 4 with no
-re-sweep. cmd's starting value stays 4.
+ai-hosting's re-tune the row caps at 4 in flight, and the retired runs ran vision at 4 with no
+re-sweep; the v0.2.0 run sent 32 through the gateway, the cap acceptance leaves. cmd's starting
+value stays 4.
 
 ### ai-hosting's re-tune
 
@@ -102,21 +171,30 @@ audio row: a 30 s hard clip limit, 25 tokens a second of audio, cap 8 → 32, lo
 
 ### Re-probe at 1,120 image tokens
 
-4 in flight, `max_tokens` 2,048 (`~/runs/docinfer/tools/sweep/reprobe.jsonl`, `reprobe.log`,
-`texts-sample-*`, `texts-real-*`). The real pages are run 1's 110 real incomplete pages, 95 of
-them CFR (`real-incomplete.shas`).
+Rerun over docs-corpus v0.2.0: 4 in flight through the gateway, `max_tokens` 2,048, images sent
+whole, on 2026-11-26 (`~/runs/docs-corpus/baseline/v0.2.0/docinfer/reprobe`: `reprobe.jsonl`,
+`reprobe.log`, `texts-sample-*`, `texts-real-*`). The seed-2 sample is drawn from the v0.2.0
+docproc run; the real pages are the run's 6 incomplete vision images (`incomplete.shas`, drawn
+from `inferences.jsonl` as [`acceptance/README.md`](../acceptance/README.md#vision) gives).
 
 | Set | Sampling | Described | Incomplete | Images/min |
 |---|---|---|---|---|
-| seed-2 sample, 32 | temperature 0 | 28 | 4 | 5.96 |
-| seed-2 sample, 32 | row default | 28 | 4 | 6.08 |
-| real pages, 110 | temperature 0 | 97 | 13 | 5.00 |
-| real pages, 110 | row default | 108 | 2 | 5.44 |
+| seed-2 sample, 32 | temperature 0 | 29 | 3 | 6.97 |
+| seed-2 sample, 32 | row default | 32 | 0 | 9.23 |
+| real pages, 6 | temperature 0 | 2 | 4 | 3.30 |
+| real pages, 6 | row default | 2 | 4 | 3.28 |
 
-At temperature 0, 11 of the 13 are CFR loops; at the row default the 2 are `old_scans-70` and
-`old_scans-71`, 8,000-pixel newspaper scans past 2,048 tokens, and no CFR page loops. Where both
-described a page, 97 pages, the texts' median similarity is 0.996, 1 below 0.5. The sample's incomplete images are
-OneNote synthetic pages either way.
+The sample's 3 incomplete at temperature 0 are CFR pages that loop (`repetition`); at the row
+default none loops. Of the real pages, the jwz.mbox attachment and the CFR page `c7ba76ec…` that
+looped in the run are described at both samplings; the 4 incomplete at both are the CFR table page
+`9f30f767…` (`repetition` at temperature 0, `max_output_tokens` at the row default), the
+`tables-fa18a15c…` crop-weather table, and the two newspaper scans, `old_scans-70` and
+`old_scans-71`, 8,000-pixel images past 2,048 tokens. On the sample's 29 images both described,
+the texts' median similarity is 0.987, 1 below 0.5.
+
+The retired `~/docs` re-probe, over the 110 real pages run 1 held incomplete at 280 image tokens,
+found the sample 28 described and 4 incomplete at either sampling, and the real pages 97 and 13 at
+temperature 0, 108 and 2 at the row default.
 
 ### Image bound
 
@@ -125,43 +203,50 @@ average in its source format, keeping its aspect, in memory for the request only
 untouched, and the bound is in the identity. The copy carries the source's orientation and color
 metadata (`d6c1315`). cmd's `vision.max_pixels` starts at 2,580,480 (`38df198`): Gemma 4's
 processor at 1,120 soft tokens is 1,120 × 9 patches × 16² pixels, aspect-preserving, so the bound
-drops nothing the model would keep. Of the run's 3,471 images, 26 PNGs exceed it, none oriented
-or with an ICC profile; 19 carry sRGB, 4 cHRM.
+drops nothing the model would keep. Of retired run 1's 3,471 images (`~/docs`, 2026-11-25), 26
+PNGs exceed it, none oriented or with an ICC profile; 19 carry sRGB, 4 cHRM.
 
 ### Confirmation
 
-Gemma 4's card sampling (`temperature` 1.0, `top_p` 0.95, `top_k` 64), `max_pixels` 2,580,480,
-4 in flight (`~/runs/docinfer/tools/sweep/confirm.jsonl`, `confirm.log`, `confirm.shas`):
+Rerun over docs-corpus v0.2.0: Gemma 4's card sampling (`temperature` 1.0, `top_p` 0.95, `top_k`
+64), `max_pixels` 2,580,480, 4 in flight through the gateway, on 2026-11-26
+(`~/runs/docs-corpus/baseline/v0.2.0/docinfer/confirm`: `confirm.jsonl`, `confirm.log`,
+`confirm.shas`). The pages are the re-probe's temperature-0 incomplete pages and the oversized
+scans, `old_scans-69`, `-70`, and `-71`.
 
 | Set | Described | Incomplete | Images/min |
 |---|---|---|---|
-| 11 CFR pages that looped at temperature 0, and 3 oversized scans | 11 | 3 | 4.41 |
-| seed-2 sample, 32 | 29 | 3 | 5.76 |
+| 2 pages incomplete at temperature 0 in the re-probe (CFR `9f30f767…`, `tables-fa18a15c…`) and 3 oversized scans | 2 | 3 | 2.64 |
+| seed-2 sample, 32 | 32 | 0 | 9.32 |
 
-10 of the 11 CFR pages are described; one table page loops (described at the row default in the
-re-probe, so a sampling draw). The 4,375 × 5,389 scan is described; both 8,000-pixel newspaper
-scans stay incomplete past 2,048 tokens. The sample's 3 incomplete are OneNote synthetic pages.
+The CFR table page is described in 886 tokens, and the 4,375 × 5,389 scan in 1,077; the crop-weather
+table and both 8,000-pixel newspaper scans stay incomplete past 2,048 tokens. The sample's 32 are
+all described, the 3 CFR pages that loop at temperature 0 among them.
 
-Downscaling cuts the newspaper scans' time six-fold. Sent whole at the row default in the
-re-probe, `a136d2a1…` took 1,193.9 s and `42a7e670…` 1,213.9 s
-(`~/runs/docinfer/tools/sweep/texts-real-default/index.jsonl`, `took_ms`); downscaled here, 190.4 s
-and 188.2 s (`texts-confirm-pages/index.jsonl`).
+Downscaling no longer changes the newspaper scans' time. Sent whole in the re-probe, `42a7e670…`
+took 92.9 s and `a136d2a1…` 109.1 s at temperature 0 (`reprobe/texts-real-t0/index.jsonl`,
+`took_ms`); downscaled here, 84.3 s and 113.7 s (`confirm/texts-confirm-pages/index.jsonl`). The
+retired `~/docs` confirmation, over 11 CFR pages and the same 3 scans, described 11 and held 3
+incomplete, the sample 29 and 3, and timed the scans six-fold faster downscaled, 190 s against
+1,200 s whole.
 
 ### Decisions
 
 | Setting | Value | Why |
 |---|---|---|
 | `vision.native` | `{"temperature":1.0,"top_p":0.95,"top_k":64}`, sent explicitly (`38df198`) | at 1,120 image tokens the row's default loops less than temperature 0 on real pages |
-| `max_tokens` | 2,048, held | the re-probe's real pages complete within it |
+| `max_tokens` | 2,048, held | the retired `~/docs` re-probe's real pages complete within it |
 | `vision.max_pixels` | 2,580,480 (`38df198`) | Gemma 4's processor rule; oversized scans no longer sent whole |
 | concurrency | 4 | the row's cap |
-| `response_header_timeout` | 600 s, cmd's starting value for vision's endpoint (`3948bce`); the others 180 s | a non-streaming reply's header waits for the whole reply; the row runs ~90–110 ms a token at 4 in flight, and run 3 saw 204 s for 1,816 tokens |
+| `response_header_timeout` | 600 s, cmd's starting value for vision's endpoint (`3948bce`); the others 180 s | a non-streaming reply's header waits for the whole reply; the row runs ~90–110 ms a token at 4 in flight, and retired run 3 saw 204 s for 1,816 tokens |
 | the two newspaper scans | incomplete, a known limit | their text runs past 2,048 tokens |
 
 ## Transcription
 
-602 distinct windows of 49 inputs drawn with seed 1, 32 in flight, chat mode
-(`~/runs/docinfer/tools/transcribe-eval`: `results.jsonl`, `eval.log`, `texts/`).
+From the retired `~/docs` pool, 2026-11-25; not rerun over docs-corpus v0.2.0.
+
+602 distinct windows of 49 inputs drawn with seed 1, 32 in flight, chat mode; the
+results were not kept.
 
 | Label | `max_tokens` | Sampling | Wall s | Incomplete | Completion tokens: max, median |
 |---|---|---|---|---|---|
@@ -217,125 +302,24 @@ usage (`9742456`), and docinfer counts it (`b8c4cf2`), found at BRIEF and fixed 
 | docinfer base tier: extraction on the agent row, the transcription route, and chat | `65c99d9` with go-ai `35208a1` | pass |
 | cmd's `TestCLI_RunAndReport` | `65c99d9` with go-ai `35208a1` | pass |
 
-The last three rows ran 2026-11-25 ~20:16, all four rows direct with dummy tokens
-(`~/runs/docinfer/logs/live-tiers-2026-11-25.log`).
+The last three rows ran 2026-11-25 ~20:16, all four rows direct with dummy tokens; the
+log was not kept.
 
-## The fresh run (runs 3–8)
+## Findings from the retired ~/docs runs, 2026-11-25
 
-Output in `~/runs/docinfer/acceptance-2`, which no earlier run's cached vision reaches; each run
-resumes from the directory's cache. Config `~/runs/docinfer/config/config.json`: vision 4, audio
-32 (chat mode), embedding 4, vision's `response_header_timeout` 600 s from run 4 on, every other
-setting at cmd's starting value. Builds in `~/runs/docinfer/BUILD.txt`; logs and exits
-`~/runs/docinfer/logs/run-3.log` … `run-8.log` (`.exit` beside each but run 4's). All on
-2026-11-25.
-
-| Run | docinfer + go-ai | Input | Start | Exit | Time | What it did |
-|---|---|---|---|---|---|---|
-| 3 | `d6c1315` + `e375fbd` | `final` | 14:58:52 | 1 | 3,524 s | stopped at 59 min: one vision request outlasted cmd's 180 s response header timeout on all three attempts |
-| 4 | the same, config 600 s | `final` | 16:31:58 | stopped | ~750 s, to the log's last write | stopped by the session to remove the generated OneNote images (escalation 7); its in-flight window recorded `context canceled`, nothing failed held |
-| 5 | `6589b4b` + `6745310` | `final-no-synthetic` | 16:45:14 | 0 | 10,488 s | finished the images; transcription request 2 |
-| 6 | `65c99d9` + `35208a1` | `final-no-synthetic` | 19:50:57 | 0 | 743 s | transcription request 3 (escalation 8): 1,208 windows re-sent, every image held; Behavior 14 is judged here |
-| 7 | the same | the same | 20:03:50 | 0 | 2.1 s | the rerun, Behavior 15 |
-| 8 | the same | the same | 20:04:18 | 0 | 2.1 s | a second rerun, measured on the rows' counters |
-
-The input from run 5 on is `~/runs/docproc/final-no-synthetic` (its `README.txt`): `final`'s run
-record less the 1,998 image output events of `onenote/large/Large Desktop.one` and
-`Large OneDrive.one`, every other line byte for byte; `content/`, `index/`, and the report are
-symlinks to `final`'s, which stays untouched. Images go from 4,718 lines and 3,471 distinct to
-2,720 and 2,573 (898 distinct removed), outputs from 11,188 to 9,190; the two files' text is still
-chunked and embedded.
+Runs 1–9 read docproc run `01a208e5-e581-7b95-b43a-0f91f8d3b40e` over the retired `~/docs` pool,
+from 2026-11-25 05:39 to 21:04, sending straight to the rows: run 1 at vision 16, the fresh runs
+3–9 at vision 4, and runs 5 on without onenote.rs's generated pages. Their results are retired; the
+findings they gave, and the fixes, stand.
 
 | Finding | Evidence | Fix |
 |---|---|---|
-| A non-streaming vision reply's header waits for the whole reply, past cmd's 180 s | run 3's exit 1 (`run-3.log`); 204 s seen for 1,816 tokens at ~90–110 ms a token | the acceptance config's 600 s for run 4 on; `3948bce` (cmd starts vision's endpoint at 600 s, the others at 180 s) |
-| onenote.rs's generated timing sections are pseudo-word pages, not realistic content, and noise in the measurements | 1,998 of 4,718 image events; 1,158 of run 1's vision loops | escalation 7: their images removed from the input (`final-no-synthetic`); the baselines below recomputed without them |
+| Transcription groups were keyed by part ID and stage alone, so every whole-file input (part `/`) shared one group; the first window closed it and ~1,188 later windows were dropped uncounted | run 1: 1,212 windows, 24 transcribed, 4 transcripts | `137a724` (`Input.Origin`; groups keyed by origin, part, and stage; `Unplaced` counted), `6d0c74f` (a window past its group's joined count is `Unplaced`) |
+| e5's row refuses an input over 8,192 characters (vLLM's 16 a token × `max_model_len`) before tokenizing; mostly-space docproc texts gave chunks within 480 tokens but 12,777–59,747 characters | 8 embedding rejections (400) in run 1: olmocr-bench `multi_column-09f9…`, `cfr-2024-title32-vol1.pdf` | `f121620` (`chunk.Splitter.Runes`; cmd `embeddings.chunk_runes` starting 8,192, the document prefix subtracted: 8,183 for e5) |
+| A part two inputs share was named by whichever input's record line cmd had read last, so attribution depended on timing | run 2's `input` differences on the two large OneNote files | `73d600c` (each line names the `Origin` its result carries) |
+| Vision replies looped to `max_tokens` | run 1: 670 of 3,471 distinct images incomplete, 657 trimmed loops and 13 out of tokens, 95 of them real CFR pages | `76581d0` before the run (a looping reply is trimmed and held incomplete, reason `repetition`); after it, ai-hosting's re-tune and the request shape in [Vision](#vision) |
+| `msg_22.eml`'s two attachments refused as unloadable images | 2 vision refusals in runs 1 and 6 | none: a legitimate refusal |
+| A non-streaming vision reply's header waits for the whole reply, past cmd's 180 s | run 3's exit 1; 204 s seen for 1,816 tokens at ~90–110 ms a token | the acceptance config's 600 s for run 4 on; `3948bce` (cmd starts vision's endpoint at 600 s, the others at 180 s) |
+| onenote.rs's generated timing sections are pseudo-word pages, not realistic content, and noise in the measurements | 1,998 of 4,718 image events; 1,158 of run 1's vision loops | escalation 7: their images removed from the input from run 5 on, the baselines recomputed without them |
 | Run 6's 3 vision images incomplete | `old_scans-70` (`repetition`) and `old_scans-71` (`max_output_tokens`), the 8,000-pixel newspaper scans; olmocr-bench `tables-fa18a15c…_pg2_pg1.pdf` (`max_output_tokens`), a long real crop-weather table cut at 2,048 tokens | none: held text, not failures; a page past `max_tokens` 2,048 is a known limit ([Decisions](#decisions)) |
 | A transcription window of normal speech looped to the 512 cap at temperature 0, was held incomplete, and joined empty | `tos-clip-180s-480p-subs.mkv` window 5 (27 s), run 4; sent alone, the row answers in 39 tokens | escalation 8: go-ai `35208a1` (`IncompleteTranscriptError.Text`, chat mode), docinfer `d6236ad` (the capped window holds its text trimmed of the loop, joins it, and stays incomplete; transcription request 3) |
-
-Run 6's counters (`run-6.log`):
-
-| Capability | Items | Outcomes | Requests |
-|---|---|---|---|
-| Vision | 2,720 images | 2,715 described, 3 incomplete, 2 refused; all held | 0 |
-| Transcription | 1,212 windows | 1,211 transcribed, 1 incomplete, 0 unplaced; 50 transcripts, 1,032 seams matched, 130 unmatched | 1,208 |
-| Embeddings | 4,327 texts, 592 metadata | 31,218 embedded, 0 rejected; 31,082 held | 21 |
-
-### Behavior 14, on run 6
-
-Vectors and runes from `python3 -I ~/runs/docinfer/tools/check-run.py` over run 6's directory,
-`acceptance-2/runs/01a21555-8d4e-78f2-8ecc-b3ed304c70e8`.
-
-| Criterion | Target | Run 6 |
-|---|---|---|
-| Exit | 0 | 0 |
-| Refusals and failures | each classified | 3, all classified: `msg_22.eml`'s 2 attachments refused as unloadable (400, `Failed to load image`), a legitimate refusal; `tos-clip-180s-480p-subs.mkv` window 5 incomplete, reason `repetition`, its trimmed text kept (the held file `acceptance-2/results/transcription/76/76b27e62….json` carries `"incomplete":"repetition"`) |
-| Vectors | 1,024 dimensions, unit norm | 31,218, all 1,024; worst \|norm − 1\| 9.07e-08 |
-| Report | renders | `acceptance-2/runs/01a21555-8d4e-78f2-8ecc-b3ed304c70e8/report/index.html` |
-| Covered runes | traced against the spike's 41,299,926 | 35,620,708 over chunk lines, 31,229,662 distinct; traced below |
-| Images | traced against the spike's 3,470 | 2,573 distinct (2,720 lines): the spike's 3,470 − the 898 removed is 2,572, and 1 more, as run 1 read 3,471 to the spike's 3,470 |
-| Windows | traced against the spike's 1,254; each transcribed or counted | 1,212 lines, 1,208 distinct, as in run 1, against the spike's 1,259 lines and 1,254 distinct (`counts-1.md`); traced by input [below](#windows-by-input); 1,211 transcribed, 1 incomplete, 0 unplaced |
-| Time | recorded, not gated | run 3 3,524 s (exit 1 at the 180 s header timeout), run 4 ~12 min (stopped), run 5 10,488 s, run 6 743 s; runs 3–5, which described the images, 14,761 s (4.1 h) together, with vision for the generated images paid in runs 3 and 4 |
-
-### Windows by input
-
-Audio window output lines in the spike's docproc record,
-`~/docinfer-finding/docproc/runs/01a1b82d-54aa-73a2-81db-67577e9cb5da/record.jsonl` (1,259), and
-`final`'s (1,212); every other input has the same count in both.
-
-| Input | Spike | `final` |
-|---|---|---|
-| `audio/long/librivox-stella-maberly.m4b` | 645 | 606 |
-| `video/ami-es2002d/ami-es2002d-mix-headset.wav` | 107 | 102 |
-| `video/prelinger-duck-and-cover/duck-and-cover-theora.ogv` | 23 | 21 |
-| `audio/long/ami-es2002a-mix-headset.wav` | 50 | 49 |
-| `onenote/onenote-rs/New Section Group/Open Notebook.onetoc2` | 1 | 0 |
-| `audio/long/earnings21-4330115.mp3` | 96 | 97 |
-| **all inputs** | **1,259** | **1,212** |
-
-docproc's audio stage changed between the two runs (stage config `a4aae033…` to `98dbaf4f…`).
-`final`'s window plan records a 30 s `limit` and a different silence detection: for the
-audiobook, 3,378 silences become 4,365 and the median window 27.7 s becomes 28.4 s, so fewer
-windows. Why docproc changed its windowing is not recorded in either run.
-
-### Covered runes by kind
-
-Runes over chunk lines. The spike's are summed by `source.kind` over its chunk record,
-`~/docinfer-finding/docinfer-full/runs/01a1b954-a1ac-7147-bcf2-0778352063ef/chunks.jsonl`, the
-run `~/experiments/spike-ai-pipeline/docs/findings/docinfer-results/counts-1.md` names (its lines
-carry no `digest`, so lines only); its lines match the findings' "Texts and chunks by kind" table
-(`docs/findings/docinfer.md`). Run 1 read the spike's corpus, the generated images included.
-
-| Kind | Spike lines | Spike runes | Run 1 lines | Run 1 runes | Run 6 lines | Run 6 runes |
-|---|---|---|---|---|---|---|
-| metadata | 592 | 194,280 | 592 | 67,501 | 592 | 67,501 |
-| output | 18,485 | 30,597,410 | 25,422 | 30,708,770 | 25,436 | 30,701,934 |
-| transcript | 265 | 411,391 | 8 | 7,948 | 302 | 418,032 |
-| vision | 9,595 | 10,096,845 | 8,493 | 6,021,129 | 4,888 | 4,433,241 |
-| **total** | **28,937** | **41,299,926** | **34,515** | **36,805,348** | **31,218** | **35,620,708** |
-
-| Kind | Spike to run 1 | Run 1 to run 6 |
-|---|---|---|
-| metadata | −126,779: run 1's metadata text is shorter; for `README.md` the spike's names the file, path argument, path, size, mode, modified and created times, route, route reason, and detected MIME type, run 1's only the file name, size, route, and route reason, by design: `MetadataText` (`run.go`) keeps the part's name, size, and content type and leaves out its path and times, which differ between machines and runs | unchanged |
-| output | +111,360: chunking to 480 tokens by the row's tokenizer, where the spike cut 2,000-rune chunks, adds lines and raises covered runes slightly | the chunks e5 rejected in run 1, re-split under `chunk_runes` (`f121620`): +14 lines, −6,836 runes; embedding rejections 8 to 0 |
-| transcript | −403,443: run 1's grouping defect, 24 of 1,212 windows transcribed ([Run 1](#run-1-and-its-rerun)) | transcripts complete (`137a724`, `6d0c74f`), window 5's trimmed text kept (`d6236ad`) |
-| vision | −4,075,716: a different model, sampling, and image budget, and run 1's trimmed loops | the generated images' text removed (4,322 lines, 2,161,782 runes); the rest, 4,171 lines and 3,859,347 runes, rises to 4,888 and 4,433,241 at 1,120 image tokens and the card sampling |
-| **total** | **−4,494,578** | **−1,184,640** |
-
-### Behavior 15, on runs 7 and 8
-
-| Criterion | Target | Result |
-|---|---|---|
-| Rerun's requests | no inference or tokenize request, the model listing aside | run 7: 0 in every capability (`run-7.log`); across run 8, `framework-2:8003`'s `http_requests_total` for `/tokenize` and `/v1/embeddings`, and the audio and vision rows' `vllm:request_success_total`, unchanged (`~/runs/docinfer/logs/run-8-counters.txt`, before and after) |
-| Rerun's chunk lines | identical, `input` included | identical as a set, byte for byte, `input` included: runs 6, 7, and 8's sorted lines all hash to sha256 `71be448e…` (`cmp <(sort A) <(sort B)`); the file order differs, as inputs finish concurrently and an input's metadata and output lines interleave differently |
-| Time | recorded, not gated | run 7 2.1 s, run 8 2.1 s |
-
-### The shipping code, run 9
-
-After the BRIEF redirect (a capped window's tokens counted: go-ai `9742456`, docinfer `b8c4cf2`)
-and escalation 10 (docproc v0.4.2 → v0.9.0, `10847ec`; claude-plugins 0.24.1), the binary was
-rebuilt from docinfer `10847ec` and go-ai `88f1caf` and run once more into `acceptance-2`:
-
-| Check | Result |
-|---|---|
-| Rerun (run 9) | exit 0 in 2 s; 0 requests in every capability; the rows' counters unchanged (`~/runs/docinfer/logs/run-9-counters-before.txt`, `-after.txt`); sorted chunk lines hash to `71be448e…`, run 6's, so docproc v0.9.0 reads docproc v0.4's run directory as before |
-| `TestCLI_RunAndReport` on the rows | passes (`~/runs/docinfer/logs/cli-test-docproc-v0.9.0.log`) |
