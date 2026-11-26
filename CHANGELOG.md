@@ -9,6 +9,14 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-11-25
+
+This release meets the live rows: embeddings carry e5's document convention and chunk by the
+row's token count within a character bound, every identity names the served model, vision and
+extraction take native sampling, transcription takes a reply bound and native sampling, oversized
+images are downscaled for the request, and looping replies are trimmed. It requires go-ai v0.5.0
+and docproc v0.9.0.
+
 ### Added
 
 - `Served` on `Vision`, `Transcription`, `Extraction`, and `Embeddings`: the model the deployment
@@ -139,7 +147,7 @@ each nested module keeps its own.
   reaches cuts every text as before, which `chunks-v2.json`'s earlier cases, unchanged, pin; the
   corpus gains each case's `runes` and cases the rune bound cuts, a text of long white-space runs
   among them.
-- The module requires the go-ai release with embedding input types and `Tokenize`.
+- The module requires go-ai v0.5.0, the release with embedding input types and `Tokenize`.
 - The module requires docproc v0.9.0, docproc's release before the capstone; docinfer's use of
   its API is unchanged, and it reads run directories docproc v0.4 wrote as before.
 
