@@ -91,8 +91,8 @@ seeded shuffle, runs docinfer's chat-mode transcription over each drawn input's 
 and appends one JSON line per run with every window's outcome, finish reason, and tokens, keeping
 each window's text and raw reply under `<texts>/<label>/`. Its measurement is package
 `internal/transcribe`, whose test runs it against go-ai's `aitest` fake endpoint over a generated
-docproc run. `transcribe-eval/run.sh` builds it and runs a pair of
-labels, ending with `compare.py`'s comparison:
+docproc run. `transcribe-eval/run.sh` builds it and runs a pair of labels, ending with
+`compare.py`'s comparison:
 
 ```sh
 acceptance/transcribe-eval/run.sh eval --out ~/runs/audio --docproc DIR
@@ -105,8 +105,9 @@ reads the references from a docs-corpus checkout's `audio/short/*/*.truth.json`.
 
 ## The module
 
-`sweep` and `transcribe-eval` live in their own Go module, `github.com/standards-lab/docinfer/acceptance`,
-so neither enters a published module's zip or adds a requirement to one; it is never tagged.
+`sweep` and `transcribe-eval` live in their own Go module,
+`github.com/standards-lab/docinfer/acceptance`, which is never tagged, so neither enters a
+published module's zip or adds a requirement to one.
 `mise run check` builds, vets, lints, and tests it with the other modules, shellchecks the scripts,
 and parses the Python. In the workspace the scripts build against this checkout's library; the
 check resolves the module's own requirements.

@@ -70,8 +70,8 @@ and every image was answered.
 
 ### The Azure check
 
-No request was answered by Azure, in the run, the rerun, the [re-probe](#re-probe-at-1120-image-tokens),
-or the [confirmation](#confirmation). The check reads the gateway's request log, Postgres's
+No request was answered by Azure, in the run, the rerun, the
+[re-probe](#re-probe-at-1120-image-tokens), or the [confirmation](#confirmation). The check reads the gateway's request log, Postgres's
 `request_logs` on gb10-2, through `docker exec gateway-postgres-1 psql`: the rows whose
 `agentgateway_user` is `docinfer`, from each run's start to its end, grouped by alias,
 `gen_ai_provider_name`, the upstream in `attributes_json`'s `endpoint`, and HTTP status. An Azure

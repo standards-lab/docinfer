@@ -22,12 +22,12 @@ tool is a `mise install` away.
   each module twice, the second time with the `integration` build tag, so the integration tiers
   are checked without running. sqlint is the postgres module's tool, so it runs from that
   directory and resolves the engine `sqlint.toml` names through the module's own requirements.
-  The module steps and sqlint stop at the first failure; shellcheck over every tracked shell
-  script, a parse of every tracked Python script with Python's `ast`, which writes no bytecode,
-  `lint-context`, `lint-references`, and `scripts/lint-secrets.sh` then all run before the check
-  fails on any, and a lint missing from PATH fails it naming `mise install`. shellcheck and Python
-  are pinned for those two steps, which hold the acceptance recipes' scripts. `lint-secrets` checks `fnox.toml` with no key
-  ([Secrets](#secrets)).
+  The module steps and sqlint stop at the first failure. The later steps all run before the check
+  fails on any: shellcheck over every tracked shell script, a parse of every tracked Python script
+  with Python's `ast`, which writes no bytecode, `lint-context`, `lint-references`, and
+  `scripts/lint-secrets.sh`. A lint missing from PATH fails the check, naming `mise install`.
+  `mise.toml` pins shellcheck and Python for the two script steps, which cover the acceptance
+  recipes' scripts. `lint-secrets` checks `fnox.toml` with no key ([Secrets](#secrets)).
 - **`test:integration`** runs each module's `integration/` package, where one exists, against the
   endpoints go-ai's tier's variables name, which pass through from the caller's environment:
   `AI_EMBEDDING_BASE_URL`, which every scenario needs, `AI_VISION_BASE_URL`,
