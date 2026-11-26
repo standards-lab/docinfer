@@ -12,8 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
-	_ "time/tzdata"
 
 	"github.com/standards-lab/docinfer/acceptance/internal/rig"
 	"github.com/standards-lab/docinfer/acceptance/internal/transcribe"
@@ -22,16 +20,6 @@ import (
 	"github.com/standards-lab/docproc/rundir/schema"
 	"github.com/standards-lab/go-ai/aitest"
 )
-
-// See docs/development.md
-func TestMain(m *testing.M) {
-	zone, err := time.LoadLocation("Asia/Kolkata")
-	if err != nil {
-		panic(err)
-	}
-	time.Local = zone
-	m.Run()
-}
 
 const (
 	inputs        = 6

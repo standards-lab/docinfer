@@ -1,6 +1,3 @@
-// Package rig is what the acceptance tools share: the endpoint a measurement sends to, taken from
-// its flags and the environment, a go-ai client of it, and an in-process embeddings endpoint, so a
-// measurement loads only the row it measures.
 package rig
 
 import (
