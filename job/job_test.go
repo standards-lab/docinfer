@@ -37,8 +37,8 @@ func validConfig(t *testing.T) job.Config {
 		t.Fatal(err)
 	}
 	p, err := docinfer.New(docinfer.Config{
-		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding-model"},
-		Chunker:    chunk.Splitter{Bound: 1},
+		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding", Served: "org/embedding-1"},
+		Chunker:    chunk.Splitter{Bound: 1, Runes: 1, Count: runes, Model: "org/embedding-1"},
 		Dimensions: 1,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     bounds,

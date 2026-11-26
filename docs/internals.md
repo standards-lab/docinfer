@@ -33,11 +33,18 @@ coordinator before its chunks, so it is yielded before the batches that hold the
 
 ## Window groups
 
-A group is one part's windows from one stage. A window holds its input's slot only until its own
-transcript is in, never for its group's later windows, so a group longer than `Config.Pending`
-can't stall the inputs it waits for. A joined group's transcript takes on the slot of the window
-or plan record that completed it, so its chunks count against `Pending` as their input's would; a
-group joined at the end of the inputs holds no slot, since no input waits on it.
+A group is one input's part's windows from one stage, keyed by the input's `Origin`, the part's ID,
+and the stage: part IDs are unique only within an input, each input's own part `/`, so a run over
+several inputs keeps their windows apart by `Origin`. A window the group can't place, its index
+already placed, past its bound, or after it closed, is counted `Unplaced` as it is admitted and
+holds its slot no longer. A window placed while the bound was unknown, and past the bound the group
+joins at, is transcribed but left out of the join: `joinGroup` moves its count from its outcome, and
+from `Held`, to `Unplaced`, keeping its request and tokens, so no text is lost uncounted. A window
+holds its input's slot only until its own transcript is in, never for its group's later windows, so
+a group longer than `Config.Pending` can't stall the inputs it waits for. A joined group's
+transcript takes on the slot of the window or plan record that completed it, so its chunks count
+against `Pending` as their input's would; a group joined at the end of the inputs holds no slot,
+since no input waits on it.
 
 A group's bound is its plan's count, or one past its last window, as far as they are known; a
 plan's count decides over a window without `MetaSeamAfter`. At the end of the inputs with neither

@@ -118,7 +118,7 @@ func TestCountsJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `{"texts":1,"metadata":0,"embedded":0,"rejected":0,"held":0,"requests":0,"images":0,"windows":2,` +
-		`"transcription":{"transcribed":2,"incomplete":0,"refused":0,"failed":0,"held":0,"requests":0,` +
+		`"transcription":{"transcribed":2,"incomplete":0,"refused":0,"failed":0,"unplaced":0,"held":0,"requests":0,` +
 		`"transcripts":0,"seams_matched":1,"seams_unmatched":0},` +
 		`"tokens":{"transcription":{"input":3,"output":0},"embeddings":{"input":4,"output":0}}}`
 	if string(b) != want {

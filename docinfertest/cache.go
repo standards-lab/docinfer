@@ -88,11 +88,23 @@ func Cache(t *testing.T, newCache func(t *testing.T) docinfer.Cache) {
 		}
 	})
 
-	t.Run("the same content under each capability is four keys", func(t *testing.T) {
+	t.Run("chunk spans come back byte for byte", func(t *testing.T) {
+		c := newCache(t)
+		id := docinfer.Identity{Capability: docinfer.CapabilityChunk, Model: "docinfertest", Settings: `{"version":"2","bound":512,"runes":8192,"model":"docinfertest"}`}
+		spans, none := docinfer.Key(id, hash("a text")), docinfer.Key(id, hash("a blank text"))
+		want := [][]byte{[]byte(`{"spans":[[0,24],[26,65],[67,1093]]}`), []byte(`{"spans":[]}`)}
+		put(t, c, spans, want[0])
+		put(t, c, none, want[1])
+		if got := get(t, c, spans, none); !equal(got, want) {
+			t.Errorf("get of the spans and the empty spans: %q, want %q", got, want)
+		}
+	})
+
+	t.Run("the same content under each capability is five keys", func(t *testing.T) {
 		c := newCache(t)
 		caps := []docinfer.Capability{
 			docinfer.CapabilityVision, docinfer.CapabilityTranscription,
-			docinfer.CapabilityExtraction, docinfer.CapabilityEmbeddings,
+			docinfer.CapabilityExtraction, docinfer.CapabilityEmbeddings, docinfer.CapabilityChunk,
 		}
 		var keys []string
 		var want [][]byte
@@ -103,7 +115,7 @@ func Cache(t *testing.T, newCache func(t *testing.T) docinfer.Cache) {
 			keys, want = append(keys, k), append(want, v)
 		}
 		if got := get(t, c, keys...); !equal(got, want) {
-			t.Errorf("get of the four keys: %q, want %q", got, want)
+			t.Errorf("get of the five keys: %q, want %q", got, want)
 		}
 	})
 

@@ -6,8 +6,8 @@ describes images, transcribes audio windows, extracts by a caller's prompt and J
 chunks and embeds text. It yields each result in batches as it is made, and holds every model
 result behind a cache, so content seen before is replayed rather than asked again.
 
-The base module requires docproc v0.4.1 and go-ai v0.4.0 alone, and calls go-ai directly. Only
-the layers above go-ai's tier use it.
+The base module requires docproc and go-ai alone, at the versions `go.mod` names, and calls go-ai
+directly. Only the layers above go-ai's tier use it.
 
 ## Install
 
@@ -48,9 +48,11 @@ if err != nil {
 	return err
 }
 p, err := docinfer.New(docinfer.Config{
-	Vision:     &docinfer.Vision{Client: client, Model: "vision-model", Prompt: "Describe the image.", MaxTokens: 1024},
-	Embeddings: docinfer.Embeddings{Client: client, Model: "embedding-model"},
-	Chunker:    chunk.Splitter{Bound: 1000},
+	// Served, the model the endpoint serves under Model, keys the cache.
+	Vision:     &docinfer.Vision{Client: client, Model: "vision", Served: "vision-model", Prompt: "Describe the image.", MaxTokens: 1024},
+	Embeddings: docinfer.Embeddings{Client: client, Model: "embedding", Served: "embedding-model"},
+	// count is a chunk.Counter, such as over go-ai's Tokenize.
+	Chunker:    chunk.Splitter{Bound: 480, Runes: 8000, Count: count, Model: "embedding-model"},
 	Dimensions: 1024,
 	Cache:      cache,
 	Bounds:     bounds,
@@ -141,7 +143,7 @@ the part again rather than miss again.
 | `docinfer` (the root) | The pipeline over go-ai's client: `Config`, `New`, and `Pipeline.Run`; `Bounds`; the `Cache`, its `Key` and `Held`, and `FileCache` and `MemoryCache`; the go-ai failure table and `Permanent`; and the shapes of its results. |
 | `job` | One job's dispatch and inference: `Config`, `New`, and `Runner.Run`, yielding `Update`s, `Checkpoint`s, and the `Done` that ends them. |
 | `docinfertest` | The `Cache` conformance suite every implementation runs, the module's and a provider's. |
-| `chunk` | The chunker: `Splitter`, `Chunk`, `Span`, and `Version`. |
+| `chunk` | The token-measured chunker: `Splitter`, its `Counter`, `Chunk`, `Span`, and `Version`. |
 | `join` | A part's window transcripts joined at their seams. |
 | `integration` | The integration tier, behind the `integration` build tag. |
 
@@ -159,10 +161,11 @@ suite.
 
 ## No defaults
 
-No bound, cap, or setting has a library default. `New` refuses a value below 1, matching
-`ErrRequest`: the chunker's bound, the dimensions, `Pending`, `EmbedBatch`, `BatchBytes`,
-`Join.WordsPerSecond`, and each `MaxTokens`, and an empty model; `NewBounds` refuses any of its
-four bounds below 1. A request's time is the host's too: its transport's `ResponseHeaderTimeout`,
+No bound, cap, or setting has a library default. `New` refuses, matching `ErrRequest`, a value
+below 1: the chunker's `Bound` and `Runes`, the dimensions, `Pending`, `EmbedBatch`, `BatchBytes`,
+`Join.WordsPerSecond`, and each `MaxTokens` but transcription's, which 0 leaves unsent. It refuses
+an empty model or served model and a nil `Chunker.Count`; `NewBounds` refuses any of its four
+bounds below 1. A request's time is the host's too: its transport's `ResponseHeaderTimeout`,
 and go-ai's `Options.StreamIdleTimeout` for extraction's stream. docinfer adds no deadline.
 [`docs/no-defaults.md`](docs/no-defaults.md) holds the reasoning.
 
@@ -190,15 +193,11 @@ mise run integration:postgres  # run the postgres module's live tier against the
 The unit tests are hermetic: they drive the pipeline's go-ai clients against go-ai's `aitest`
 fake endpoint, and the postgres module's cache against sqlate's scripted driver.
 
-`test:integration` runs the base module's and `cmd/docinfer`'s integration tiers against live
-endpoints, read from go-ai's tier's variables: `AI_<ROLE>_BASE_URL`, an API root including `/v1`,
-for the embedding, vision, transcription, audio, and agent roles, with `AI_<ROLE>_TOKEN`,
-`AI_<ROLE>_HEADER`, and `AI_<ROLE>_MODEL` as each endpoint needs. A scenario whose variable is unset
-skips, naming it. `test:integration` fills an unset `AI_<ROLE>_TOKEN` from
-[`fnox.toml`](docs/development.md#secrets). [`integration/doc.go`](integration/doc.go) and
-[`cmd/docinfer/integration/doc.go`](cmd/docinfer/integration/doc.go) tell each scenario. The check
-builds the tiers but never runs them, nor does CI, because the models are on the organization's own
-machines.
+`test:integration` runs the base module's and `cmd/docinfer`'s integration tiers against the live
+endpoints that go-ai's tier's `AI_<ROLE>_*` variables name, listed in
+[`docs/development.md`](docs/development.md#mise); a scenario whose variable is unset skips, naming
+it. The check builds the tiers but never runs them, nor does CI, because the models are on the
+organization's own machines.
 
 `integration` runs every provider's live tier, continuing past a failure; `integration:postgres`
 is the one provider tier. `integration:postgres` starts the compose harness's PostgreSQL alone,
@@ -206,10 +205,8 @@ runs the postgres module's integration tests, `docinfertest`'s `Cache` suite amo
 the service whether they pass or fail, printing its log on a failure. CI's integration job runs
 `integration` on a push to main and on demand, never on a pull request.
 
-The compose harness, [`compose.yml`](compose.yml), is test-only. It runs PostgreSQL on port 5437,
-built from `compose/postgres/Dockerfile`, which pins the image, with its data in tmpfs, so every
-start is empty. `DOCINFER_POSTGRES_PORT` moves the port. `mise.toml` sets `DOCINFER_DSN`, the
-admin DSN the postgres tests create and drop their databases on, to follow it.
+The compose harness, [`compose.yml`](compose.yml), is test-only: an empty PostgreSQL on port 5437,
+which `DOCINFER_POSTGRES_PORT` moves.
 
 ## Documentation
 
@@ -223,6 +220,7 @@ admin DSN the postgres tests create and drop their databases on, to follow it.
   library default.
 - [`docs/library-evaluation.md`](docs/library-evaluation.md): the reasoning behind the review the
   library was built from.
+- [`docs/acceptance.md`](docs/acceptance.md): the evidence from the live rows.
 
 ## License
 

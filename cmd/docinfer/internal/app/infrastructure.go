@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"encoding/json/jsontext"
 	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
@@ -10,9 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/standards-lab/go-core/config"
 	"github.com/standards-lab/go-core/graph"
@@ -56,17 +59,22 @@ func defineInfrastructure(g *graph.Graph, n *Nodes, configDir *string) {
 		if v == nil {
 			return nil, nil
 		}
-		return newClient(s, n, v.Endpoint, ai.TranscribeRoute)
+		return newClient(s, n, v.Endpoint, ai.Options{})
 	})
 	n.TranscriptionClient = g.Define("transcription client", func(s *graph.Scope) (*ai.Client, error) {
 		t := s.Use(n.Config).Transcription
 		if t == nil {
 			return nil, nil
 		}
-		return newClient(s, n, t.Endpoint, *t.Mode)
+		return newClient(s, n, t.Endpoint, ai.Options{TranscriptionMode: *t.Mode})
 	})
 	n.EmbeddingsClient = g.Define("embeddings client", func(s *graph.Scope) (*ai.Client, error) {
-		return newClient(s, n, s.Use(n.Config).Embeddings.Endpoint, ai.TranscribeRoute)
+		e := s.Use(n.Config).Embeddings
+		return newClient(s, n, e.Endpoint, ai.Options{Embedding: ai.EmbeddingProfile{InputTypes: e.InputTypes}})
+	})
+	n.TokenizerClient = g.Define("tokenizer client", func(s *graph.Scope) (*ai.Client, error) {
+		e := s.Use(n.Config).Embeddings
+		return newClient(s, n, e.Tokenizer, ai.Options{Embedding: ai.EmbeddingProfile{InputTypes: e.InputTypes}})
 	})
 }
 
@@ -76,14 +84,15 @@ func newLifecycleConfig(*graph.Scope) (lifecycle.Config, error) {
 	return cfg, err
 }
 
-func newClient(s *graph.Scope, n *Nodes, endpoint string, mode ai.TranscriptionMode) (*ai.Client, error) {
+func newClient(s *graph.Scope, n *Nodes, endpoint string, capability ai.Options) (*ai.Client, error) {
 	e := s.Use(n.Config).Endpoints[endpoint]
 	wireFormat, err := e.wireFormat()
 	if err != nil {
 		return nil, fmt.Errorf("endpoint %q: %w", endpoint, err)
 	}
 	opts := e.options()
-	opts.TranscriptionMode = mode
+	opts.TranscriptionMode = capability.TranscriptionMode
+	opts.Embedding = capability.Embedding
 	client, err := ai.New(e.BaseURL, s.Use(n.HTTPClients)[endpoint], wireFormat, opts)
 	if err != nil {
 		return nil, fmt.Errorf("endpoint %q: %w", endpoint, err)
@@ -114,8 +123,9 @@ type Config struct {
 //   - profile: the format's options, a JSON object keyed by format name, as go-ai's tools/infer
 //     decodes its profile, such as {"responses":{"refused_efforts":["none"]}}; optional
 //   - query: parameters added to every request's URL; optional
-//   - response_header_timeout: the transport's wait for a reply's header, starting at 180s; 0
-//     waits for as long as the reply takes
+//   - response_header_timeout: the transport's wait for a reply's header, starting at 180s, and
+//     at 600s on the endpoint vision names, since a non-streaming reply's header waits for the
+//     whole reply, up to vision's max_tokens; 0 waits for as long as the reply takes
 //   - retry: go-ai's RetryPolicy, max_attempts starting at 3, base_delay at 500ms, and max_delay
 //     at 30s
 //   - token and headers: the bearer token and the fixed headers each request carries, which
@@ -139,44 +149,76 @@ type Retry struct {
 }
 
 // Capability is what every capability names: its endpoint, by its key in endpoints, the model
-// its requests name there, and the most requests it keeps in flight, its concurrency, starting at
-// 4.
+// its requests name there, the most requests it keeps in flight, its concurrency, starting at 4,
+// and served_model, the model the deployment serves under model, which keys the capability's
+// results. The run takes the served model from the endpoint's model listing, its entry's root,
+// as vLLM lists it, and served_model is for an endpoint whose listing gives none; it has no
+// starting value, and a served_model the listing's root disagrees with stops the run.
 type Capability struct {
 	Endpoint    string `json:"endpoint"`
 	Model       string `json:"model"`
+	ServedModel string `json:"served_model"`
 	Concurrency *int   `json:"concurrency"`
 }
 
 // Vision is the vision capability: what each image is asked, prompt, the cap on its reply,
-// max_tokens, starting at 2048, and the reasoning effort, any go-ai's protocol.ReasoningEffort
-// accepts, starting at none.
+// max_tokens, starting at 2048, the reasoning effort, any go-ai's protocol.ReasoningEffort
+// accepts, starting at none, native, a JSON object of members the endpoint defines, sent in every
+// request, starting at Gemma 4's card sampling, {"temperature":1.0,"top_p":0.95,"top_k":64}; a
+// configured native replaces it whole, and {} sends none; and max_pixels, the most pixels an image
+// is sent at, a larger PNG or JPEG downscaled to it with its aspect ratio kept, starting at
+// 2,580,480, the vision row's Gemma 4 budget at 1,120 soft tokens (1,120 × 9 patches × 16² px),
+// 0 sending every image as it is.
 type Vision struct {
 	Capability
 	Prompt    string                   `json:"prompt"`
 	MaxTokens *int                     `json:"max_tokens"`
 	Reasoning protocol.ReasoningEffort `json:"reasoning"`
+	Native    json.RawMessage          `json:"native"`
+	MaxPixels *int                     `json:"max_pixels"`
 }
 
 // Transcription is the transcription capability: its prompt and language, empty sending none;
 // its mode, route or chat, starting at route, which its own client transcribes in, chat needing
-// its endpoint's format to be completions; and the words a second of speech holds at most,
-// words_per_second, starting at 8.
+// its endpoint's format to be completions; max_tokens, the most tokens a chat-mode reply takes,
+// starting at 512 in chat mode and at 0, sending none, in route mode, which refuses any other;
+// native, a JSON object of members the endpoint defines, sent in every chat-mode request,
+// starting at {"temperature":0} in chat mode and at none in route mode, which refuses any other; a
+// configured native replaces it whole, and {} sends none; and the words a second of speech holds
+// at most, words_per_second, starting at 8.
 type Transcription struct {
 	Capability
 	Prompt         string                `json:"prompt"`
 	Language       string                `json:"language"`
 	Mode           *ai.TranscriptionMode `json:"mode"`
+	MaxTokens      *int                  `json:"max_tokens"`
+	Native         json.RawMessage       `json:"native"`
 	WordsPerSecond *int                  `json:"words_per_second"`
 }
 
 // Embeddings is the embeddings capability: the embedding space's dimensions, which have no
-// starting value; the texts one request carries, batch, starting at 16; and the most characters a
-// chunk holds, chunk_size, starting at 2000.
+// starting value; input_types, the model's input-type conventions, go-ai's EmbeddingProfile's
+// input_types, such as multilingual-e5's {"document":{"prefix":"passage: "},"query":{"prefix":
+// "query: "}}, required and with no starting value, {} declaring none; tokenizer, the endpoint,
+// by its key in endpoints, whose tokenize route counts a chunk's tokens, required: through a
+// gateway the embeddings' own endpoint, straight to vLLM one whose base_url is the server's root,
+// such as http://framework-2:8003; the texts one request carries, batch, starting at 16; the
+// most tokens a chunk holds as the model's tokenizer counts it, its document prefix included,
+// chunk_size, starting at 480; and the most characters, Unicode code points, a chunk holds, its
+// document prefix included, chunk_runes, starting at 8192, the length vLLM refuses an input over
+// at a max_model_len of 512, 16 characters a token, before tokenizing it. The chunker's own bound
+// is chunk_runes less the document prefix's characters, which must leave it at least 1. The
+// tokenizer must front the same deployment as the embeddings' endpoint, which no model listing
+// checks: the chunker's identity names the embeddings' served model, and a vLLM server's root has
+// no model listing.
 type Embeddings struct {
 	Capability
-	Dimensions *int `json:"dimensions"`
-	Batch      *int `json:"batch"`
-	ChunkSize  *int `json:"chunk_size"`
+	Dimensions *int                                `json:"dimensions"`
+	InputTypes map[ai.InputType]ai.InputConvention `json:"input_types"`
+	Tokenizer  string                              `json:"tokenizer"`
+	Batch      *int                                `json:"batch"`
+	ChunkSize  *int                                `json:"chunk_size"`
+	ChunkRunes *int                                `json:"chunk_runes"`
 }
 
 // Run is the run's own settings: a job's inputs admitted and not yet finished, pending, starting
@@ -188,6 +230,7 @@ type Run struct {
 
 const (
 	startResponseHeaderTimeout = 180 * time.Second
+	startVisionHeaderTimeout   = 600 * time.Second
 	startRetryAttempts         = 3
 	startRetryBaseDelay        = 500 * time.Millisecond
 	startRetryMaxDelay         = 30 * time.Second
@@ -195,9 +238,14 @@ const (
 	startVisionPrompt          = "Transcribe the text in this picture. If it has no text, describe it in one sentence."
 	startVisionMaxTokens       = 2048
 	startVisionReasoning       = protocol.ReasoningEffortNone
+	startVisionNative          = `{"temperature":1.0,"top_p":0.95,"top_k":64}`
+	startVisionMaxPixels       = 2580480
+	startTranscriptionTokens   = 512
+	startTranscriptionNative   = `{"temperature":0}`
 	startWordsPerSecond        = 8
 	startEmbeddingsBatch       = 16
-	startChunkSize             = 2000
+	startChunkSize             = 480
+	startChunkRunes            = 8192
 	startPending               = 16
 	startBatchBytes            = 512 << 10
 )
@@ -252,6 +300,7 @@ func (e *Endpoint) merge(src *Endpoint) {
 func (c *Capability) merge(src *Capability) {
 	set(&c.Endpoint, src.Endpoint)
 	set(&c.Model, src.Model)
+	set(&c.ServedModel, src.ServedModel)
 	set(&c.Concurrency, src.Concurrency)
 }
 
@@ -260,6 +309,10 @@ func (v *Vision) merge(src *Vision) {
 	set(&v.Prompt, src.Prompt)
 	set(&v.MaxTokens, src.MaxTokens)
 	set(&v.Reasoning, src.Reasoning)
+	if src.Native != nil {
+		v.Native = src.Native
+	}
+	set(&v.MaxPixels, src.MaxPixels)
 }
 
 func (t *Transcription) merge(src *Transcription) {
@@ -267,14 +320,26 @@ func (t *Transcription) merge(src *Transcription) {
 	set(&t.Prompt, src.Prompt)
 	set(&t.Language, src.Language)
 	set(&t.Mode, src.Mode)
+	set(&t.MaxTokens, src.MaxTokens)
+	if src.Native != nil {
+		t.Native = src.Native
+	}
 	set(&t.WordsPerSecond, src.WordsPerSecond)
 }
 
 func (e *Embeddings) merge(src *Embeddings) {
 	e.Capability.merge(&src.Capability)
 	set(&e.Dimensions, src.Dimensions)
+	if src.InputTypes != nil {
+		if e.InputTypes == nil {
+			e.InputTypes = map[ai.InputType]ai.InputConvention{}
+		}
+		maps.Copy(e.InputTypes, src.InputTypes)
+	}
+	set(&e.Tokenizer, src.Tokenizer)
 	set(&e.Batch, src.Batch)
 	set(&e.ChunkSize, src.ChunkSize)
+	set(&e.ChunkRunes, src.ChunkRunes)
 }
 
 func set[T comparable](dst *T, src T) {
@@ -297,10 +362,14 @@ func mergeMap(dst, src map[string]string) map[string]string {
 
 // Finalize applies the overrides prefix composes, gives each setting still unset its starting
 // value, and checks what is docinfer's to check: each endpoint's format and profile and a
-// response_header_timeout not below zero, each capability's endpoint among endpoints, each
-// count at least 1, chat transcription on the completions format, and no two endpoint names
-// composing the same overrides. What ai.New refuses, such as a base URL or a retry policy, the
-// client nodes report, named for their endpoint. An empty prefix reads no override.
+// response_header_timeout not below zero, each capability's endpoint among endpoints, each count at
+// least 1, chunk_runes over the document prefix's characters, chat transcription on the completions
+// format, transcription's max_tokens not below zero and 0 in route mode, vision's max_pixels not
+// below zero, the embeddings' input_types set and their tokenizer among endpoints, vision's and
+// transcription's native a JSON object with unique member names, transcription's none or {} in
+// route mode, and no two endpoint names composing the same overrides. What ai.New refuses, such as
+// a base URL or a retry policy, the client nodes report, named for their endpoint. An empty prefix
+// reads no override.
 func (c *Config) Finalize(prefix string) error {
 	overrides, err := c.overrides(prefix)
 	c.Merge(overrides)
@@ -344,8 +413,10 @@ func (c *Config) overrides(prefix string) (*Config, error) {
 		setFromEnv(&v.Prompt, config.EnvName(prefix, "vision", "prompt"), parseString),
 		config.SetFromEnv(&v.MaxTokens, config.EnvName(prefix, "vision", "max_tokens"), parseCount),
 		setFromEnv(&v.Reasoning, config.EnvName(prefix, "vision", "reasoning"), parseEffort),
+		setFromEnv(&v.Native, config.EnvName(prefix, "vision", "native"), parseRaw),
+		config.SetFromEnv(&v.MaxPixels, config.EnvName(prefix, "vision", "max_pixels"), parseCount),
 	)
-	if v != (Vision{}) {
+	if !reflect.ValueOf(v).IsZero() {
 		o.Vision = &v
 	}
 
@@ -354,16 +425,21 @@ func (c *Config) overrides(prefix string) (*Config, error) {
 		setFromEnv(&t.Prompt, config.EnvName(prefix, "transcription", "prompt"), parseString),
 		setFromEnv(&t.Language, config.EnvName(prefix, "transcription", "language"), parseString),
 		config.SetFromEnv(&t.Mode, config.EnvName(prefix, "transcription", "mode"), parseMode),
+		config.SetFromEnv(&t.MaxTokens, config.EnvName(prefix, "transcription", "max_tokens"), parseCount),
+		setFromEnv(&t.Native, config.EnvName(prefix, "transcription", "native"), parseRaw),
 		config.SetFromEnv(&t.WordsPerSecond, config.EnvName(prefix, "transcription", "words_per_second"), parseCount),
 	)
-	if t != (Transcription{}) {
+	if !reflect.ValueOf(t).IsZero() {
 		o.Transcription = &t
 	}
 
 	errs = append(errs, capabilityOverrides(prefix, "embeddings", &o.Embeddings.Capability),
 		config.SetFromEnv(&o.Embeddings.Dimensions, config.EnvName(prefix, "embeddings", "dimensions"), parseCount),
+		setFromEnv(&o.Embeddings.InputTypes, config.EnvName(prefix, "embeddings", "input_types"), parseInputTypes),
+		setFromEnv(&o.Embeddings.Tokenizer, config.EnvName(prefix, "embeddings", "tokenizer"), parseString),
 		config.SetFromEnv(&o.Embeddings.Batch, config.EnvName(prefix, "embeddings", "batch"), parseCount),
 		config.SetFromEnv(&o.Embeddings.ChunkSize, config.EnvName(prefix, "embeddings", "chunk_size"), parseCount),
+		config.SetFromEnv(&o.Embeddings.ChunkRunes, config.EnvName(prefix, "embeddings", "chunk_runes"), parseCount),
 		config.SetFromEnv(&o.Run.Pending, config.EnvName(prefix, "run", "pending"), parseCount),
 		config.SetFromEnv(&o.Run.BatchBytes, config.EnvName(prefix, "run", "batch_bytes"), parseCount),
 	)
@@ -374,6 +450,7 @@ func capabilityOverrides(prefix, name string, c *Capability) error {
 	return errors.Join(
 		setFromEnv(&c.Endpoint, config.EnvName(prefix, name, "endpoint"), parseString),
 		setFromEnv(&c.Model, config.EnvName(prefix, name, "model"), parseString),
+		setFromEnv(&c.ServedModel, config.EnvName(prefix, name, "served_model"), parseString),
 		config.SetFromEnv(&c.Concurrency, config.EnvName(prefix, name, "concurrency"), parseCount),
 	)
 }
@@ -407,6 +484,17 @@ func parseMap(s string) (map[string]string, error) {
 	return m, nil
 }
 
+func parseInputTypes(s string) (map[ai.InputType]ai.InputConvention, error) {
+	var m map[ai.InputType]ai.InputConvention
+	if err := jsonv2.Unmarshal([]byte(s), &m, jsonv2.RejectUnknownMembers(true)); err != nil {
+		return nil, fmt.Errorf("not a JSON object of input-type conventions: %w", err)
+	}
+	if m == nil {
+		return nil, fmt.Errorf("%q is no JSON object of input-type conventions", s)
+	}
+	return m, nil
+}
+
 func parseEffort(s string) (protocol.ReasoningEffort, error) {
 	var e protocol.ReasoningEffort
 	err := e.UnmarshalText([]byte(s))
@@ -420,6 +508,11 @@ func parseMode(s string) (ai.TranscriptionMode, error) {
 }
 
 func (c *Config) start() {
+	if v := c.Vision; v != nil {
+		if e := c.Endpoints[v.Endpoint]; e != nil {
+			startAt(&e.ResponseHeaderTimeout, config.Duration(startVisionHeaderTimeout))
+		}
+	}
 	for _, e := range c.Endpoints {
 		startAt(&e.ResponseHeaderTimeout, config.Duration(startResponseHeaderTimeout))
 		startAt(&e.Retry.MaxAttempts, startRetryAttempts)
@@ -429,21 +522,33 @@ func (c *Config) start() {
 	if v := c.Vision; v != nil {
 		startAt(&v.Concurrency, startConcurrency)
 		startAt(&v.MaxTokens, startVisionMaxTokens)
+		startAt(&v.MaxPixels, startVisionMaxPixels)
 		if v.Prompt == "" {
 			v.Prompt = startVisionPrompt
 		}
 		if v.Reasoning == "" {
 			v.Reasoning = startVisionReasoning
 		}
+		if v.Native == nil {
+			v.Native = json.RawMessage(startVisionNative)
+		}
 	}
 	if t := c.Transcription; t != nil {
 		startAt(&t.Concurrency, startConcurrency)
 		startAt(&t.Mode, ai.TranscribeRoute)
+		if *t.Mode == ai.TranscribeChat {
+			startAt(&t.MaxTokens, startTranscriptionTokens)
+			if t.Native == nil {
+				t.Native = json.RawMessage(startTranscriptionNative)
+			}
+		}
+		startAt(&t.MaxTokens, 0)
 		startAt(&t.WordsPerSecond, startWordsPerSecond)
 	}
 	startAt(&c.Embeddings.Concurrency, startConcurrency)
 	startAt(&c.Embeddings.Batch, startEmbeddingsBatch)
 	startAt(&c.Embeddings.ChunkSize, startChunkSize)
+	startAt(&c.Embeddings.ChunkRunes, startChunkRunes)
 	startAt(&c.Run.Pending, startPending)
 	startAt(&c.Run.BatchBytes, startBatchBytes)
 }
@@ -467,7 +572,11 @@ func (c *Config) validate() error {
 	}
 	if v := c.Vision; v != nil {
 		errs = append(errs, c.checkCapability("vision", v.Capability),
-			atLeastOne("vision", "max_tokens", v.MaxTokens))
+			atLeastOne("vision", "max_tokens", v.MaxTokens),
+			checkNative("vision", v.Native))
+		if n := *v.MaxPixels; n < 0 {
+			errs = append(errs, fmt.Errorf("vision: max_pixels %d is below zero", n))
+		}
 	}
 	if t := c.Transcription; t != nil {
 		errs = append(errs, c.checkCapability("transcription", t.Capability),
@@ -476,11 +585,26 @@ func (c *Config) validate() error {
 			errs = append(errs, fmt.Errorf("transcription: mode chat needs the %s format, and endpoint %q's is %q",
 				formatCompletions, t.Endpoint, e.Format))
 		}
+		switch n := *t.MaxTokens; {
+		case n < 0:
+			errs = append(errs, fmt.Errorf("transcription: max_tokens %d is below zero", n))
+		case n > 0 && *t.Mode == ai.TranscribeRoute:
+			errs = append(errs, fmt.Errorf("transcription: max_tokens %d bounds a chat-mode reply, and mode is route, "+
+				"which has no field for it: set max_tokens to 0, or mode to chat", n))
+		}
+		if err := checkNative("transcription", t.Native); err != nil {
+			errs = append(errs, err)
+		} else if *t.Mode == ai.TranscribeRoute && len(native(t.Native)) > 0 {
+			errs = append(errs, fmt.Errorf("transcription: native %s is sent in a chat-mode request, and mode is route, "+
+				"which sends no JSON body: set native to {}, or mode to chat", t.Native))
+		}
 	}
 	errs = append(errs, c.checkCapability("embeddings", c.Embeddings.Capability),
 		atLeastOne("embeddings", "dimensions", c.Embeddings.Dimensions),
+		c.checkEmbeddings(),
 		atLeastOne("embeddings", "batch", c.Embeddings.Batch),
 		atLeastOne("embeddings", "chunk_size", c.Embeddings.ChunkSize),
+		c.checkChunkRunes(),
 		atLeastOne("run", "pending", c.Run.Pending),
 		atLeastOne("run", "batch_bytes", c.Run.BatchBytes))
 	return errors.Join(errs...)
@@ -495,6 +619,48 @@ func (c *Config) checkCapability(name string, capability Capability) error {
 		errs = append(errs, fmt.Errorf("%s: endpoint %q is not one of endpoints", name, capability.Endpoint))
 	}
 	return errors.Join(append(errs, atLeastOne(name, "concurrency", capability.Concurrency))...)
+}
+
+func (c *Config) checkEmbeddings() error {
+	var errs []error
+	if c.Embeddings.InputTypes == nil {
+		errs = append(errs, errors.New(`embeddings: no input_types: declare the model's input-type conventions, such as {"document":{"prefix":"passage: "},"query":{"prefix":"query: "}}, or {} for none`))
+	}
+	switch t := c.Embeddings.Tokenizer; {
+	case t == "":
+		errs = append(errs, errors.New("embeddings: no tokenizer: name the endpoint whose tokenize route counts the model's tokens"))
+	case c.Endpoints[t] == nil:
+		errs = append(errs, fmt.Errorf("embeddings: tokenizer %q is not one of endpoints", t))
+	}
+	return errors.Join(errs...)
+}
+
+func (c *Config) checkChunkRunes() error {
+	if err := atLeastOne("embeddings", "chunk_runes", c.Embeddings.ChunkRunes); err != nil {
+		return err
+	}
+	if prefix := c.Embeddings.prefixRunes(); *c.Embeddings.ChunkRunes <= prefix {
+		return fmt.Errorf("embeddings: chunk_runes %d leaves no character beside the document prefix's %d",
+			*c.Embeddings.ChunkRunes, prefix)
+	}
+	return nil
+}
+
+func (e *Embeddings) prefixRunes() int {
+	return utf8.RuneCountInString(e.InputTypes[ai.InputDocument].Prefix)
+}
+
+func (e *Embeddings) chunkRunes() int { return *e.ChunkRunes - e.prefixRunes() }
+
+func checkNative(section string, native json.RawMessage) error {
+	if native == nil {
+		return nil
+	}
+	var members map[string]jsontext.Value
+	if err := jsonv2.Unmarshal(native, &members); err != nil || members == nil {
+		return fmt.Errorf("%s: native %s is not a JSON object with unique member names", section, native)
+	}
+	return nil
 }
 
 func atLeastOne(section, key string, v *int) error {

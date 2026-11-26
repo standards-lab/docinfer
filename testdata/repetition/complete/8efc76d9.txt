@@ -1,0 +1,35 @@
+DoDM 5200.01-V2, February 24, 2012
+
+Figure 10. Classification as a Result of Compilation
+
+UNCLASSIFIED – CLASSIFICATION MARKINGS FOR ILLUSTRATION PURPOSES ONLY
+
+CONFIDENTIAL
+
+OFFICE OF THE SECRETARY OF DEFENSE
+
+date
+
+MEMORANDUM FOR XXXXXXXXX XXXXXXXXXXXXXXX
+
+SUBJECT: (U) Classification as a Result of Compilation
+
+(U) When a document consisting of individually classified items of information is classified as a result of compilation, the overall classification shall be marked as conspicuously at the top and bottom of each page and the outside of the front and back covers (if any). An explanation of the basis for compilation shall be included on the face of the document or included in the text.
+
+(U) If portions, standing alone, are unclassified, but the document is classified as a result of compilation or association, mark the portions "U" and the document and pages with the classification of the compilation. You must also add an explanation of the classification or the circumstances involved with association.
+
+(U) If individual portions are classified at one level, but the compilation is a higher classification, mark each portion with its own classification, and mark the document and pages with the classification of the compilation. An explanation of the classification as a result of compilation is required.
+
+Unclassified portions that, when put together, become classified
+
+John H. Doe
+
+Classified By: John Doe, Director
+Derived From: (U/FOUO) CONOPS #123. The compilation of unclassified training schedules reveal the impending initial operational capability (IOC) of this unit. CONOPS #123 requires that unit IOC be classified CONFIDENTIAL.
+Declassify on: Completion of Operation
+
+CONFIDENTIAL
+
+When classifying as a result of compilation, always include an explanation as to why the document becomes classified, or becomes classified at the higher level. Portion mark the explanation as required.
+
+Change 4, 7/28/2020 42 ENCLOSURE 3

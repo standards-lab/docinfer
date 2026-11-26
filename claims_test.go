@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -260,7 +261,7 @@ type panicPut struct {
 var errPutDefect = errors.New("put: a defect in the host's store")
 
 func (c *panicPut) Put(ctx context.Context, key string, value []byte) error {
-	if c.once.CompareAndSwap(false, true) {
+	if strings.HasPrefix(key, string(docinfer.CapabilityEmbeddings)+"/") && c.once.CompareAndSwap(false, true) {
 		panic(errPutDefect)
 	}
 	return c.MemoryCache.Put(ctx, key, value)

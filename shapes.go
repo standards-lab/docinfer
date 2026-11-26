@@ -11,6 +11,7 @@ import (
 	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/docinfer/join"
 	"github.com/standards-lab/docproc/dispatch"
+	"github.com/standards-lab/go-ai"
 )
 
 // Version is the version of docinfer's shapes, grown by addition only: of the shapes below,
@@ -19,8 +20,8 @@ import (
 // misses every value held under the old rather than decoding wrong.
 const Version = "1"
 
-// Capability names one of the four things docinfer asks a model for, and is the first segment of
-// each of its [Key]s.
+// Capability names one of the four things docinfer asks a model for, or chunking, whose spans it
+// holds by the host's count, and is the first segment of each of its [Key]s.
 type Capability string
 
 // The capabilities.
@@ -29,28 +30,37 @@ const (
 	CapabilityTranscription Capability = "transcription"
 	CapabilityExtraction    Capability = "extraction"
 	CapabilityEmbeddings    Capability = "embeddings"
+	CapabilityChunk         Capability = "chunk"
 )
 
 // Identity is what a capability's results are keyed by besides their content: the capability, the
 // model, and the settings the request is built with.
 type Identity struct {
 	Capability Capability `json:"capability"`
-	Model      string     `json:"model"`
+	// Model is the model the deployment serves, the capability's Served, not the one its request
+	// names, so a model swapped in under the same name misses.
+	Model string `json:"model"`
 	// Settings is the JSON of the capability's settings, its first member "request", the request's
-	// version, changed when the request's construction changes; the embeddings' is "", since a
-	// vector depends on the model and the chunk's text alone.
+	// version, changed when the request's construction changes; the embeddings' is "" when the
+	// client declares no document convention, since a vector then depends on the model and the
+	// chunk's text alone. Chunking's is the chunk.Splitter's Settings, led by its "version", and
+	// its Model the Splitter's, the served model whose tokenizer counts.
 	Settings string `json:"settings"`
 }
 
-// Profile is a pipeline's resolved identity: the models, settings, dimensions, and chunker, known
-// before any job runs.
+// Profile is a pipeline's resolved identity: the served models, settings, dimensions, and chunker,
+// known before any job runs.
 type Profile struct {
 	Vision        *Identity `json:"vision,omitempty"`
 	Transcription *Identity `json:"transcription,omitempty"`
 	Extraction    *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
 	Embeddings    Identity  `json:"embeddings"`
-	Dimensions    int       `json:"dimensions"` // the embedding space's, checked per vector
-	Chunker       string    `json:"chunker"`    // the chunk.Splitter's Settings
+	// EmbeddingQuery is the query convention the embeddings' client declares, which a consumer
+	// applies to its search queries so they land in the space the chunks were embedded in; nil
+	// when the client declares none, and the queries go as they are.
+	EmbeddingQuery *ai.InputConvention `json:"embedding_query,omitempty"`
+	Dimensions     int                 `json:"dimensions"` // the embedding space's, checked per vector
+	Chunker        string              `json:"chunker"`    // the chunk.Splitter's Settings
 }
 
 // Usage is the tokens a model's request took, less their total.
@@ -77,6 +87,7 @@ const (
 type Inference struct {
 	Capability Capability `json:"capability"` // vision, transcription, or extraction
 	Part       string     `json:"part"`       // its part's ID
+	Origin     string     `json:"-"`          // local: its input's [Input].Origin
 	// ContentSHA256 is the image's, the windows' in order, "" for one never cut, or the source
 	// text's.
 	ContentSHA256 []string `json:"content_sha256"`
@@ -121,7 +132,8 @@ func (b Batch) Digest() string {
 
 // Source is the text a chunk is cut from, and where it sits.
 type Source struct {
-	Kind string `json:"kind"` // output, metadata, vision, or transcript
+	Kind   string `json:"kind"` // output, metadata, vision, or transcript
+	Origin string `json:"-"`    // local: its input's [Input].Origin
 	// SHA256 is the text's; an output's is its Output.SHA256, held there alone.
 	SHA256     string             `json:"sha256,omitzero"`
 	Incomplete string             `json:"incomplete,omitzero"` // why its inference is incomplete
@@ -194,13 +206,20 @@ type VisionCounts struct {
 	Requests   int `json:"requests"`
 }
 
-// TranscriptionCounts counts each window under its outcome, the transcripts joined, and their
-// seams by whether they matched.
+// TranscriptionCounts counts each window under its outcome, or as Unplaced, the transcripts
+// joined, and their seams by whether they matched. An unplaced window is one [Pipeline.Run] places
+// in no transcript, its group's index already placed, past its group's bound, or its group already
+// closed: it is never transcribed. A window placed before its group's bound was known, and past it
+// once the group is joined, such as an index at or past a later plan's count, is moved to Unplaced
+// from its outcome, and from Held, when the group is joined, its Requests and tokens kept, since
+// its text is in no transcript. So Transcribed, Incomplete, Refused, Failed, and Unplaced add up to
+// Counts.Windows, and Held counts those of the first four read from the cache or another call.
 type TranscriptionCounts struct {
 	Transcribed    int `json:"transcribed"`
 	Incomplete     int `json:"incomplete"`
 	Refused        int `json:"refused"`
 	Failed         int `json:"failed"`
+	Unplaced       int `json:"unplaced"`
 	Held           int `json:"held"`
 	Requests       int `json:"requests"`
 	Transcripts    int `json:"transcripts"`

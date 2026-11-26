@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	transcriptionModel = "transcription-model"
-	transcriptionLang  = "en"
+	transcriptionModel  = "transcription-model"
+	transcriptionServed = "org/transcription-1"
+	transcriptionLang   = "en"
 )
 
 var (
@@ -105,10 +106,12 @@ func planInput(t *testing.T, content *dispatch.MemoryContent, mediaType string, 
 }
 
 type speaker struct {
-	mode    ai.TranscriptionMode
-	said    map[string]string
-	replies map[string]aitest.Reply
-	gate    *aitest.Gate
+	mode      ai.TranscriptionMode
+	said      map[string]string
+	replies   map[string]aitest.Reply
+	gate      *aitest.Gate
+	maxTokens int
+	bodies    *bodies
 }
 
 func speakerOf(mode ai.TranscriptionMode, windows ...win) *speaker {
@@ -151,6 +154,12 @@ func (s *speaker) serve(t *testing.T) *aitest.Endpoint {
 			if m.Text != ai.TranscriptionInstruction(transcriptionLang) || m.Audio[0].Format != "wav" {
 				t.Errorf("chat transcription of text %q, format %q; want the instruction and wav", m.Text, m.Audio[0].Format)
 			}
+			if req.MaxTokens != s.maxTokens {
+				t.Errorf("chat transcription capped at %d tokens, want %d", req.MaxTokens, s.maxTokens)
+			}
+			if s.bodies != nil {
+				s.bodies.record(t, req)
+			}
 			return s.reply(ctx, t, string(m.Audio[0].Data))
 		}
 	} else {
@@ -170,7 +179,7 @@ func transcriptionConfig(t *testing.T, e *aitest.Endpoint, mode ai.Transcription
 	t.Helper()
 	return runConfig(t, e, func(c *docinfer.Config) {
 		c.Transcription = &docinfer.Transcription{
-			Client: newClient(t, e.URL(), mode), Model: transcriptionModel, Language: transcriptionLang,
+			Client: newClient(t, e.URL(), mode), Model: transcriptionModel, Served: transcriptionServed, Language: transcriptionLang,
 		}
 		if edit != nil {
 			edit(c)
@@ -181,7 +190,7 @@ func transcriptionConfig(t *testing.T, e *aitest.Endpoint, mode ai.Transcription
 func transcriptionID(t *testing.T, mode ai.TranscriptionMode) docinfer.Identity {
 	t.Helper()
 	return docinfer.Transcription{
-		Client: newClient(t, "http://localhost/v1", mode), Model: transcriptionModel, Language: transcriptionLang,
+		Client: newClient(t, "http://localhost/v1", mode), Model: transcriptionModel, Served: transcriptionServed, Language: transcriptionLang,
 	}.Identity()
 }
 
@@ -310,11 +319,11 @@ func TestRunTranscribesWindows(t *testing.T) {
 				t.Errorf("transcript's usage %+v, want its three requests'", inf.Usage)
 			}
 			for _, w := range []win{win0, win1, win2} {
-				if h := heldWindow(t, cfg.Cache, mode, w.clip); h == nil || *h != (docinfer.Held{Text: w.said}) {
+				if h := heldWindow(t, cfg.Cache, mode, w.clip); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: w.said}) {
 					t.Errorf("window %d held as %+v, want its transcript", w.index, h)
 				}
 			}
-			pieces, _ := cfg.Chunker.Split(tr.Text())
+			pieces, _ := cfg.Chunker.Split(t.Context(), tr.Text())
 			chunks := o.chunks()
 			if len(chunks) != len(pieces) || len(pieces) < 2 {
 				t.Fatalf("%d chunks, want the transcript's %d", len(chunks), len(pieces))
@@ -409,7 +418,143 @@ func TestRunWindowPlacement(t *testing.T) {
 			t.Error("the repeated index was transcribed")
 		}
 	}
-	checkCounts(t, o, transcriptCounts(o, 4, docinfer.TranscriptionCounts{Transcribed: 3, Requests: 3, Transcripts: 1, SeamsMatched: 2}, 3, false))
+	checkCounts(t, o, transcriptCounts(o, 4, docinfer.TranscriptionCounts{Transcribed: 3, Unplaced: 1, Requests: 3, Transcripts: 1, SeamsMatched: 2}, 3, false))
+}
+
+func TestRunWindowPastPlanCount(t *testing.T) {
+	open2 := win2
+	open2.after = "28-30"
+	e := speakerOf(ai.TranscribeRoute, win0, win1, open2).serve(t)
+	cfg := transcriptionConfig(t, e, ai.TranscribeRoute, nil)
+	p := newPipeline(t, cfg)
+	content := dispatch.NewMemoryContent()
+	inputs := []docinfer.Input{windowInput(t, content, win0), windowInput(t, content, win1), windowInput(t, content, open2),
+		planInput(t, content, dispatch.MediaAudioPlan, 2)}
+
+	o := collect(t, p.Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
+	inf := transcript(t, o, shas(win0.clip, win1.clip)...)
+	checkTranscript(t, inf, docinfer.OutcomeTranscribed, joinedAt(t, []string{said0, said1}, 2), nil, false)
+	if inf.Usage != (docinfer.Usage{Input: 10, Output: 4}) {
+		t.Errorf("transcript's usage %+v, want its two windows'", inf.Usage)
+	}
+	checkCounts(t, o, transcriptCounts(o, 3, docinfer.TranscriptionCounts{Transcribed: 2, Unplaced: 1, Requests: 3, Transcripts: 1, SeamsMatched: 1}, 3, false))
+
+	o = collect(t, p.Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
+	checkTranscript(t, transcript(t, o, shas(win0.clip, win1.clip)...), docinfer.OutcomeTranscribed, joinedAt(t, []string{said0, said1}, 2), nil, true)
+	checkCounts(t, o, transcriptCounts(o, 3, docinfer.TranscriptionCounts{Transcribed: 2, Unplaced: 1, Held: 2, Transcripts: 1, SeamsMatched: 1}, 0, true))
+}
+
+type recording struct {
+	origin  string
+	part    dispatch.Part
+	windows []win
+}
+
+func recordingOf(origin string) recording {
+	part := dispatch.Part{ID: "/", Name: origin, Size: 4096, SHA256: sha(origin)}
+	say := func(said string) string {
+		words := strings.Fields(said)
+		for i, w := range words {
+			words[i] = origin + "-" + w
+		}
+		return strings.Join(words, " ")
+	}
+	windows := []win{win0, win1, win2}
+	for i := range windows {
+		windows[i].clip = origin + " " + windows[i].clip
+		windows[i].said = say(windows[i].said)
+	}
+	return recording{origin: origin, part: part, windows: windows}
+}
+
+func (rc recording) input(t *testing.T, content *dispatch.MemoryContent, stage dispatch.Identity, w win) docinfer.Input {
+	t.Helper()
+	in := windowInput(t, content, w)
+	in.Event.Part, in.Event.Stage, in.Origin = rc.part, stage, rc.origin
+	return in
+}
+
+func TestRunWindowGroupsPerInput(t *testing.T) {
+	stages := map[string]dispatch.Identity{"audio": audioStage, "video": {Name: "video", Version: "1", Config: "v0"}}
+	for name, stage := range stages {
+		t.Run(name, func(t *testing.T) {
+			recordings := []recording{recordingOf("a.wav"), recordingOf("b.wav"), recordingOf("c.wav")}
+			var all []win
+			for _, rc := range recordings {
+				all = append(all, rc.windows...)
+			}
+			again := recordings[1].windows[1]
+			again.clip, again.said = "b.wav clip 1 again", "not this one"
+			all = append(all, again)
+			e := speakerOf(ai.TranscribeRoute, all...).serve(t)
+			cfg := transcriptionConfig(t, e, ai.TranscribeRoute, nil)
+			p := newPipeline(t, cfg)
+			content := dispatch.NewMemoryContent()
+			var inputs []docinfer.Input
+			for i := range 3 {
+				for _, rc := range recordings {
+					inputs = append(inputs, rc.input(t, content, stage, rc.windows[i]))
+					if rc.origin == "b.wav" && i == 1 {
+						inputs = append(inputs, rc.input(t, content, stage, again))
+					}
+				}
+			}
+
+			o := collect(t, p.Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
+			if o.err != nil {
+				t.Fatalf("Run: %v", o.err)
+			}
+			if len(o.inferences) != len(recordings) {
+				t.Fatalf("%d transcripts, want one per input, %d", len(o.inferences), len(recordings))
+			}
+			chunks := o.chunks()
+			for _, rc := range recordings {
+				i := slices.IndexFunc(o.inferences, func(inf docinfer.Inference) bool { return inf.Origin == rc.origin })
+				if i < 0 {
+					t.Errorf("no transcript of input %s", rc.origin)
+					continue
+				}
+				inf := o.inferences[i]
+				if inf.Part != rc.part.ID || !slices.Equal(inf.ContentSHA256, shas(rc.windows[0].clip, rc.windows[1].clip, rc.windows[2].clip)) {
+					t.Errorf("input %s's transcript of part %q, contents %v; want its own three windows", rc.origin, inf.Part, inf.ContentSHA256)
+				}
+				tr := joinedAt(t, []string{rc.windows[0].said, rc.windows[1].said, rc.windows[2].said}, 2, 2)
+				checkTranscript(t, inf, docinfer.OutcomeTranscribed, tr, nil, false)
+				pieces, _ := cfg.Chunker.Split(t.Context(), tr.Text())
+				var own []placed
+				for _, c := range chunks {
+					if c.source.Origin == rc.origin {
+						own = append(own, c)
+					}
+				}
+				if len(own) != len(pieces) {
+					t.Errorf("input %s has %d chunks, want its transcript's %d", rc.origin, len(own), len(pieces))
+					continue
+				}
+				for j, c := range own {
+					if c.chunk.Text != pieces[j].Text || c.part.ID != rc.part.ID || c.part.SHA256 != rc.part.SHA256 || c.source.SHA256 != sha(tr.Text()) || *c.source.Stage != stage {
+						t.Errorf("input %s's chunk %d: %q of part %+v, source %+v; want %q of its own transcript and part",
+							rc.origin, j, c.chunk.Text, c.part, c.source, pieces[j].Text)
+					}
+				}
+			}
+			if len(chunks) == 0 || slices.ContainsFunc(chunks, func(c placed) bool { return c.source.Origin == "" }) {
+				t.Errorf("%d chunks, some of no input", len(chunks))
+			}
+			for _, r := range e.Requests() {
+				if strings.Contains(string(r.Body), again.clip) {
+					t.Error("the repeated index was transcribed")
+				}
+			}
+			want := docinfer.TranscriptionCounts{Transcribed: 9, Unplaced: 1, Requests: 9, Transcripts: 3, SeamsMatched: 6}
+			if tc := o.counts.Transcription; o.counts.Windows != 10 || *tc != want {
+				t.Errorf("windows %d, counts %+v; want 10, %+v", o.counts.Windows, *tc, want)
+			}
+			if tc := o.counts.Transcription; tc.Transcribed+tc.Incomplete+tc.Refused+tc.Failed+tc.Unplaced != o.counts.Windows {
+				t.Errorf("counts %+v don't add up to the %d windows", *tc, o.counts.Windows)
+			}
+		})
+	}
 }
 
 func TestRunSeamSeconds(t *testing.T) {
@@ -460,16 +605,17 @@ func TestRunWindowsNotTranscribed(t *testing.T) {
 		plan    int
 		outcome docinfer.Outcome
 		held1   *docinfer.Held
+		text1   string
 		counts  docinfer.TranscriptionCounts
 	}{
 		{"refused and never cut", ai.TranscribeRoute, map[string]aitest.Reply{win1.clip: aitest.ErrorReply{Status: 400, Message: "clip refused"}},
-			false, 4, docinfer.OutcomeRefused, &docinfer.Held{Refused: refusedText},
+			false, 4, docinfer.OutcomeRefused, &docinfer.Held{Refused: refusedText}, "",
 			docinfer.TranscriptionCounts{Transcribed: 2, Refused: 1, Requests: 3, Transcripts: 1, SeamsUnmatched: 3}},
-		{"incomplete and never cut", ai.TranscribeChat, map[string]aitest.Reply{win1.clip: aitest.ChatReply{Text: "three four", Finish: "length"}},
-			false, 4, docinfer.OutcomeIncomplete, &docinfer.Held{Incomplete: "max_output_tokens"},
-			docinfer.TranscriptionCounts{Transcribed: 2, Incomplete: 1, Requests: 3, Transcripts: 1, SeamsUnmatched: 3}},
+		{"incomplete and never cut", ai.TranscribeChat, map[string]aitest.Reply{win1.clip: aitest.ChatReply{Text: "three four five six", Finish: "length"}},
+			false, 4, docinfer.OutcomeIncomplete, &docinfer.Held{Text: "three four five six", Incomplete: "max_output_tokens"}, "three four five six",
+			docinfer.TranscriptionCounts{Transcribed: 2, Incomplete: 1, Requests: 3, Transcripts: 1, SeamsMatched: 1, SeamsUnmatched: 2}},
 		{"failed on the last delivery", ai.TranscribeRoute, map[string]aitest.Reply{win1.clip: aitest.ErrorReply{Status: 500, Message: "broke"}},
-			true, 0, docinfer.OutcomeFailed, nil,
+			true, 0, docinfer.OutcomeFailed, nil, "",
 			docinfer.TranscriptionCounts{Transcribed: 2, Failed: 1, Requests: 3, Transcripts: 1, SeamsUnmatched: 2}},
 	}
 	for _, tc := range cases {
@@ -482,14 +628,14 @@ func TestRunWindowsNotTranscribed(t *testing.T) {
 			w2 := win2
 			w2.after = "28-30"
 			inputs := []docinfer.Input{windowInput(t, content, win0), windowInput(t, content, win1), windowInput(t, content, w2)}
-			texts, contents, failed := []string{said0, "", said2}, []string{win0.clip, win1.clip, win2.clip}, []int{1}
+			texts, contents, failed := []string{said0, tc.text1, said2}, []string{win0.clip, win1.clip, win2.clip}, []int{1}
 			if tc.plan > 0 {
 				inputs = append(inputs, planInput(t, content, dispatch.MediaAudioPlan, tc.plan))
 				texts, contents, failed = append(texts, ""), append(contents, ""), append(failed, 3)
 			}
 			o := collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(inputs...), docinfer.Options{Final: tc.final}))
 			inf := transcript(t, o, shas(contents...)...)
-			tr := joinedAt(t, texts, make([]float64, len(texts)-1)...)
+			tr := joinedAt(t, texts, slices.Repeat([]float64{2}, len(texts)-1)...)
 			checkTranscript(t, inf, tc.outcome, tr, failed, false)
 			if h := heldWindow(t, cfg.Cache, tc.mode, win1.clip); !reflect.DeepEqual(h, tc.held1) {
 				t.Errorf("window 1 held as %+v, want %+v", h, tc.held1)
@@ -653,7 +799,7 @@ func TestRunWindowRefusedStatus(t *testing.T) {
 			o := runWindow(t, cfg, docinfer.Options{})
 			checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeRefused, joinedAt(t, []string{""}), []int{0}, false)
 			want := (&ai.APIError{Status: status, Message: "clip refused"}).Error()
-			if h := heldWindow(t, cfg.Cache, ai.TranscribeRoute, win0.clip); h == nil || *h != (docinfer.Held{Refused: want}) {
+			if h := heldWindow(t, cfg.Cache, ai.TranscribeRoute, win0.clip); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: want}) {
 				t.Errorf("held %+v, want the refusal", h)
 			}
 			checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Refused: 1, Requests: 1, Transcripts: 1}, 0, false))
@@ -791,9 +937,9 @@ func TestRunWindowIncomplete(t *testing.T) {
 	e := s.serve(t)
 	cfg := transcriptionConfig(t, e, ai.TranscribeChat, nil)
 	o := runWindow(t, cfg, docinfer.Options{})
-	tr := joinedAt(t, []string{""})
+	tr := joinedAt(t, []string{"one two"})
 	checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, tr, []int{0}, false)
-	if h := heldWindow(t, cfg.Cache, ai.TranscribeChat, win0.clip); h == nil || *h != (docinfer.Held{Incomplete: "content_filter"}) {
+	if h := heldWindow(t, cfg.Cache, ai.TranscribeChat, win0.clip); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: "one two", Incomplete: "content_filter"}) {
 		t.Errorf("held %+v, want the window incomplete for content_filter", h)
 	}
 	checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Requests: 1, Transcripts: 1}, 0, false))
@@ -804,6 +950,58 @@ func TestRunWindowIncomplete(t *testing.T) {
 	o = collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), seq(windowInput(t, nil, only)), docinfer.Options{}))
 	checkTranscript(t, transcript(t, o, sha(win0.clip)), docinfer.OutcomeIncomplete, tr, []int{0}, true)
 	checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Held: 1, Transcripts: 1}, 0, true))
+}
+
+func TestRunWindowMaxTokens(t *testing.T) {
+	loop := "one two " + strings.Repeat("three four ", 30)
+	cases := []struct {
+		name  string
+		reply string
+		held  docinfer.Held
+	}{
+		{"partial", "one two", docinfer.Held{Text: "one two", Incomplete: "max_output_tokens"}},
+		{"looping", loop, docinfer.Held{Text: "one two three four", Incomplete: "repetition"}},
+		{"empty", "", docinfer.Held{Incomplete: "max_output_tokens"}},
+	}
+	for _, tc := range cases {
+		for _, n := range []int{0, 512} {
+			t.Run(fmt.Sprint(tc.name, "/", n), func(t *testing.T) {
+				s := speakerOf(ai.TranscribeChat)
+				s.maxTokens = n
+				s.replies[win0.clip] = aitest.ChatReply{Text: tc.reply, Finish: "length", PromptTokens: 40, CompletionTokens: 512}
+				e := s.serve(t)
+				cfg := transcriptionConfig(t, e, ai.TranscribeChat, func(c *docinfer.Config) { c.Transcription.MaxTokens = n })
+				tr := joinedAt(t, []string{tc.held.Text})
+				o := runWindow(t, cfg, docinfer.Options{})
+				inf := transcript(t, o, sha(win0.clip))
+				checkTranscript(t, inf, docinfer.OutcomeIncomplete, tr, []int{0}, false)
+				capped := docinfer.Usage{Input: 40, Output: 512}
+				if inf.Usage != capped {
+					t.Errorf("transcript's usage %+v, want the capped window's %+v", inf.Usage, capped)
+				}
+				key := docinfer.Key(cfg.Transcription.Identity(), sha(win0.clip))
+				values, err := cfg.Cache.Get(t.Context(), key)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var h docinfer.Held
+				if err := json.Unmarshal(values[0], &h); err != nil || !reflect.DeepEqual(h, tc.held) {
+					t.Errorf("held %s (%v), want %+v", values[0], err, tc.held)
+				}
+				want := transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Requests: 1, Transcripts: 1}, 0, false)
+				want.Tokens.Transcription = &capped
+				checkCounts(t, o, want)
+
+				o = runWindow(t, cfg, docinfer.Options{})
+				inf = transcript(t, o, sha(win0.clip))
+				checkTranscript(t, inf, docinfer.OutcomeIncomplete, tr, []int{0}, true)
+				if inf.Usage != (docinfer.Usage{}) {
+					t.Errorf("held transcript's usage %+v, want none", inf.Usage)
+				}
+				checkCounts(t, o, transcriptCounts(o, 1, docinfer.TranscriptionCounts{Incomplete: 1, Held: 1, Transcripts: 1}, 0, true))
+			})
+		}
+	}
 }
 
 type openCounter struct {

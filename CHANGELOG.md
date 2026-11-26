@@ -9,10 +9,159 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-11-25
+
+This release meets the live rows: embeddings carry e5's document convention and chunk by the
+row's token count within a character bound, every identity names the served model, vision and
+extraction take native sampling, transcription takes a reply bound and native sampling, oversized
+images are downscaled for the request, and looping replies are trimmed. It requires go-ai v0.5.0
+and docproc v0.9.0.
+
+### Added
+
+- `Served` on `Vision`, `Transcription`, `Extraction`, and `Embeddings`: the model the deployment
+  serves under `Model`, which the host resolves. Requests still send `Model`.
+- `Native` on `Vision` and `Extraction`: go-ai's native tier, a JSON object of members the
+  endpoint defines, such as temperature, sent on every request as `protocol.Request.Native`. Empty
+  sends none. It enters the capability's identity settings, and so its `Key` and
+  `Pipeline.Profile`, as a last `"native"` member, omitted when empty, canonical: whitespace
+  stripped, strings in their shortest form, and each object's members sorted by name, numbers as
+  given. `New` refuses a `Native` that isn't a JSON object with unique member names, matching
+  `ErrRequest`.
+- `EmbeddingQuery` on `Profile`, JSON `embedding_query`: the query convention, an
+  `ai.InputConvention`, the embeddings' client declares in `ai.Options.Embedding`, which a consumer
+  applies to its search queries so they land in the space the chunks were embedded in. It is
+  omitted when the client declares none; the other members are unchanged.
+- Each text's chunk spans are held in the `Cache`, so a rerun over the same cache rebuilds its
+  chunks with no count, and so no tokenize request. `CapabilityChunk`, `"chunk"`, keys them: its
+  identity's `Model` is `Chunker.Model`, its `Settings` `Chunker.Settings()`, and the key's
+  content the text's SHA-256, so a changed bound, tokenizer model, or `chunk.Version` misses.
+  `Held` gains `Spans`, JSON `"spans"`, each chunk's `[start, end)` bytes of the text in order,
+  `[]` for a text of no chunks and omitted otherwise. Held spans that don't fit the text are a
+  miss, recounted and replaced, and a count's failure holds nothing. `Version` stays "1": `Held`
+  grows by addition, every held value keeps its key, and a release before this one never asks for a
+  chunk key. `docinfertest.Cache` checks that a cache holds a spans value and an empty one
+  byte for byte, and the same content under each capability is five keys.
+- `Origin` on `Input`: the input, as the host names it, that the event's part was found in, so a
+  job of several inputs keeps parts of one ID apart, each input's own part `/`. `Pipeline.Run`
+  echoes it on each `Inference` and `Source` as `Origin`, a local field that doesn't marshal, so a
+  host names each result's input from the result itself. A job of one input may leave it `""`.
+- `Unplaced` on `TranscriptionCounts`, JSON `unplaced`: the windows `Run` places in no transcript,
+  a repeat of an index already placed, past its group's bound, or after its group closed, and a
+  window placed before its plan whose index is at or past the plan's count, moved from its
+  outcome, and from `Held`, when the group is joined, its request and tokens kept. Each
+  window is counted once, under its outcome or as `Unplaced`, so `Transcribed`, `Incomplete`,
+  `Refused`, `Failed`, and `Unplaced` add up to `Counts.Windows`.
+- `MaxTokens` on `Transcription`: the request's `ai.TranscriptionRequest.MaxOutputTokens`, which
+  bounds a chat-mode reply. 0 sends none; docinfer ships no default. go-ai refuses any other in
+  route mode, where the route's max_tokens goes through its Native. `New` refuses a negative one,
+  matching `ErrRequest`. A reply cut off at the bound is the window's outcome incomplete, held,
+  its reason `max_output_tokens`, as any incomplete transcript is, its partial text kept.
+- `Native` on `Transcription`: go-ai's native tier, a JSON object of members the endpoint defines,
+  such as temperature, sent on every request as `ai.TranscriptionRequest.ChatNative`, which chat
+  mode sends as the chat request's `protocol.Request.Native`. Empty sends none; docinfer ships no
+  default. go-ai refuses any other in route mode. It enters transcription's identity settings as a
+  `"native"` member after `"max_tokens"`, omitted when empty and canonical as `Vision`'s is. `New`
+  refuses one that isn't a JSON object with unique member names, matching `ErrRequest`.
+- `MaxPixels` on `Vision`: an area bound on the image sent. A PNG or JPEG whose width × height
+  exceeds it is downscaled before the request, its aspect ratio kept, to the largest whole size
+  within it, by an area average over the standard library's `image` packages, and re-encoded in
+  its own format, JPEG at quality 95. The downscaled copy carries the source's orientation and
+  color metadata byte for byte, its fields not rewritten: a JPEG's Exif APP1 segments, then its
+  ICC_PROFILE APP2 chunks in order, right after SOI, and a PNG's `iCCP`, `sRGB`, `gAMA`, `cHRM`,
+  and `eXIf` chunks, in order, right after IHDR; no other segment or chunk is carried. An ICC
+  profile whose color space isn't the copy's, GRAY for a grayscale copy and RGB otherwise, or that
+  can't be read, is left out, and a JPEG whose segments don't parse is sent without metadata;
+  neither fails the request. Its header is read first, so an image within the bound is
+  never decoded and is sent byte for byte. An image of another format, GIF among them, or one the
+  standard library can't decode, is sent as it is, and the endpoint's refusal classifies it as
+  before. 0 sends every image as it is; docinfer ships no default. `New` refuses a negative one,
+  matching `ErrRequest`. It enters vision's identity settings as `"max_pixels"` after `"effort"`,
+  always present, within vision's request version "2".
+
 ### Changed
 
-- The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
-  images, with its exported API unchanged.
+- Transcription's request version is "3" and its identity settings gain `"max_tokens"` after
+  `"language"`, and `"native"` after that when `Native` is set:
+  `{"request","mode","prompt","language","max_tokens","native"}`. Its keys and
+  `Pipeline.Profile` change, so every transcript held under "1" or "2" misses; `Version` stays
+  "1", since `Held`'s shape is unchanged.
+- A window's incomplete transcript, an `*ai.IncompleteTranscriptError`, is held with the error's
+  `Text`, the reply's unfinished text, and joins as it, in place of `""`; one with no text still
+  joins as `""`. A text cut off at `max_output_tokens` that ends in a loop is held trimmed after
+  the loop's first copy, its `Held.Incomplete` `"repetition"`, by vision's rule. The window's
+  outcome stays incomplete, counted in `TranscriptionCounts.Incomplete` and listed in the
+  transcript's `Failed`, and the transcript's `Source.Incomplete` stays its outcome. A replay from
+  the cache joins the same text. Transcription's request version "3" keeps a transcript held
+  empty under "2" from replaying.
+- A window's incomplete transcript counts the tokens its request took, the
+  `*ai.IncompleteTranscriptError`'s `Usage`, as a transcribed window's do: in the transcript's
+  `Inference.Usage` and in `Counts.Tokens.Transcription`, in place of none. A replay from the cache
+  counts none, as a transcribed window's replay does. Keys and request versions are unchanged.
+- Breaking: `Held` is no longer comparable with `==`, since its `Spans` is a slice.
+- A vision or extraction reply cut off at `protocol.ReasonMaxOutputTokens` whose text ends in a
+  loop, a line, a sentence, or a short cycle repeated to the bound, is held trimmed after the
+  loop's first copy, and its `Held.Incomplete`, `Inference.Reason`, and `Source.Incomplete` are
+  `"repetition"`. The loop is the shortest period, 1 to 1000 runes, whose run at the text's end
+  holds at least 2 copies and 200 runes. A reply whose tail doesn't loop, and every reply that
+  finishes or stops for another reason, is held as before. An extraction's `Progress` still
+  streams the whole text. Vision's and extraction's request versions are "2", so their identity
+  settings, keys, and `Pipeline.Profile` change and every result held under "1", an untrimmed
+  loop among them, misses; `Version` stays "1", since `Held`'s shape is unchanged.
+- Each capability's `Identity`, and so each cache `Key` and `Pipeline.Profile`, names the served
+  model, `Served`, not `Model`: another model served under the same name misses, and the same
+  model served under another name hits. A caller sets `Served` on every capability it configures,
+  and `New` refuses an empty one, matching `ErrRequest`. `Version` stays "1": the shapes and the
+  key's format are unchanged, and a value held under a request's name misses under the served
+  model's rather than decoding wrong.
+- Every embeddings request is sent as `ai.InputDocument`, so the client applies the document
+  convention its `ai.Options.Embedding` declares; with none declared, chunks go as they are, as
+  before. `Embeddings.Identity`, and so each embedding's `Key` and `Pipeline.Profile`, keys on that
+  convention, read from the client: its settings become `{"request","input_type","prefix",
+  "native"}`, `"native"` there only when the convention's native is set, canonical as `Native`'s.
+  A client with no document convention keeps the settings `""` and its keys, so `Version` stays
+  "1". The query convention is never keyed: changing it re-embeds nothing. `Embeddings.Identity`
+  now needs its `Client` set.
+- Breaking: `chunk.Splitter` measures in tokens, by the host's count. `Bound` is in tokens as its
+  new `Count`, a `chunk.Counter`, measures a text, the tokens its embedding would take, special
+  tokens and any document prefix included, such as a closure over the embeddings' client's
+  `Tokenize` with `ai.InputDocument`; its new `Model` names the served model whose tokenizer
+  counts. Every chunk measures within the bound, cut by structure as before with no overlap,
+  and a stretch with no cut is cut hard by measuring. `Split` takes a context, which docinfer
+  passes the job's, and returns the count's error wrapped; a character that alone measures over the
+  bound is refused with `chunk.ErrRequest`. `chunk.Version` is "2", its golden corpus
+  `chunks-v2.json`, and `Settings`, which `Pipeline.Profile` reports as `Chunker`, is
+  `{"version","bound","model"}`. No held result's key moves. `New` refuses a nil
+  `Chunker.Count` and an empty `Chunker.Model`, matching `ErrRequest`. A failure of the count
+  stops the job, nothing held: `Permanent` reports a permanent status and a refused one, which no
+  chunk can hold, and `chunk.ErrRequest`.
+- Breaking: `chunk.Splitter` gains `Runes`, the most characters, Unicode code points, a chunk
+  holds, beside `Bound`'s tokens, for a server that refuses an input by its length before
+  tokenizing it, as vLLM refuses one over 16 characters a token of `max_model_len`. Every chunk is
+  within both; a stretch over `Runes` is cut by structure, then hard, with no count of its own,
+  and a chunk's `Text` is still the text's own bytes, its white space uncollapsed. `Runes` has no
+  default: `Split` refuses one below 1 with `chunk.ErrRequest`, and `New` refuses a
+  `Chunker.Runes` below 1, matching `ErrRequest`. `Settings` is `{"version","bound","runes",
+  "model"}`, so the chunker's identity, `Pipeline.Profile`'s `Chunker`, changes and spans held
+  under the former settings miss and are recut. `chunk.Version` stays "2": a `Runes` no chunk
+  reaches cuts every text as before, which `chunks-v2.json`'s earlier cases, unchanged, pin; the
+  corpus gains each case's `runes` and cases the rune bound cuts, a text of long white-space runs
+  among them.
+- The module requires go-ai v0.5.0, the release with embedding input types and `Tokenize`.
+- The module requires docproc v0.9.0, docproc's release before the capstone; docinfer's use of
+  its API is unchanged, and it reads run directories docproc v0.4 wrote as before.
+
+### Fixed
+
+- A job of several inputs, such as a docproc run fed whole, grouped every input's windows of one
+  part ID and stage as one, each input's own part being `/`: once the first input's group closed,
+  every later input's windows and audio plan were dropped uncounted, and two inputs' windows could
+  join into one transcript. Windows are grouped by the input's `Origin`, the part's ID, and the
+  stage, so each input's part is joined from its own windows alone, and a window placed in no
+  group is counted `Unplaced`, never dropped silently.
+- A window placed before its group's plan record whose index was at or past the plan's count was
+  transcribed and counted `Transcribed`, but left out of the transcript. It is still left out,
+  and counted `Unplaced` instead.
 
 ## [v0.2.0] - 2026-11-20
 

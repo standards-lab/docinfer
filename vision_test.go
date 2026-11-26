@@ -27,6 +27,7 @@ import (
 
 const (
 	visionModel  = "vision-model"
+	visionServed = "org/vision-1"
 	visionPrompt = "Describe the image."
 	visionTokens = 300
 	description  = "A red square on a white page.\n\nA small grey caption below."
@@ -49,7 +50,7 @@ func visionConfig(t *testing.T, e *aitest.Endpoint, wireFormat format.Format, ed
 	}
 	return runConfig(t, e, func(c *docinfer.Config) {
 		c.Vision = &docinfer.Vision{
-			Client: client, Model: visionModel, Prompt: visionPrompt, MaxTokens: visionTokens,
+			Client: client, Model: visionModel, Served: visionServed, Prompt: visionPrompt, MaxTokens: visionTokens,
 			Reasoning: protocol.ReasoningEffortLow,
 		}
 		if edit != nil {
@@ -59,7 +60,7 @@ func visionConfig(t *testing.T, e *aitest.Endpoint, wireFormat format.Format, ed
 }
 
 var visionID = docinfer.Vision{
-	Model: visionModel, Prompt: visionPrompt, MaxTokens: visionTokens, Reasoning: protocol.ReasoningEffortLow,
+	Model: visionModel, Served: visionServed, Prompt: visionPrompt, MaxTokens: visionTokens, Reasoning: protocol.ReasoningEffortLow,
 }.Identity()
 
 func imageInput(t *testing.T, content *dispatch.MemoryContent, data []byte, mediaType string) docinfer.Input {
@@ -162,10 +163,10 @@ func TestRunDescribesImage(t *testing.T) {
 		inf.Reason != "" || inf.Held || inf.Usage != (docinfer.Usage{Input: 11, Output: 7}) {
 		t.Errorf("inference %+v, want described, its text, and the reply's usage", inf)
 	}
-	if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Text: description}) {
+	if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: description}) {
 		t.Errorf("held %+v, want the description", h)
 	}
-	pieces, _ := cfg.Chunker.Split(description)
+	pieces, _ := cfg.Chunker.Split(t.Context(), description)
 	chunks := o.chunks()
 	if len(chunks) != len(pieces) || len(pieces) < 2 {
 		t.Fatalf("%d chunks, want the description's %d", len(chunks), len(pieces))
@@ -272,7 +273,7 @@ func TestRunImageRefusal(t *testing.T) {
 	if inf.Outcome != docinfer.OutcomeRefused || inf.Reason != refusal || inf.Text != "" || inf.TextSHA256 != "" {
 		t.Errorf("inference %+v, want refused, its reason the refusal", inf)
 	}
-	if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Refused: refusal}) {
+	if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: refusal}) {
 		t.Errorf("held %+v, want the refusal", h)
 	}
 	if len(o.batches) > 0 {
@@ -315,7 +316,7 @@ func TestRunImageIncomplete(t *testing.T) {
 			if inf.Outcome != docinfer.OutcomeIncomplete || inf.Reason != tc.reason || inf.Text != tc.text {
 				t.Errorf("inference %+v, want incomplete for %s, its text kept", inf, tc.reason)
 			}
-			if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Text: tc.text, Incomplete: tc.reason}) {
+			if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: tc.text, Incomplete: tc.reason}) {
 				t.Errorf("held %+v, want the text and its reason", h)
 			}
 			chunks := o.chunks()
@@ -395,7 +396,7 @@ func TestRunImageRefusedStatus(t *testing.T) {
 			if inf := oneInference(t, o); inf.Outcome != docinfer.OutcomeRefused || inf.Reason != want || inf.Held {
 				t.Errorf("inference %+v, want refused for %q", inf, want)
 			}
-			if h := heldImage(t, cfg.Cache); h == nil || *h != (docinfer.Held{Refused: want}) {
+			if h := heldImage(t, cfg.Cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Refused: want}) {
 				t.Errorf("held %+v, want the refusal", h)
 			}
 			checkCounts(t, o, visionCounts(docinfer.VisionCounts{Refused: 1, Requests: 1}, docinfer.Usage{}, 0, 0))
@@ -548,5 +549,80 @@ func TestRunImageFailed(t *testing.T) {
 				t.Errorf("counts %+v, want the image failed and the text embedded", o.counts)
 			}
 		})
+	}
+}
+
+func TestRunKeysByServedModel(t *testing.T) {
+	var models []string
+	e := aitest.Serve(t, aitest.Routes{
+		ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
+			models = append(models, req.Model)
+			return aitest.ChatReply{Text: description}
+		},
+		Embeddings: embedAll,
+	})
+	cache := docinfer.NewMemoryCache()
+	content := dispatch.NewMemoryContent()
+	in := imageInput(t, content, imageBytes, imageType)
+	run := func(model, served string) docinfer.VisionCounts {
+		t.Helper()
+		cfg := visionConfig(t, e, nil, func(c *docinfer.Config) {
+			c.Vision.Model, c.Vision.Served = model, served
+			c.Cache = cache
+		})
+		o := collect(t, newPipeline(t, cfg).Run(t.Context(), content, seq(in), docinfer.Options{}))
+		if o.err != nil {
+			t.Fatal(o.err)
+		}
+		return *o.counts.Vision
+	}
+	for _, tc := range []struct {
+		name, model, served string
+		want                docinfer.VisionCounts
+		sent                []string
+	}{
+		{"first", visionModel, visionServed, docinfer.VisionCounts{Described: 1, Requests: 1}, []string{visionModel}},
+		{"another model served under the alias", visionModel, "org/vision-2", docinfer.VisionCounts{Described: 1, Requests: 1}, []string{visionModel, visionModel}},
+		{"the model served under another alias", "another-alias", visionServed, docinfer.VisionCounts{Described: 1, Held: 1}, []string{visionModel, visionModel}},
+	} {
+		if got := run(tc.model, tc.served); got != tc.want {
+			t.Errorf("%s: vision counts %+v, want %+v", tc.name, got, tc.want)
+		}
+		if !slices.Equal(models, tc.sent) {
+			t.Errorf("%s: requests named %q, want %q", tc.name, models, tc.sent)
+		}
+	}
+	if h := heldImage(t, cache); h == nil || !reflect.DeepEqual(*h, docinfer.Held{Text: description}) {
+		t.Errorf("held under the served model %+v, want the description", h)
+	}
+}
+
+func TestRunEchoesOrigin(t *testing.T) {
+	e := aitest.Serve(t, aitest.Routes{
+		ChatCompletions: chatRoute(t, aitest.ChatReply{Text: description, PromptTokens: 11, CompletionTokens: 7}),
+		Embeddings:      embedAll,
+	})
+	p := newPipeline(t, visionConfig(t, e, nil, nil))
+	content := dispatch.NewMemoryContent()
+	meta, text, image := metadataInput(), outputInput(t, content, inputPart, dispatch.TextOutput, plainText), imageInput(t, content, imageBytes, imageType)
+	meta.Origin, text.Origin, image.Origin = "a.docx", "a.docx", "b.png"
+
+	o := collect(t, p.Run(t.Context(), content, seq(meta, text, image), docinfer.Options{}))
+	if o.err != nil {
+		t.Fatal(o.err)
+	}
+	if inf := oneInference(t, o); inf.Origin != "b.png" {
+		t.Errorf("the image's inference of origin %q, want b.png", inf.Origin)
+	}
+	want := map[string]string{"metadata": "a.docx", "output": "a.docx", "vision": "b.png"}
+	kinds := map[string]bool{}
+	for _, c := range o.chunks() {
+		kinds[c.source.Kind] = true
+		if c.source.Origin != want[c.source.Kind] {
+			t.Errorf("a chunk of a %s source of origin %q, want %q", c.source.Kind, c.source.Origin, want[c.source.Kind])
+		}
+	}
+	if len(kinds) != len(want) {
+		t.Errorf("chunks of sources %v, want one of each of %v", kinds, want)
 	}
 }

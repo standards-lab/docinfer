@@ -16,6 +16,7 @@ import (
 	"github.com/standards-lab/go-core/config"
 	"github.com/standards-lab/go-core/process"
 
+	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/aitest"
 
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/app"
@@ -25,9 +26,14 @@ import (
 func everyCapability(baseURL, format string) app.Config {
 	return app.Config{
 		Endpoints:     map[string]*app.Endpoint{"gb10": {BaseURL: baseURL, Format: format}},
-		Vision:        &app.Vision{Endpoint: "gb10", Model: "vision-model"},
-		Transcription: &app.Transcription{Endpoint: "gb10", Model: "audio-model"},
-		Embeddings:    app.Embeddings{Capability: app.Capability{Endpoint: "gb10", Model: "embed-model"}, Dimensions: new(768)},
+		Vision:        &app.Vision{Endpoint: "gb10", Model: "vision-model", ServedModel: "vision-model"},
+		Transcription: &app.Transcription{Endpoint: "gb10", Model: "audio-model", ServedModel: "audio-model"},
+		Embeddings: app.Embeddings{
+			Capability: app.Capability{Endpoint: "gb10", Model: "embed-model", ServedModel: "embed-model"},
+			Dimensions: new(768),
+			InputTypes: map[ai.InputType]ai.InputConvention{},
+			Tokenizer:  "gb10",
+		},
 	}
 }
 
@@ -96,7 +102,7 @@ func TestRun_ModelTable(t *testing.T) {
 	}
 	log := built.Log()
 	slices.Sort(log)
-	wantBuilt := []string{"config", "embeddings client", "http clients", "lifecycle config", "run config", "transcription client", "vision client"}
+	wantBuilt := []string{"config", "embeddings client", "http clients", "lifecycle config", "run config", "tokenizer client", "transcription client", "vision client"}
 	if !slices.Equal(log, wantBuilt) {
 		t.Errorf("nodes built = %q, want %q", log, wantBuilt)
 	}
@@ -209,7 +215,7 @@ func TestRun_ModelsListThroughTheEndpointsSettings(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Models: modelList(`{"id":"embed-model","object":"model"}`)})
 	dir := configDir(t, map[string]string{
 		"config.json": `{"endpoints":{"gb10":{"base_url":"` + e.URL() + `","format":"completions","query":{"autoload":"false"}}},
-			"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768}}`,
+			"embeddings":{"endpoint":"gb10","model":"embed-model","served_model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`,
 		"secrets.json": `{"endpoints":{"gb10":{"token":"secret-token","headers":{"X-Gateway-Key":"gateway-key"}}}}`,
 	})
 	a, _, stderr, _ := newApp(t)
@@ -260,5 +266,5 @@ func probeNodes(a *app.App, read func(inv *cli.Invocation)) {
 			read(inv)
 			return nil
 		},
-	}).Use(n.Config, n.HTTPClients, n.VisionClient, n.TranscriptionClient, n.EmbeddingsClient))
+	}).Use(n.Config, n.HTTPClients, n.VisionClient, n.TranscriptionClient, n.EmbeddingsClient, n.TokenizerClient))
 }

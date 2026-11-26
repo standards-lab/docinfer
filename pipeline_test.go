@@ -38,15 +38,15 @@ func validConfig(t *testing.T) docinfer.Config {
 	c := newClient(t, "http://localhost/v1", ai.TranscribeRoute)
 	return docinfer.Config{
 		Vision: &docinfer.Vision{
-			Client: c, Model: "vision-model", Prompt: "Describe the image.", MaxTokens: 2,
+			Client: c, Model: "vision", Served: "org/vision-1", Prompt: "Describe the image.", MaxTokens: 2,
 			Reasoning: protocol.ReasoningEffortLow,
 		},
-		Transcription: &docinfer.Transcription{Client: c, Model: "transcription-model", Language: "en"},
+		Transcription: &docinfer.Transcription{Client: c, Model: "audio", Served: "org/transcription-1", Language: "en"},
 		Extraction: &docinfer.Extraction{
-			Client: c, Model: "extraction-model", MaxTokens: 2, Reasoning: protocol.ReasoningEffortMedium,
+			Client: c, Model: "agent", Served: "org/extraction-1", MaxTokens: 2, Reasoning: protocol.ReasoningEffortMedium,
 		},
-		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding-model"},
-		Chunker:    chunk.Splitter{Bound: 2},
+		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding", Served: "org/embedding-1"},
+		Chunker:    chunk.Splitter{Bound: 2, Runes: 2, Count: runes, Model: "org/embedding-1"},
 		Dimensions: 2,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     newBounds(t, 1, 1, 1, 1),
@@ -60,7 +60,7 @@ func validConfig(t *testing.T) docinfer.Config {
 func TestNewAcceptsLeastValues(t *testing.T) {
 	cfg := validConfig(t)
 	cfg.Vision.MaxTokens, cfg.Extraction.MaxTokens = 1, 1
-	cfg.Chunker.Bound, cfg.Dimensions, cfg.Pending, cfg.EmbedBatch, cfg.BatchBytes = 1, 1, 1, 1, 1
+	cfg.Chunker.Bound, cfg.Chunker.Runes, cfg.Dimensions, cfg.Pending, cfg.EmbedBatch, cfg.BatchBytes = 1, 1, 1, 1, 1, 1
 	cfg.Join.WordsPerSecond = 1
 	if _, err := docinfer.New(cfg); err != nil {
 		t.Fatalf("New with every count 1: %v", err)
@@ -107,6 +107,7 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		set   func(*docinfer.Config, int)
 	}{
 		{"Chunker.Bound", func(c *docinfer.Config, n int) { c.Chunker.Bound = n }},
+		{"Chunker.Runes", func(c *docinfer.Config, n int) { c.Chunker.Runes = n }},
 		{"Dimensions", func(c *docinfer.Config, n int) { c.Dimensions = n }},
 		{"Pending", func(c *docinfer.Config, n int) { c.Pending = n }},
 		{"EmbedBatch", func(c *docinfer.Config, n int) { c.EmbedBatch = n }},
@@ -124,6 +125,16 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 			})
 		}
 	}
+	t.Run("Transcription.MaxTokens=-1", func(t *testing.T) {
+		cfg := validConfig(t)
+		cfg.Transcription.MaxTokens = -1
+		refused(t, cfg, "Transcription.MaxTokens")
+	})
+	t.Run("Vision.MaxPixels=-1", func(t *testing.T) {
+		cfg := validConfig(t)
+		cfg.Vision.MaxPixels = -1
+		refused(t, cfg, "Vision.MaxPixels")
+	})
 	models := []struct {
 		field string
 		clear func(*docinfer.Config)
@@ -132,6 +143,12 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		{"Vision.Model", func(c *docinfer.Config) { c.Vision.Model = "" }},
 		{"Transcription.Model", func(c *docinfer.Config) { c.Transcription.Model = "" }},
 		{"Extraction.Model", func(c *docinfer.Config) { c.Extraction.Model = "" }},
+		{"Embeddings.Served", func(c *docinfer.Config) { c.Embeddings.Served = "" }},
+		{"Vision.Served", func(c *docinfer.Config) { c.Vision.Served = "" }},
+		{"Transcription.Served", func(c *docinfer.Config) { c.Transcription.Served = "" }},
+		{"Extraction.Served", func(c *docinfer.Config) { c.Extraction.Served = "" }},
+		{"Chunker.Model", func(c *docinfer.Config) { c.Chunker.Model = "" }},
+		{"Chunker.Count", func(c *docinfer.Config) { c.Chunker.Count = nil }},
 	}
 	for _, tc := range models {
 		t.Run(tc.field+"=empty", func(t *testing.T) {

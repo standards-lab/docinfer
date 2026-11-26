@@ -24,10 +24,10 @@ func TestTranscription(t *testing.T) {
 		{"chat", audio, ai.TranscribeChat},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			client, model := endpoint(t, tc.r, ai.Options{TranscriptionMode: tc.mode})
+			client, model, served := endpoint(t, tc.r, ai.Options{TranscriptionMode: tc.mode})
 			emb, dims := embeddings(t)
 			p := newPipeline(t, emb, dims, func(c *docinfer.Config) {
-				c.Transcription = &docinfer.Transcription{Client: client, Model: model}
+				c.Transcription = &docinfer.Transcription{Client: client, Model: model, Served: served}
 			})
 			content := dispatch.NewMemoryContent()
 			in := docinfer.Input{Event: dispatch.Event{

@@ -28,10 +28,10 @@ var capital = docinfer.Extract{
 }
 
 func TestExtraction(t *testing.T) {
-	client, model := endpoint(t, agent, ai.Options{})
+	client, model, served := endpoint(t, agent, ai.Options{})
 	emb, dims := embeddings(t)
 	p := newPipeline(t, emb, dims, func(c *docinfer.Config) {
-		c.Extraction = &docinfer.Extraction{Client: client, Model: model, MaxTokens: extractionTokens}
+		c.Extraction = &docinfer.Extraction{Client: client, Model: model, Served: served, MaxTokens: extractionTokens}
 	})
 	content := dispatch.NewMemoryContent()
 	in := textInput(t, content, dispatch.TextOutput,

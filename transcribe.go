@@ -25,15 +25,17 @@ var windowFileNames = map[string]string{
 }
 
 type groupKey struct {
-	part  string
-	stage dispatch.Identity
+	origin string
+	part   string
+	stage  dispatch.Identity
 }
 
 // See docs/internals.md
 type group struct {
-	part  dispatch.Part
-	stage dispatch.Identity
-	start time.Time
+	origin string
+	part   dispatch.Part
+	stage  dispatch.Identity
+	start  time.Time
 
 	windows map[int]*window
 	count   int
@@ -79,8 +81,9 @@ type planEvent struct {
 func (windowEvent) isEvent() {}
 func (planEvent) isEvent()   {}
 
-func (r *run) groupOf(ev dispatch.Event) *group {
-	k := groupKey{ev.Part.ID, ev.Stage}
+func (r *run) groupOf(in Input) *group {
+	ev := in.Event
+	k := groupKey{in.Origin, ev.Part.ID, ev.Stage}
 	if g, ok := r.groups[k]; ok {
 		return g
 	}
@@ -88,7 +91,7 @@ func (r *run) groupOf(ev dispatch.Event) *group {
 		r.groups = map[groupKey]*group{}
 	}
 	g := &group{
-		part: ev.Part, stage: ev.Stage, start: time.Now(),
+		origin: in.Origin, part: ev.Part, stage: ev.Stage, start: time.Now(),
 		windows: map[int]*window{}, count: -1, last: -1, max: -1,
 	}
 	r.groups[k] = g
@@ -96,7 +99,8 @@ func (r *run) groupOf(ev dispatch.Event) *group {
 	return g
 }
 
-func (r *run) admitWindow(ev dispatch.Event, pos int) error {
+func (r *run) admitWindow(in Input, pos int) error {
+	ev := in.Event
 	out := ev.Output
 	if _, ok := windowFileNames[out.MediaType]; !ok {
 		return fmt.Errorf("docinfer: run: window %s of part %s has media type %q, not audio/wav or audio/mpeg: %w",
@@ -127,9 +131,10 @@ func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 		*s.has = true
 	}
 
-	g := r.groupOf(ev)
+	g := r.groupOf(in)
 	r.addMember(g, pos)
 	if g.closed || g.windows[index] != nil || index >= g.bound() {
+		r.counts.Transcription.Unplaced++
 		r.finish()
 		return nil
 	}
@@ -147,8 +152,9 @@ func (r *run) admitWindow(ev dispatch.Event, pos int) error {
 	return nil
 }
 
-func (r *run) admitPlan(ev dispatch.Event, pos int) {
-	g := r.groupOf(ev)
+func (r *run) admitPlan(in Input, pos int) {
+	ev := in.Event
+	g := r.groupOf(in)
 	r.addMember(g, pos)
 	if g.closed || g.plan {
 		r.finish()
@@ -294,9 +300,11 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 			}
 			return rc, nil
 		},
-		FileName: windowFileNames[ev.Output.MediaType],
-		Language: t.Language,
-		Prompt:   t.Prompt,
+		FileName:        windowFileNames[ev.Output.MediaType],
+		Language:        t.Language,
+		Prompt:          t.Prompt,
+		MaxOutputTokens: t.MaxTokens,
+		ChatNative:      t.Native,
 	}
 	var (
 		reply *ai.Transcription
@@ -317,12 +325,11 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 	}
 	what := "window " + ev.Output.SHA256
 	if err == nil {
-		usage := Usage{Input: reply.Usage.InputTokens, Output: reply.Usage.OutputTokens}
 		h := Held{Text: reply.Text}
 		if !r.hold(l, key, "the transcript of "+what, h) {
 			return
 		}
-		r.send(windowEvent{w: w, h: h, requests: requests, usage: usage})
+		r.send(windowEvent{w: w, h: h, requests: requests, usage: transcriptionUsage(reply.Usage)})
 		return
 	}
 
@@ -335,11 +342,11 @@ func (r *run) transcribeLead(w *window, key string, l *lease) {
 		return
 	}
 	if inc, ok := errors.AsType[*ai.IncompleteTranscriptError](err); ok {
-		h := Held{Incomplete: incompleteReason(inc)}
+		h := trimLoop(Held{Text: inc.Text, Incomplete: incompleteReason(inc)})
 		if !r.hold(l, key, "the incomplete transcript of "+what, h) {
 			return
 		}
-		r.send(windowEvent{w: w, h: h, requests: requests})
+		r.send(windowEvent{w: w, h: h, requests: requests, usage: transcriptionUsage(inc.Usage)})
 		return
 	}
 	switch classify(err) {
@@ -370,6 +377,10 @@ type contentError struct{ err error }
 func (e *contentError) Error() string { return "docinfer: open window content: " + e.err.Error() }
 func (e *contentError) Unwrap() error { return e.err }
 
+func transcriptionUsage(u ai.TranscriptionUsage) Usage {
+	return Usage{Input: u.InputTokens, Output: u.OutputTokens}
+}
+
 func incompleteReason(e *ai.IncompleteTranscriptError) string {
 	switch {
 	case e.Reason != "":
@@ -392,7 +403,7 @@ func (r *run) windowDone(e windowEvent, yield func(Result, error) bool) (bool, e
 		w.outcome = OutcomeRefused
 		tc.Refused++
 	case e.h.Incomplete != "":
-		w.outcome = OutcomeIncomplete
+		w.outcome, w.text = OutcomeIncomplete, e.h.Text
 		tc.Incomplete++
 	default:
 		w.outcome, w.text = OutcomeTranscribed, e.h.Text
@@ -449,8 +460,31 @@ func (r *run) settle(g *group, slot bool, yield func(Result, error) bool) (bool,
 	return r.joinGroup(g, !slot, yield)
 }
 
+func (r *run) unplace(w *window) {
+	tc := r.counts.Transcription
+	switch w.outcome {
+	case OutcomeFailed:
+		tc.Failed--
+	case OutcomeRefused:
+		tc.Refused--
+	case OutcomeIncomplete:
+		tc.Incomplete--
+	default:
+		tc.Transcribed--
+	}
+	if w.held {
+		tc.Held--
+	}
+	tc.Unplaced++
+}
+
 func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool) (bool, error) {
 	n := g.n
+	for i, w := range g.windows {
+		if i >= n {
+			r.unplace(w)
+		}
+	}
 	if n == 0 {
 		r.finishState(&inputState{g: g, slotless: slotless})
 		return true, nil
@@ -486,6 +520,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 		case OutcomeRefused:
 			failed, anyRefused = append(failed, i), true
 		default:
+			texts[i] = w.text
 			failed = append(failed, i)
 		}
 	}
@@ -505,6 +540,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	inf := &Inference{
 		Capability:    CapabilityTranscription,
 		Part:          g.part.ID,
+		Origin:        g.origin,
 		ContentSHA256: shas,
 		Failed:        failed,
 		Held:          held,
@@ -544,7 +580,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	stage := g.stage
 	st := &inputState{
 		part:     g.part,
-		source:   Source{Kind: sourceTranscript, SHA256: textSHA, Stage: &stage, Output: first},
+		source:   Source{Kind: sourceTranscript, Origin: g.origin, SHA256: textSHA, Stage: &stage, Output: first},
 		g:        g,
 		slotless: slotless,
 	}

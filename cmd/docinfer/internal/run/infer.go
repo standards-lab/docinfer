@@ -113,13 +113,12 @@ func take(ctx context.Context, res docinfer.Result, out *outdir.Dir, r *outdir.R
 				return fmt.Errorf("put the text %s of part %s's %s: %w", inf.TextSHA256, inf.Part, inf.Capability, err)
 			}
 		}
-		input, _ := pr.inputOf(*inf)
-		if err := r.Inference(outdir.Inference{Input: input, Inference: *inf}); err != nil {
+		if err := r.Inference(outdir.Inference{Input: inf.Origin, Inference: *inf}); err != nil {
 			return err
 		}
 		pr.inference(*inf)
 	case res.Batch != nil:
-		if err := r.Batch(*res.Batch, pr.partInputs(*res.Batch)); err != nil {
+		if err := r.Batch(*res.Batch, partInputs(*res.Batch)); err != nil {
 			return err
 		}
 		if err := sp.measure(*res.Batch); err != nil {
@@ -181,14 +180,22 @@ func pipeline(cfg Config, cache docinfer.Cache) (*docinfer.Pipeline, error) {
 
 func manifest(cfg Config, pr docinfer.Profile, d outdir.Docproc) outdir.Manifest {
 	m := outdir.Manifest{Docinfer: cfg.Build, Docproc: d, Inputs: []outdir.Input{}}
+	requested := map[docinfer.Capability]string{docinfer.CapabilityEmbeddings: cfg.Embeddings.Model}
+	if v := cfg.Vision; v != nil {
+		requested[docinfer.CapabilityVision] = v.Model
+	}
+	if t := cfg.Transcription; t != nil {
+		requested[docinfer.CapabilityTranscription] = t.Model
+	}
 	capability := func(id docinfer.Identity) outdir.Capability {
 		e := cfg.Endpoints[id.Capability]
 		return outdir.Capability{
-			Identity:    id,
-			Endpoint:    e.Name,
-			BaseURL:     e.BaseURL,
-			Format:      e.Format,
-			Concurrency: cfg.Concurrency[id.Capability],
+			Identity:     id,
+			RequestModel: requested[id.Capability],
+			Endpoint:     e.Name,
+			BaseURL:      e.BaseURL,
+			Format:       e.Format,
+			Concurrency:  cfg.Concurrency[id.Capability],
 		}
 	}
 	for _, c := range []struct {
@@ -237,7 +244,7 @@ func (f *feed) inputs(record iter.Seq2[schema.Event, error]) iter.Seq2[docinfer.
 }
 
 func (f *feed) take(e schema.Event) docinfer.Input {
-	in := docinfer.Input{Event: e.Event}
+	in := docinfer.Input{Event: e.Event, Origin: e.Input}
 	last := false
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -29,7 +29,7 @@ const (
 func runTwoChunks(t *testing.T, e *aitest.Endpoint, opts docinfer.Options) (outcome, docinfer.Cache) {
 	t.Helper()
 	cfg := runConfig(t, e, nil)
-	if pieces, _ := cfg.Chunker.Split(twoChunks); len(pieces) != 2 || pieces[0].Text != refusedChunk {
+	if pieces, _ := cfg.Chunker.Split(t.Context(), twoChunks); len(pieces) != 2 || pieces[0].Text != refusedChunk {
 		t.Fatalf("the fixture cuts into %d chunks, want 2, the first %q", len(pieces), refusedChunk)
 	}
 	content := dispatch.NewMemoryContent()

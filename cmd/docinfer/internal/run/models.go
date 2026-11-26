@@ -34,6 +34,7 @@ type modelRow struct {
 type modelCheck struct {
 	rows     []modelRow
 	warnings []string
+	served   map[docinfer.Capability]string
 }
 
 type listed struct {
@@ -48,17 +49,18 @@ func checkModels(ctx context.Context, cfg Config) (modelCheck, error) {
 		name   docinfer.Capability
 		client *ai.Client
 		model  string
+		served string
 	}
 	caps := []capability{
 		{name: docinfer.CapabilityVision},
 		{name: docinfer.CapabilityTranscription},
-		{name: docinfer.CapabilityEmbeddings, client: cfg.Embeddings.Client, model: cfg.Embeddings.Model},
+		{name: docinfer.CapabilityEmbeddings, client: cfg.Embeddings.Client, model: cfg.Embeddings.Model, served: cfg.Embeddings.Served},
 	}
 	if v := cfg.Vision; v != nil {
-		caps[0].client, caps[0].model = v.Client, v.Model
+		caps[0].client, caps[0].model, caps[0].served = v.Client, v.Model, v.Served
 	}
 	if t := cfg.Transcription; t != nil {
-		caps[1].client, caps[1].model = t.Client, t.Model
+		caps[1].client, caps[1].model, caps[1].served = t.Client, t.Model, t.Served
 	}
 
 	lists := make([]listed, len(caps))
@@ -75,7 +77,7 @@ func checkModels(ctx context.Context, cfg Config) (modelCheck, error) {
 	wg.Wait()
 
 	var (
-		check modelCheck
+		check = modelCheck{served: map[docinfer.Capability]string{}}
 		errs  []error
 	)
 	for i, c := range caps {
@@ -91,6 +93,9 @@ func checkModels(ctx context.Context, cfg Config) (modelCheck, error) {
 			check.warnings = append(check.warnings,
 				fmt.Sprintf("%s: endpoint %q gives no model listing (%v); its model is unchecked", c.name, endpoint, apiErr))
 			check.rows = append(check.rows, row)
+			served, err := resolveServed(c.name, endpoint, c.model, "", c.served)
+			check.served[c.name] = served
+			errs = append(errs, err)
 			continue
 		}
 		if l.err != nil {
@@ -99,7 +104,12 @@ func checkModels(ctx context.Context, cfg Config) (modelCheck, error) {
 			check.rows = append(check.rows, row)
 			continue
 		}
-		status, found := statusOf(l.models, c.model)
+		status, root, found := entryOf(l.models, c.model)
+		if found {
+			served, err := resolveServed(c.name, endpoint, c.model, root, c.served)
+			check.served[c.name] = served
+			errs = append(errs, err)
+		}
 		switch {
 		case !found:
 			row.state = stateUnlisted
@@ -118,20 +128,51 @@ func checkModels(ctx context.Context, cfg Config) (modelCheck, error) {
 	return check, errors.Join(errs...)
 }
 
-func statusOf(models []ai.Model, id string) (status string, found bool) {
+func resolveServed(name docinfer.Capability, endpoint, model, root, configured string) (string, error) {
+	switch {
+	case root != "" && configured != "" && root != configured:
+		return "", fmt.Errorf("%s: endpoint %q lists model %q with root %q, and served_model is %q: set %s.served_model to %q, or leave it unset to take the listing's",
+			name, endpoint, model, root, configured, name, root)
+	case root != "":
+		return root, nil
+	case configured != "":
+		return configured, nil
+	}
+	return "", fmt.Errorf("%s: endpoint %q lists no root for model %q, and served_model is unset: set %s.served_model to the model the deployment serves under %q",
+		name, endpoint, model, name, model)
+}
+
+func entryOf(models []ai.Model, id string) (status, root string, found bool) {
 	for _, m := range models {
 		if m.ID != id {
 			continue
 		}
 		var entry struct {
+			Root   string `json:"root"`
 			Status struct {
 				Value string `json:"value"`
 			} `json:"status"`
 		}
 		if jsonv2.Unmarshal(m.Native, &entry) != nil {
-			return "", true
+			return "", "", true
 		}
-		return entry.Status.Value, true
+		return entry.Status.Value, entry.Root, true
 	}
-	return "", false
+	return "", "", false
+}
+
+func (cfg Config) withServed(served map[docinfer.Capability]string) Config {
+	if v := cfg.Vision; v != nil {
+		resolved := *v
+		resolved.Served = served[docinfer.CapabilityVision]
+		cfg.Vision = &resolved
+	}
+	if t := cfg.Transcription; t != nil {
+		resolved := *t
+		resolved.Served = served[docinfer.CapabilityTranscription]
+		cfg.Transcription = &resolved
+	}
+	cfg.Embeddings.Served = served[docinfer.CapabilityEmbeddings]
+	cfg.Chunker.Model = cfg.Embeddings.Served
+	return cfg
 }

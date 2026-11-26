@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"iter"
 	"os"
 	"path/filepath"
@@ -29,12 +30,14 @@ const (
 	audio         role = "AI_AUDIO_BASE_URL"
 	embedding     role = "AI_EMBEDDING_BASE_URL"
 	transcription role = "AI_TRANSCRIPTION_BASE_URL"
+	tokenize      role = "AI_TOKENIZE_BASE_URL"
 )
 
 const (
 	visionTokens     = 256
 	extractionTokens = 1024
 	chunkBound       = 400
+	chunkRunes       = 8000
 	pending          = 2
 	embedBatch       = 8
 	batchBytes       = 1 << 16
@@ -43,7 +46,7 @@ const (
 
 const runTimeout = 5 * time.Minute
 
-func endpoint(t *testing.T, r role, opts ai.Options) (*ai.Client, string) {
+func endpoint(t *testing.T, r role, opts ai.Options) (c *ai.Client, model, served string) {
 	t.Helper()
 	base := os.Getenv(string(r))
 	if base == "" {
@@ -54,7 +57,7 @@ func endpoint(t *testing.T, r role, opts ai.Options) (*ai.Client, string) {
 		t.Fatal(err)
 	}
 	if model := namedModel(string(r), os.Getenv); model != "" {
-		return c, model
+		return c, model, model
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), runTimeout)
 	defer cancel()
@@ -65,12 +68,21 @@ func endpoint(t *testing.T, r role, opts ai.Options) (*ai.Client, string) {
 	if len(models) != 1 || models[0].ID == "" {
 		t.Fatalf("%s lists %+v, want exactly one model, or its model named in %s", r, models, modelVariable(string(r)))
 	}
-	return c, models[0].ID
+	var listed struct {
+		Root string `json:"root"`
+	}
+	if err := json.Unmarshal(models[0].Native, &listed); err != nil {
+		t.Fatalf("%s lists %s: %v", r, models[0].Native, err)
+	}
+	if listed.Root == "" {
+		return c, models[0].ID, models[0].ID
+	}
+	return c, models[0].ID, listed.Root
 }
 
 func embeddings(t *testing.T) (docinfer.Embeddings, int) {
 	t.Helper()
-	c, model := endpoint(t, embedding, ai.Options{})
+	c, model, served := endpoint(t, embedding, ai.Options{})
 	ctx, cancel := context.WithTimeout(t.Context(), runTimeout)
 	defer cancel()
 	probe, err := c.Embed(ctx, &ai.EmbeddingRequest{Model: model, Input: []string{"A probe of the embedding space."}})
@@ -80,11 +92,25 @@ func embeddings(t *testing.T) (docinfer.Embeddings, int) {
 	if len(probe.Vectors) != 1 || len(probe.Vectors[0]) == 0 {
 		t.Fatalf("Embed of the probe gave %d vectors, want one of at least one dimension", len(probe.Vectors))
 	}
-	return docinfer.Embeddings{Client: c, Model: model}, len(probe.Vectors[0])
+	return docinfer.Embeddings{Client: c, Model: model, Served: served}, len(probe.Vectors[0])
+}
+
+func tokenizer(t *testing.T, emb docinfer.Embeddings) *ai.Client {
+	t.Helper()
+	base := os.Getenv(string(tokenize))
+	if base == "" {
+		return emb.Client
+	}
+	c, err := newClient(string(tokenize), base, completions.New(completions.Options{}), ai.Options{}, os.Getenv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
 }
 
 func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*docinfer.Config)) *docinfer.Pipeline {
 	t.Helper()
+	counter := tokenizer(t, emb)
 	cache, err := docinfer.NewFileCache(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +121,18 @@ func newPipeline(t *testing.T, emb docinfer.Embeddings, dims int, edit func(*doc
 	}
 	cfg := docinfer.Config{
 		Embeddings: emb,
-		Chunker:    chunk.Splitter{Bound: chunkBound},
+		Chunker: chunk.Splitter{
+			Bound: chunkBound,
+			Runes: chunkRunes,
+			Count: func(ctx context.Context, text string) (int, error) {
+				tokens, err := counter.Tokenize(ctx, &ai.TokenizeRequest{Model: emb.Model, Text: text, InputType: ai.InputDocument})
+				if err != nil {
+					return 0, err
+				}
+				return tokens.Count, nil
+			},
+			Model: emb.Served,
+		},
 		Dimensions: dims,
 		Cache:      cache,
 		Bounds:     bounds,

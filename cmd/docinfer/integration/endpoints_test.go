@@ -16,6 +16,7 @@ const (
 	vision        role = "AI_VISION"
 	transcription role = "AI_TRANSCRIPTION"
 	audio         role = "AI_AUDIO"
+	tokenize      role = "AI_TOKENIZE"
 )
 
 func (r role) variable(suffix string) string { return string(r) + "_" + suffix }
@@ -23,6 +24,7 @@ func (r role) variable(suffix string) string { return string(r) + "_" + suffix }
 type endpoint struct {
 	baseURL string
 	model   string
+	served  string
 	token   string
 	headers map[string]string
 }
@@ -78,9 +80,9 @@ type configFiles struct {
 func compose(eps map[role]endpoint, caps []capability, dims int) configFiles {
 	endpoints, secrets := map[string]any{}, map[string]any{}
 	config := map[string]any{"endpoints": endpoints}
-	for _, c := range caps {
-		ep := eps[c.role]
-		name := strings.ToLower(strings.TrimPrefix(string(c.role), "AI_"))
+	add := func(r role) string {
+		ep := eps[r]
+		name := strings.ToLower(strings.TrimPrefix(string(r), "AI_"))
 		endpoints[name] = map[string]any{"base_url": ep.baseURL, "format": "completions"}
 		if ep.token != "" || len(ep.headers) > 0 {
 			secret := map[string]any{}
@@ -92,7 +94,14 @@ func compose(eps map[role]endpoint, caps []capability, dims int) configFiles {
 			}
 			secrets[name] = secret
 		}
-		section := map[string]any{"endpoint": name, "model": ep.model}
+		return name
+	}
+	for _, c := range caps {
+		ep := eps[c.role]
+		section := map[string]any{"endpoint": add(c.role), "model": ep.model}
+		if ep.served != "" {
+			section["served_model"] = ep.served
+		}
 		switch c.name {
 		case "vision":
 			section["max_tokens"] = visionTokens
@@ -100,6 +109,11 @@ func compose(eps map[role]endpoint, caps []capability, dims int) configFiles {
 			section["mode"] = c.mode
 		case "embeddings":
 			section["dimensions"] = dims
+			section["input_types"] = map[string]any{}
+			section["tokenizer"] = section["endpoint"]
+			if _, ok := eps[tokenize]; ok {
+				section["tokenizer"] = add(tokenize)
+			}
 		}
 		config[c.name] = section
 	}
@@ -175,7 +189,7 @@ func TestEndpointOf_HeaderRefusedWithoutItsValue(t *testing.T) {
 func TestCompose_CredentialsOnlyInSecrets(t *testing.T) {
 	eps := map[role]endpoint{
 		embedding: {baseURL: "http://gb10:8080/v1", model: "embed", token: secret},
-		audio:     {baseURL: "http://gb10:8081/v1", model: "gemma", headers: map[string]string{"Api-Key": secret}},
+		audio:     {baseURL: "http://gb10:8081/v1", model: "gemma", served: "google/gemma", headers: map[string]string{"Api-Key": secret}},
 	}
 
 	files := compose(eps, capabilities(eps), 768)
@@ -187,10 +201,10 @@ func TestCompose_CredentialsOnlyInSecrets(t *testing.T) {
 	if strings.Contains(string(config), secret) {
 		t.Errorf("config.json = %s, want no token or header in it", config)
 	}
-	want := `{"embeddings":{"dimensions":768,"endpoint":"embedding","model":"embed"},` +
+	want := `{"embeddings":{"dimensions":768,"endpoint":"embedding","input_types":{},"model":"embed","tokenizer":"embedding"},` +
 		`"endpoints":{"audio":{"base_url":"http://gb10:8081/v1","format":"completions"},` +
 		`"embedding":{"base_url":"http://gb10:8080/v1","format":"completions"}},` +
-		`"transcription":{"endpoint":"audio","mode":"chat","model":"gemma"}}`
+		`"transcription":{"endpoint":"audio","mode":"chat","model":"gemma","served_model":"google/gemma"}}`
 	if string(config) != want {
 		t.Errorf("config.json = %s, want %s", config, want)
 	}
@@ -199,6 +213,33 @@ func TestCompose_CredentialsOnlyInSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := `{"endpoints":{"audio":{"headers":{"Api-Key":"` + secret + `"}},"embedding":{"token":"` + secret + `"}}}`; string(secrets) != want {
+		t.Errorf("secrets.json = %s, want %s", secrets, want)
+	}
+}
+
+func TestCompose_TokenizerAtTheServersRoot(t *testing.T) {
+	eps := map[role]endpoint{
+		embedding: {baseURL: "http://framework-2:8003/v1", model: "e5"},
+		tokenize:  {baseURL: "http://framework-2:8003", token: secret},
+	}
+
+	files := compose(eps, capabilities(eps), 1024)
+
+	config, err := json.Marshal(files.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"embeddings":{"dimensions":1024,"endpoint":"embedding","input_types":{},"model":"e5","tokenizer":"tokenize"},` +
+		`"endpoints":{"embedding":{"base_url":"http://framework-2:8003/v1","format":"completions"},` +
+		`"tokenize":{"base_url":"http://framework-2:8003","format":"completions"}}}`
+	if string(config) != want {
+		t.Errorf("config.json = %s, want %s", config, want)
+	}
+	secrets, err := json.Marshal(files.secrets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"endpoints":{"tokenize":{"token":"` + secret + `"}}}`; string(secrets) != want {
 		t.Errorf("secrets.json = %s, want %s", secrets, want)
 	}
 }

@@ -6,19 +6,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/standards-lab/docproc/dispatch"
 	"github.com/standards-lab/go-ai/protocol"
 )
 
 const sourceVision = "vision"
 
-func (r *run) describe(ev dispatch.Event, pos int) {
+func (r *run) describe(in Input, pos int) {
+	ev := in.Event
 	start := time.Now()
 	key := Key(*r.p.profile.Vision, ev.Output.SHA256)
 	for {
 		l, own, waits := r.p.claims.claim([]string{key})
 		if len(own) == 1 {
-			r.lead(ev, pos, start, key, l)
+			r.lead(in, pos, start, key, l)
 			return
 		}
 		a, err := r.p.claims.wait(r.ctx, waits[0].c)
@@ -31,13 +31,14 @@ func (r *run) describe(ev dispatch.Event, pos int) {
 				ev.Output.SHA256, ev.Part.ID, a.err))
 			return
 		case a.held != nil:
-			r.described(ev, pos, start, *a.held, true, 0, Usage{})
+			r.described(in, pos, start, *a.held, true, 0, Usage{})
 			return
 		}
 	}
 }
 
-func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *lease) {
+func (r *run) lead(in Input, pos int, start time.Time, key string, l *lease) {
+	ev := in.Event
 	defer l.release()
 	values, err := r.p.cfg.Cache.Get(r.ctx, key)
 	if err != nil {
@@ -47,7 +48,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 	}
 	if h, ok := decodeHeld(values[0]); ok && h.Vector == "" {
 		l.answer(key, answer{held: &h})
-		r.described(ev, pos, start, h, true, 0, Usage{})
+		r.described(in, pos, start, h, true, 0, Usage{})
 		return
 	}
 
@@ -58,6 +59,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		return
 	}
 	v := r.p.cfg.Vision
+	data = fit(data, v.MaxPixels)
 	content := []protocol.ContentPart{protocol.InputImage{ImageURL: protocol.DataURL(ev.Output.MediaType, data)}}
 	if v.Prompt != "" {
 		content = append([]protocol.ContentPart{protocol.InputText{Text: v.Prompt}}, content...)
@@ -67,6 +69,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		Input:           []protocol.Item{protocol.Message{Role: protocol.RoleUser, Content: content}},
 		Reasoning:       protocol.ReasoningParam{Effort: v.Reasoning},
 		MaxOutputTokens: v.MaxTokens,
+		Native:          v.Native,
 	}
 	var (
 		resp *protocol.Response
@@ -97,7 +100,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		if !r.hold(l, key, "the description of image "+ev.Output.SHA256, h) {
 			return
 		}
-		r.described(ev, pos, start, h, false, requests, usage)
+		r.described(in, pos, start, h, false, requests, usage)
 		return
 	}
 
@@ -108,7 +111,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 		if !r.hold(l, key, "the refusal of image "+ev.Output.SHA256, h) {
 			return
 		}
-		r.described(ev, pos, start, h, false, requests, usage)
+		r.described(in, pos, start, h, false, requests, usage)
 	case rowPermanent:
 		l.answer(key, answer{err: err})
 		r.fail(wrapped)
@@ -118,7 +121,7 @@ func (r *run) lead(ev dispatch.Event, pos int, start time.Time, key string, l *l
 			r.fail(wrapped)
 			return
 		}
-		inf := r.inference(ev, start, OutcomeFailed, usage)
+		inf := r.inference(in, start, OutcomeFailed, usage)
 		inf.Reason = failureText(err)
 		r.send(inferenceEvent{inf: inf, requests: requests, usage: usage, pos: pos, last: true})
 	default:
@@ -147,7 +150,7 @@ func heldReply(resp *protocol.Response) Held {
 		if d := resp.IncompleteDetails; d != nil && d.Reason != "" {
 			h.Incomplete = string(d.Reason)
 		}
-		return h
+		return trimLoop(h)
 	}
 	if text == "" {
 		if refusal := refusalText(resp); refusal != "" {
@@ -173,17 +176,18 @@ func refusalText(resp *protocol.Response) string {
 	return b.String()
 }
 
-func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, held bool, requests int, usage Usage) {
+func (r *run) described(in Input, pos int, start time.Time, h Held, held bool, requests int, usage Usage) {
+	ev := in.Event
 	var inf *Inference
 	switch {
 	case h.Refused != "":
-		inf = r.inference(ev, start, OutcomeRefused, usage)
+		inf = r.inference(in, start, OutcomeRefused, usage)
 		inf.Reason = h.Refused
 	case h.Incomplete != "":
-		inf = r.inference(ev, start, OutcomeIncomplete, usage)
+		inf = r.inference(in, start, OutcomeIncomplete, usage)
 		inf.Reason = h.Incomplete
 	default:
-		inf = r.inference(ev, start, OutcomeDescribed, usage)
+		inf = r.inference(in, start, OutcomeDescribed, usage)
 	}
 	inf.Held = held
 	if inf.Outcome == OutcomeRefused {
@@ -199,7 +203,7 @@ func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, hel
 	st := &inputState{
 		part:   ev.Part,
 		pos:    pos,
-		source: Source{Kind: sourceVision, SHA256: textSHA, Incomplete: h.Incomplete, Stage: &stage, Output: new(*ev.Output)},
+		source: Source{Kind: sourceVision, Origin: in.Origin, SHA256: textSHA, Incomplete: h.Incomplete, Stage: &stage, Output: new(*ev.Output)},
 	}
 	b, err := marshal(st.part)
 	if err != nil {
@@ -213,10 +217,12 @@ func (r *run) described(ev dispatch.Event, pos int, start time.Time, h Held, hel
 	r.embed(st, h.Text)
 }
 
-func (r *run) inference(ev dispatch.Event, start time.Time, outcome Outcome, usage Usage) *Inference {
+func (r *run) inference(in Input, start time.Time, outcome Outcome, usage Usage) *Inference {
+	ev := in.Event
 	return &Inference{
 		Capability:    CapabilityVision,
 		Part:          ev.Part.ID,
+		Origin:        in.Origin,
 		ContentSHA256: []string{ev.Output.SHA256},
 		Outcome:       outcome,
 		Usage:         usage,

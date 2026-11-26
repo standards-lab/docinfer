@@ -83,6 +83,7 @@ type Nodes struct {
 	VisionClient        *graph.Node[*ai.Client]
 	TranscriptionClient *graph.Node[*ai.Client]
 	EmbeddingsClient    *graph.Node[*ai.Client]
+	TokenizerClient     *graph.Node[*ai.Client]
 	RunConfig           *graph.Node[run.Config]
 }
 

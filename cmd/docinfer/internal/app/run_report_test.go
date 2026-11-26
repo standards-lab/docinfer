@@ -31,7 +31,7 @@ func textRun(t *testing.T, docproc string, texts ...string) {
 }
 
 func TestRun_ReportAfterAnEndedRun(t *testing.T) {
-	e := aitest.Serve(t, aitest.Routes{Models: listed, Embeddings: unitVectors})
+	e := aitest.Serve(t, aitest.Routes{Models: listed, Embeddings: unitVectors, Tokenize: wordTokens})
 	root := t.TempDir()
 	docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
 	textRun(t, docproc, "alpha text")
@@ -57,7 +57,8 @@ func TestRun_ReportAfterAnEndedRun(t *testing.T) {
 func TestRun_CancelledRendersNoReport(t *testing.T) {
 	var gate aitest.Gate
 	e := aitest.Serve(t, aitest.Routes{
-		Models: listed,
+		Models:   listed,
+		Tokenize: wordTokens,
 		Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 			if err := gate.Wait(ctx); err != nil {
 				return aitest.ErrorReply{Status: http.StatusServiceUnavailable, Message: "cancelled"}
@@ -98,7 +99,8 @@ func TestRun_FailedReportKeepsTheRun(t *testing.T) {
 	}
 	var gate aitest.Gate
 	e := aitest.Serve(t, aitest.Routes{
-		Models: listed,
+		Models:   listed,
+		Tokenize: wordTokens,
 		Embeddings: func(ctx context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 			if err := gate.Wait(ctx); err != nil {
 				return aitest.ErrorReply{Status: http.StatusServiceUnavailable, Message: "cancelled"}

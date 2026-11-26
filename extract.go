@@ -54,6 +54,7 @@ func extractRequest(x *Extraction, e Extract, text string) *protocol.Request {
 		Text:            protocol.TextParam{Format: protocol.JSONSchemaFormat{Name: e.Name, Schema: e.Schema, Strict: true}},
 		Reasoning:       protocol.ReasoningParam{Effort: x.Reasoning},
 		MaxOutputTokens: x.MaxTokens,
+		Native:          x.Native,
 	}
 }
 
@@ -227,6 +228,7 @@ func (r *run) extraction(st *inputState, start time.Time, outcome Outcome, usage
 	return &Inference{
 		Capability:    CapabilityExtraction,
 		Part:          st.part.ID,
+		Origin:        st.source.Origin,
 		ContentSHA256: []string{st.textSHA()},
 		Outcome:       outcome,
 		Usage:         usage,

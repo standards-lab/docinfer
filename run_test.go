@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docinfer/chunk"
@@ -29,15 +30,18 @@ import (
 )
 
 const (
-	embeddingModel = "embedding-model"
-	dimensions     = 2
+	embeddingModel  = "embedding-model"
+	embeddingServed = "org/embedding-1"
+	dimensions      = 2
 )
 
-var embeddingID = docinfer.Embeddings{Model: embeddingModel}.Identity()
+var embeddingID = docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: embeddingServed}
 
 func vectorOf(text string) []float32 {
 	return []float32{float32(len(text)), float32(strings.Count(text, " "))}
 }
+
+func runes(_ context.Context, text string) (int, error) { return utf8.RuneCountInString(text), nil }
 
 func embedAll(_ context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 	vectors := make([][]float32, len(req.Input))
@@ -50,8 +54,8 @@ func embedAll(_ context.Context, req aitest.EmbeddingRequest) aitest.Reply {
 func runConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)) docinfer.Config {
 	t.Helper()
 	cfg := docinfer.Config{
-		Embeddings: docinfer.Embeddings{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: embeddingModel},
-		Chunker:    chunk.Splitter{Bound: 40},
+		Embeddings: docinfer.Embeddings{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: embeddingModel, Served: embeddingServed},
+		Chunker:    chunk.Splitter{Bound: 40, Runes: 1 << 20, Count: runes, Model: embeddingServed},
 		Dimensions: dimensions,
 		Cache:      docinfer.NewMemoryCache(),
 		Bounds:     newBounds(t, 1, 1, 1, 4),
@@ -375,7 +379,7 @@ func TestRunEmbedsTextMarkdownAndMetadata(t *testing.T) {
 		kind, text string
 		in         docinfer.Input
 	}{{"output", plainText, inputs[0]}, {"output", markdown, inputs[1]}, {"metadata", inputs[5].Metadata, inputs[5]}} {
-		pieces, err := cfg.Chunker.Split(in.text)
+		pieces, err := cfg.Chunker.Split(t.Context(), in.text)
 		if err != nil {
 			t.Fatal(err)
 		}

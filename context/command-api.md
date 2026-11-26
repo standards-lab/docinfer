@@ -37,16 +37,34 @@ The configuration ships the operator's starting values, which the library leaves
 endpoints.<name>     base_url; format: completions, messages, or responses; profile, the format's
                        Options, decoded as tools/infer's formatOptions is (C6); query; retry
                        {max_attempts 3, base_delay 500ms, max_delay 30s} (C6);
-                       response_header_timeout 180s, above vision's slowest observed image,
-                       38.9 s, and no stream timeout, the command running no extraction (C9);
+                       response_header_timeout 180s, and 600s on the endpoint vision names,
+                       shared or not, since a non-streaming reply's header waits for the whole
+                       reply, up to vision's max_tokens, and no stream timeout, the command
+                       running no extraction (C9);
                        token and headers in the secrets file (C6)
-vision               endpoint, model, prompt, max_tokens 2048, reasoning none (a
-                       protocol.ReasoningEffort, refused by its UnmarshalText, C7), concurrency 4
-transcription        endpoint, model, prompt, language, mode route (the start) or chat, set on
-                       this capability's own client as ai.TranscribeRoute or ai.TranscribeChat,
-                       chat for an endpoint with no transcription route and refused without the
-                       completions format (C6), words_per_second 8, concurrency 4
-embeddings           endpoint, model, dimensions, batch 16, chunk_size 2000, concurrency 4
+vision               endpoint, model, served_model, prompt, max_tokens 2048, reasoning none (a
+                       protocol.ReasoningEffort, refused by its UnmarshalText, C7), native
+                       {"temperature":1.0,"top_p":0.95,"top_k":64}, Gemma 4's card sampling
+                       sent explicitly so it is keyed, replaced whole when set, {} sending none,
+                       max_pixels 2580480, the vision row's Gemma 4 budget at 1,120 soft
+                       tokens (1,120 × 9 patches × 16² px, aspect kept), a larger PNG or JPEG
+                       downscaled to it, 0 sending every image as it is, a negative one
+                       refused, concurrency 4
+transcription        endpoint, model, served_model, prompt, language, mode route (the start) or
+                       chat, set on this capability's own client as ai.TranscribeRoute or
+                       ai.TranscribeChat, chat for an endpoint with no transcription route and
+                       refused without the completions format (C6), max_tokens 512 in chat
+                       mode and 0, sending none, in route mode, a nonzero one refused there,
+                       native {"temperature":0} in chat mode and none in route mode, replaced
+                       whole when set, {} sending none, a non-empty one refused in route
+                       mode, words_per_second 8, concurrency 4
+embeddings           endpoint, model, served_model, dimensions, input_types (required, no
+                       starting value), tokenizer (required, no starting value; it must front
+                       the embeddings' deployment, which no listing checks, since the chunker's
+                       identity names the embeddings' served model), batch 16,
+                       chunk_size 480 tokens, chunk_runes 8192 characters (vLLM's 16 a token
+                       at max_model_len 512), each with the document prefix, the chunker's
+                       Runes chunk_runes less the prefix's characters, concurrency 4
 run                  pending 16, batch_bytes 524288
 ```
 
@@ -148,5 +166,6 @@ The tag, the module it versions, and the task of v1.ai.inference that releases i
 | Tag | Module | Task | Requires |
 | --- | --- | --- | --- |
 | `cmd/docinfer/v0.1.0` | `cmd/docinfer` | docinfer | the base module and docproc, go-ai, go-cli-sdk, and go-core at their latest |
+| `cmd/docinfer/v0.2.0` | `cmd/docinfer` | acceptance | docinfer v0.3.0 and go-ai v0.5.0 |
 
 `cmd/docinfer`'s first CHANGELOG entry links spike-ai-pipeline 6a631f1.

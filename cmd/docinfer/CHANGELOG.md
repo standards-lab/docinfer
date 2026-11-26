@@ -10,10 +10,98 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+### Added
+
+- `served_model` on each capability, `vision`, `transcription`, and `embeddings`: the model the
+  deployment serves under the capability's `model`, which keys its results. `run` takes the served
+  model from the model listing's entry for `model`, its `root`, as vLLM lists it, or else from
+  `served_model`, which has no starting value. A `served_model` the listing's `root` disagrees
+  with, or a capability with neither, stops the run before it reads docproc's run, naming the
+  capability, both values, and the `served_model` to set.
+- `embeddings.input_types`, the embedding model's input-type conventions, go-ai's
+  `EmbeddingProfile` `input_types` object, such as multilingual-e5's
+  `{"document":{"prefix":"passage: "},"query":{"prefix":"query: "}}`, set on the embeddings
+  client, which sends every chunk as a document; `{}` declares none.
+- `embeddings.tokenizer`, the endpoint whose tokenize route counts a chunk's tokens, built as its
+  own client with the embeddings' `input_types`, so a document's count takes its prefix: through a
+  gateway the embeddings' own endpoint, straight to vLLM an endpoint whose `base_url` is the
+  server's root, such as `http://framework-2:8003`. It must front the same deployment as the
+  embeddings' endpoint: the chunker's identity names the embeddings' served model, and nothing
+  checks the tokenizer's, since a vLLM server's root has no model listing.
+- `vision.native`, a JSON object of members the endpoint defines, sent in every vision request
+  and keyed into vision's identity, starting at Gemma 4's card sampling,
+  `{"temperature":1.0,"top_p":0.95,"top_k":64}`, sent explicitly so it is keyed. A configured
+  `vision.native` replaces it whole, and `{}` sends no native member, vision's identity then
+  carrying none. One that isn't a JSON object with unique member names fails the configuration.
+- The manifest's capabilities gain `request_model`, the model the requests named, beside the
+  identity's `model`, now the served model.
+- `embeddings.chunk_runes`, override `DOCINFER_EMBEDDINGS_CHUNK_RUNES`: the most characters,
+  Unicode code points, an embedded input holds, its document prefix included, starting at 8,192,
+  the length vLLM refuses an input over, before tokenizing it, at a `max_model_len` of 512. The
+  chunker's `Runes` is `chunk_runes` less the document prefix's characters, 8,183 under e5's
+  `"passage: "`; a `chunk_runes` below 1, or not over the prefix's characters, fails the
+  configuration's Build before docproc's run is read.
+- `transcription.max_tokens`, override `DOCINFER_TRANSCRIPTION_MAX_TOKENS`: the most tokens a
+  chat-mode transcription reply takes, sent as the request's `MaxOutputTokens` and keyed into
+  transcription's identity, starting at 512 in chat mode and at 0, sending none, in route mode. A
+  window cut off at it is recorded incomplete, reason `max_output_tokens`, its partial text joined
+  into the transcript, or trimmed before a loop, reason `repetition`. A nonzero
+  `max_tokens` in route mode, which has no field for it, or a negative one, fails the
+  configuration's Build before docproc's run is read, naming the fix: `max_tokens` 0, or `mode`
+  chat.
+- `transcription.native`, override `DOCINFER_TRANSCRIPTION_NATIVE`: a JSON object of members the
+  endpoint defines, sent in every chat-mode transcription request and keyed into transcription's
+  identity, starting at `{"temperature":0}` in chat mode, so a window's transcript is the same on
+  every run, and at none in route mode. A configured `transcription.native` replaces it whole, and
+  `{}` sends no native member, transcription's identity then carrying none. One that isn't a JSON
+  object with unique member names, or a non-empty one in route mode, which sends no JSON body,
+  fails the configuration's Build before docproc's run is read, naming the fix: `native` `{}`, or
+  `mode` chat.
+- `vision.max_pixels`, override `DOCINFER_VISION_MAX_PIXELS`: the most pixels, width × height, an
+  image is sent at, wired to `docinfer.Vision.MaxPixels` and keyed into vision's identity. A
+  larger PNG or JPEG is downscaled to it, its aspect ratio kept, and re-encoded in its own format;
+  any other image goes as it is. It starts at 2,580,480, the vision row's Gemma 4 budget at 1,120
+  soft tokens (1,120 × 9 patches × 16² px): Gemma 4's processor resizes every image, aspect kept,
+  to at most that, so more is wasted transfer and server decode. 0 sends every image as it is; a
+  negative one fails the configuration's Build before docproc's run is read.
+
 ### Changed
 
-- The module requires docproc v0.4.2, a patch that moves the default LibreOffice and FFmpeg
-  images, with its exported API unchanged.
+- **Breaking:** `embeddings.input_types` and `embeddings.tokenizer` are required, with no
+  starting value; a configuration without them fails its Build before docproc's run is read.
+- **Breaking:** `embeddings.chunk_size` is in tokens, as the tokenizer counts them, its document
+  prefix included, starting at 480, in place of 2,000 characters.
+- Transcription's identity settings gain `"max_tokens"`, and `"native"` when one is sent, and its
+  request version is "3", so every transcript held before misses and is transcribed again, a
+  window held incomplete with no text among them.
+- A vision reply that loops to `max_tokens`, a line, a sentence, or a short cycle repeated to the
+  bound, is trimmed to before the repeat and recorded incomplete, reason `repetition`, in place of
+  `max_output_tokens` and the whole looping text.
+- Vision's request version is "2" and its identity settings gain `"max_pixels"`, so every image
+  description held before misses and is described again.
+- The manifest's `space.chunker`, the chunker's settings, gains `"runes"`, so chunk spans held
+  under the former settings miss and are recut.
+- The module requires docproc v0.9.0, docproc's release before the capstone; docinfer's use of
+  its API is unchanged, and it reads run directories docproc v0.4 wrote as before.
+- The endpoint `vision.endpoint` names starts its `response_header_timeout` at 600s, every other
+  endpoint keeping 180s, since a non-streaming reply's header waits for the whole reply, up to
+  vision's `max_tokens`; an endpoint vision shares with another capability takes vision's start,
+  and a configured value still replaces it.
+
+### Fixed
+
+- A text of long white-space runs, such as a multi-column PDF's layout extraction, gave chunks
+  within `chunk_size`'s tokens but tens of thousands of characters, which vLLM refused with a 400
+  before tokenizing them, recorded as refusals; `chunk_runes` now bounds them.
+- `run` transcribed only the first audio or video input of a docproc run: every input's own part
+  is `/`, so the library grouped all their windows as one and dropped the later inputs' windows
+  uncounted, the run ending 0. `run` names each line's input to the library as its `Origin`, so
+  each input's windows join into its own transcript, and the transcription line counts the windows
+  placed in no transcript, `unplaced`, after `failed`.
+- A part two inputs share, such as a section two OneNote files both hold, had its chunk and
+  inference lines named by whichever of the inputs had been fed last when each result arrived, so
+  a rerun could name some differently. Each line now names the input whose results it holds, the
+  `Origin` the library echoes on each inference and source, whatever order the results arrive in.
 
 ## [v0.1.0] - 2026-11-23
 

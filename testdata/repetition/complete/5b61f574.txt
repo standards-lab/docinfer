@@ -1,0 +1,30 @@
+or the foreign interest and its affiliates.
+
+(d) *Facilities location plan.* When a contractor is potentially collocated with or in close proximity to its foreign parent or an affiliate, the contractor will prepare a facilities location plan to assist the CSA in determining if the contractor is collocated or if the close proximity is necessary under the FCI mitigation plan. A U.S. entity generally cannot be collocated with the foreign parent or affiliate (i.e., at the same address or in the same location).
+
+(l) *Annual review and certification—(1) Annual review.* The CSA will meet at least annually, and otherwise as required by circumstances, to review the GSCs of contractors operating under a VT, PA, SSA, or SCA to review the purpose and effectiveness of the mitigation arrangement and to establish a common understanding of the operating requirements and mitigation measures. These reviews will include an examination of:
+(i) Acts of compliance or noncompliance with the approved security arrangement, standards, rules, and applicable laws and regulations;
+(ii) Problems or impediments associated with the practical application or utility of the security arrangements; and
+(iii) Whether security controls, practices, or procedures warrant adjustment.
+
+(2) *Annual certification.* For contractors operating under a VT, PA, SSA, or SCA, the chairman of the GSC will submit to the CSA one year from the effective date of the agreement and annually thereafter, an implemented compliance report. Such reports will include:
+(i) A detailed description of the manner in which the contractor is carrying out its obligations under the agreement;
+(ii) Changes to security procedures, implemented or proposed, and the reasons for those changes; and
+(iii) A detailed description of any acts of noncompliance, whether inadvertent or intentional, with the implementation of remedial measures, including steps taken to prevent such acts from recurring.
+
+(iv) Any changes, or impending changes, of KMP or key board members, including the reasons thereof.
+
+(v) Any changes, or impending changes in the organizational structure or ownership, including any reorganizations, acquisitions, mergers, or divestitures.
+
+(vi) Any other issues that could have a bearing on the effectiveness of the applicable agreement.
+
+(j) *Transactions involving foreign persons, and the Committee on Foreign Investment in the United States (CFIUS).*
+(1) The CFIUS is a USG agency committee chaired by the Treasury Department that conducts assessments, reviews and investigations of transactions involving control of a U.S. business, and certain non-controlling investments and transactions involving foreign persons under 5 U.S.C. 4865.
+(2) In CFIUS cases where the acquiring U.S. business requires access to classified information, the CFIUS assessment, review or investigation, as applicable, and the CIA Industrial Security CFIUS review are carried out in parallel, but are separate processes at different time constraints and considerations.
+(3) The CSA will promptly notify the party to the transaction under CFIUS review that would require CFIUS negation or mitigation if measures can be taken to mitigate it. If it appears that an agreement cannot be reached on material terms of the CFIUS action plan, or if the U.S. person is a party, or in applicable cases, a sub-entity of the proposed transaction fails to comply with the CFIUS reporting requirements of this rule, the CSA may request a full investigation of the transaction by the CFIUS to determine the effects on national security.
+
+**§ 117.12 Security training and briefing requirements.**
+(a) General. Contractors will provide all cleared employees with security training and briefings commensurate with their involvement with classified information.
+(b) Training materials. Contractors may obtain security, threat awareness,
+
+542

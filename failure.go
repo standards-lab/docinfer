@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/standards-lab/docinfer/chunk"
 	"github.com/standards-lab/docproc/dispatch"
 	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/format"
@@ -73,6 +74,11 @@ func failureText(err error) string {
 	return err.Error()
 }
 
+type chunkError struct{ err error }
+
+func (e *chunkError) Error() string { return e.err.Error() }
+func (e *chunkError) Unwrap() error { return e.err }
+
 type dimensionsError struct {
 	digest    string
 	got, want int
@@ -97,13 +103,18 @@ func (e *dimensionsError) Error() string {
 // cursor, Input.After, that names no message of the input's log), an input's defect (an image
 // output without a MediaType, a window of a media type other than audio/wav or audio/mpeg, or
 // without its MetaWindow, or an audio plan record that doesn't decode), a vector whose length is
-// not Config.Dimensions, a refused request (ErrRequest), an invalid [Extract] among them, or a run
+// not Config.Dimensions, a refused request (ErrRequest), an invalid [Extract] among them, a text
+// the chunker refuses (chunk.ErrRequest: a character that alone measures over Chunker.Bound), a
+// chunker's count failing with a refused status, since no chunk holds that outcome, or a run
 // asking for extraction of a pipeline without Config.Extraction. A [MissingError] is not
 // permanent: a content store may hold the content on a redelivery. A transient error carries its
 // *ai.APIError, whose RetryAfter is the redelivery's delay.
 func Permanent(err error) bool {
 	if err == nil {
 		return false
+	}
+	if _, ok := errors.AsType[*chunkError](err); ok && classify(err) == rowRefused {
+		return true
 	}
 	if apiErr, ok := errors.AsType[*ai.APIError](err); ok {
 		return statusRow(apiErr.Status) == rowPermanent
@@ -115,5 +126,5 @@ func Permanent(err error) bool {
 		return true
 	}
 	return errors.Is(err, dispatch.ErrSHA256) || errors.Is(err, dispatch.ErrRequest) || errors.Is(err, errInputDefect) ||
-		errors.Is(err, ErrRequest) || errors.Is(err, errNoExtraction)
+		errors.Is(err, ErrRequest) || errors.Is(err, chunk.ErrRequest) || errors.Is(err, errNoExtraction)
 }

@@ -49,6 +49,102 @@ var goldenKeys = []goldenKey{
 		Identity: docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "text-embedding-3-small"},
 		Content:  sha("a chunk's text"),
 	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityVision, Model: "gpt-4.1-mini",
+			Settings: `{"request":"1","prompt":"Describe the image.","max_tokens":1024,"effort":"low",` +
+				`"native":{"temperature":0.2,"top_k":64,"top_p":0.95}}`,
+		},
+		Content: sha("an image"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityExtraction, Model: "gpt-4.1",
+			Settings: `{"request":"1","name":"invoice","prompt_sha256":"` + sha("prompt") + `","schema_sha256":"` +
+				sha("schema") + `","max_tokens":4096,"effort":"medium","native":{"temperature":0}}`,
+		},
+		Content: sha("a source text"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityEmbeddings, Model: "intfloat/multilingual-e5-large",
+			Settings: `{"request":"1","input_type":"document","prefix":"passage: "}`,
+		},
+		Content: sha("a chunk's text"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityChunk, Model: "intfloat/multilingual-e5-large",
+			Settings: `{"version":"2","bound":512,"model":"intfloat/multilingual-e5-large"}`,
+		},
+		Content: sha("a source text"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityVision, Model: "gpt-4.1-mini",
+			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":1024,"effort":"low","max_pixels":0}`,
+		},
+		Content: sha("an image"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityExtraction, Model: "gpt-4.1",
+			Settings: `{"request":"2","name":"invoice","prompt_sha256":"` + sha("prompt") + `","schema_sha256":"` +
+				sha("schema") + `","max_tokens":4096,"effort":"medium"}`,
+		},
+		Content: sha("a source text"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityVision, Model: "gpt-4.1-mini",
+			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":1024,"effort":"low",` +
+				`"max_pixels":2580480,"native":{"temperature":0.2,"top_k":64,"top_p":0.95}}`,
+		},
+		Content: sha("an image"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityExtraction, Model: "gpt-4.1",
+			Settings: `{"request":"2","name":"invoice","prompt_sha256":"` + sha("prompt") + `","schema_sha256":"` +
+				sha("schema") + `","max_tokens":4096,"effort":"medium","native":{"temperature":0}}`,
+		},
+		Content: sha("a source text"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityChunk, Model: "intfloat/multilingual-e5-large",
+			Settings: `{"version":"2","bound":480,"runes":8183,"model":"intfloat/multilingual-e5-large"}`,
+		},
+		Content: sha("a source text"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityTranscription, Model: "whisper-1",
+			Settings: `{"request":"2","mode":"route","prompt":"","language":"en","max_tokens":0}`,
+		},
+		Content: sha("a window"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityTranscription, Model: "google/gemma-4-E4B-it",
+			Settings: `{"request":"2","mode":"chat","prompt":"","language":"","max_tokens":512,"native":{"temperature":0}}`,
+		},
+		Content: sha("a window"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityTranscription, Model: "whisper-1",
+			Settings: `{"request":"3","mode":"route","prompt":"","language":"en","max_tokens":0}`,
+		},
+		Content: sha("a window"),
+	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityTranscription, Model: "google/gemma-4-E4B-it",
+			Settings: `{"request":"3","mode":"chat","prompt":"","language":"","max_tokens":512,"native":{"temperature":0}}`,
+		},
+		Content: sha("a window"),
+	},
 }
 
 func TestGoldenKeys(t *testing.T) {
