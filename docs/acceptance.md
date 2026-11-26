@@ -328,3 +328,14 @@ carry no `digest`, so lines only); its lines match the findings' "Texts and chun
 | Rerun's requests | no inference or tokenize request, the model listing aside | run 7: 0 in every capability (`run-7.log`); across run 8, `framework-2:8003`'s `http_requests_total` for `/tokenize` and `/v1/embeddings`, and the audio and vision rows' `vllm:request_success_total`, unchanged (`~/runs/docinfer/logs/run-8-counters.txt`, before and after) |
 | Rerun's chunk lines | identical, `input` included | identical as a set, byte for byte, `input` included: runs 6, 7, and 8's sorted lines all hash to sha256 `71be448e…` (`cmp <(sort A) <(sort B)`); the file order differs, as inputs finish concurrently and an input's metadata and output lines interleave differently |
 | Time | recorded, not gated | run 7 2.1 s, run 8 2.1 s |
+
+### The shipping code, run 9
+
+After the BRIEF redirect (a capped window's tokens counted: go-ai `9742456`, docinfer `b8c4cf2`)
+and escalation 10 (docproc v0.4.2 → v0.9.0, `10847ec`; claude-plugins 0.24.1), the binary was
+rebuilt from docinfer `10847ec` and go-ai `88f1caf` and run once more into `acceptance-2`:
+
+| Check | Result |
+|---|---|
+| Rerun (run 9) | exit 0 in 2 s; 0 requests in every capability; the rows' counters unchanged (`~/runs/docinfer/logs/run-9-counters-before.txt`, `-after.txt`); sorted chunk lines hash to `71be448e…`, run 6's, so docproc v0.9.0 reads docproc v0.4's run directory as before |
+| `TestCLI_RunAndReport` on the rows | passes (`~/runs/docinfer/logs/cli-test-docproc-v0.9.0.log`) |
