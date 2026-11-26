@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"maps"
 	"math/rand/v2"
 	"net/http"
 	"os"
@@ -154,13 +155,7 @@ func draw(record iter.Seq2[schema.Event, error], n, maxWindows int, seed uint64)
 		}
 	}
 	all := make([]audioInput, 0, len(by))
-	for _, k := range slices.Sorted(func(yield func(string) bool) {
-		for k := range by {
-			if !yield(k) {
-				return
-			}
-		}
-	}) {
+	for _, k := range slices.Sorted(maps.Keys(by)) {
 		all = append(all, *by[k])
 	}
 	shuffled := slices.Clone(all)
@@ -480,9 +475,7 @@ func (t *recording) RoundTrip(req *http.Request) (*http.Response, error) {
 		return resp, rerr
 	}
 	t.cap.put(sha, func(r *reply) {
-		r.attempts++
-		r.latency = time.Since(start)
-		*r = reply{attempts: r.attempts, latency: r.latency}
+		*r = reply{attempts: r.attempts + 1, latency: time.Since(start)}
 		switch {
 		case rerr != nil:
 			r.err = "read: " + rerr.Error()

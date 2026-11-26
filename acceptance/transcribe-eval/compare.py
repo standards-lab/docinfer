@@ -7,6 +7,7 @@ TEXTS/<label>/<sha>.txt (docinfer's text, empty unless transcribed) and <sha>.re
 reply, kept for an incomplete window too).
 """
 
+import collections
 import json
 import os
 import statistics
@@ -15,7 +16,7 @@ import sys
 
 def load(path, label):
     run = None
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             d = json.loads(line)
             if d.get("label") == label:
@@ -55,10 +56,8 @@ def summary(run):
               f"over 512: {sum(t > 512 for t in toks)}")
     if lat:
         print(f"  latency s: median {statistics.median(lat):.1f}, p95 {lat[int(0.95 * (len(lat) - 1))]:.1f}, max {lat[-1]:.1f}")
-    finishes = {}
-    for w in ws:
-        finishes[w.get("finish_reason") or w["outcome"]] = finishes.get(w.get("finish_reason") or w["outcome"], 0) + 1
-    print(f"  finish reasons: {finishes}")
+    finishes = collections.Counter(w.get("finish_reason") or w["outcome"] for w in ws)
+    print(f"  finish reasons: {dict(finishes)}")
     if run.get("run_error"):
         print(f"  run error: {run['run_error']}")
 
@@ -72,11 +71,11 @@ def main():
     summary(b)
     wa, wb = by_sha(a), by_sha(b)
     shared = sorted(set(wa) & set(wb))
-    tally = {}
+    tally = collections.Counter()
     examples = {}
 
     def note(k, sha):
-        tally[k] = tally.get(k, 0) + 1
+        tally[k] += 1
         examples.setdefault(k, sha)
 
     for sha in shared:

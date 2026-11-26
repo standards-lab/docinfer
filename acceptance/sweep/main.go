@@ -28,6 +28,7 @@ import (
 	_ "image/png"
 	"io"
 	"iter"
+	"maps"
 	"math"
 	"math/rand/v2"
 	"net/http"
@@ -319,13 +320,7 @@ func draw(record iter.Seq2[schema.Event, error], n int, seed uint64) ([]dispatch
 			seen[e.Output.SHA256] = e.Event
 		}
 	}
-	shas := slices.Sorted(func(yield func(string) bool) {
-		for s := range seen {
-			if !yield(s) {
-				return
-			}
-		}
-	})
+	shas := slices.Sorted(maps.Keys(seen))
 	rng := rand.New(rand.NewPCG(seed, seed))
 	rng.Shuffle(len(shas), func(i, j int) { shas[i], shas[j] = shas[j], shas[i] })
 	n = min(n, len(shas))
