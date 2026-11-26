@@ -10,6 +10,13 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+## [v0.2.0] - 2026-11-25
+
+This release runs against the live rows: each capability's served model from its listing, e5's
+input types and token chunking within a character bound, vision's card sampling, image bound,
+and header timeout, and chat transcription's reply bound and temperature 0. It requires docinfer
+v0.3.0, go-ai v0.5.0, and docproc v0.9.0.
+
 ### Added
 
 - `served_model` on each capability, `vision`, `transcription`, and `embeddings`: the model the

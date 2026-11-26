@@ -10,8 +10,15 @@ keeps its own.
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-11-25
+
+This release requires docinfer v0.3.0, whose `Held` gains chunk spans, and sqlate's additive
+releases.
+
 ### Changed
 
+- The module requires docinfer v0.3.0; its `Cache` passes docinfertest's suite, chunk spans
+  included.
 - The `sqlate` requirement is v0.8.0 and `sqlate/postgres` v0.9.0, both additive (extension
   management), with nothing to adapt.
 
