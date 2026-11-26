@@ -217,7 +217,8 @@ Observed, not fixed: a capped window's token usage is not counted, as go-ai's
 | docinfer base tier: extraction on the agent row, the transcription route, and chat | `65c99d9` with go-ai `35208a1` | pass |
 | cmd's `TestCLI_RunAndReport` | `65c99d9` with go-ai `35208a1` | pass |
 
-The last three rows ran 2026-11-25 ~20:16, all four rows direct with dummy tokens.
+The last three rows ran 2026-11-25 ~20:16, all four rows direct with dummy tokens
+(`~/runs/docinfer/logs/live-tiers-2026-11-25.log`).
 
 ## The fresh run (runs 3–8)
 
@@ -272,33 +273,58 @@ Vectors and runes from `python3 -I ~/runs/docinfer/tools/check-run.py` over run 
 | Report | renders | `acceptance-2/runs/01a21555-8d4e-78f2-8ecc-b3ed304c70e8/report/index.html` |
 | Covered runes | traced against the spike's 41,299,926 | 35,620,708 over chunk lines, 31,229,662 distinct; traced below |
 | Images | traced against the spike's 3,470 | 2,573 distinct (2,720 lines): the spike's 3,470 − the 898 removed is 2,572, and 1 more, as run 1 read 3,471 to the spike's 3,470 |
-| Windows | traced against the spike's 1,254; each transcribed or counted | 1,212 lines, 1,208 distinct, run 1's count under docproc v0.4.x, against the spike's 1,259 and 1,254 from an earlier docproc run (`01a1b82d…`); no source says why that run windowed more, so the spike's count is traced no further; 1,211 transcribed, 1 incomplete, 0 unplaced |
+| Windows | traced against the spike's 1,254; each transcribed or counted | 1,212 lines, 1,208 distinct, as in run 1, against the spike's 1,259 lines and 1,254 distinct (`counts-1.md`); traced by input [below](#windows-by-input); 1,211 transcribed, 1 incomplete, 0 unplaced |
 | Time | recorded, not gated | run 3 3,524 s (exit 1 at the 180 s header timeout), run 4 ~12 min (stopped), run 5 10,488 s, run 6 743 s; runs 3–5, which described the images, 14,761 s (4.1 h) together, with vision for the generated images paid in runs 3 and 4 |
+
+### Windows by input
+
+Audio window output lines in the spike's docproc record,
+`~/docinfer-finding/docproc/runs/01a1b82d-54aa-73a2-81db-67577e9cb5da/record.jsonl` (1,259), and
+`final`'s (1,212); every other input has the same count in both.
+
+| Input | Spike | `final` |
+|---|---|---|
+| `audio/long/librivox-stella-maberly.m4b` | 645 | 606 |
+| `video/ami-es2002d/ami-es2002d-mix-headset.wav` | 107 | 102 |
+| `video/prelinger-duck-and-cover/duck-and-cover-theora.ogv` | 23 | 21 |
+| `audio/long/ami-es2002a-mix-headset.wav` | 50 | 49 |
+| `onenote/onenote-rs/New Section Group/Open Notebook.onetoc2` | 1 | 0 |
+| `audio/long/earnings21-4330115.mp3` | 96 | 97 |
+| **all inputs** | **1,259** | **1,212** |
+
+docproc's audio stage changed between the two runs (stage config `a4aae033…` to `98dbaf4f…`).
+`final`'s window plan records a 30 s `limit` and a different silence detection: for the
+audiobook, 3,378 silences become 4,365 and the median window 27.7 s becomes 28.4 s, so fewer
+windows. Why docproc changed its windowing is not recorded in either run.
 
 ### Covered runes by kind
 
-Runes over chunk lines. The spike's lines are its "Texts and chunks by kind" table
-(`~/experiments/spike-ai-pipeline/docs/findings/docinfer.md`, 28,937 lines); it publishes no
-runes by kind, so its 41,299,926 is traced only to run 1. Run 1 read the spike's corpus, the
-generated images included.
+Runes over chunk lines. The spike's are summed by `source.kind` over its chunk record,
+`~/docinfer-finding/docinfer-full/runs/01a1b954-a1ac-7147-bcf2-0778352063ef/chunks.jsonl`, the
+run `~/experiments/spike-ai-pipeline/docs/findings/docinfer-results/counts-1.md` names (its lines
+carry no `digest`, so lines only); its lines match the findings' "Texts and chunks by kind" table
+(`docs/findings/docinfer.md`). Run 1 read the spike's corpus, the generated images included.
 
-| Kind | Spike lines | Run 1 lines | Run 1 runes | Run 6 lines | Run 6 runes | Run 1 to run 6 |
+| Kind | Spike lines | Spike runes | Run 1 lines | Run 1 runes | Run 6 lines | Run 6 runes |
 |---|---|---|---|---|---|---|
-| metadata | 592 | 592 | 67,501 | 592 | 67,501 | unchanged |
-| output | 18,485 | 25,422 | 30,708,770 | 25,436 | 30,701,934 | the chunks e5 rejected in run 1, re-split under `chunk_runes` (`f121620`): +14 lines, −6,836 runes; embedding rejections 8 to 0 |
-| transcript | 265 | 8 | 7,948 | 302 | 418,032 | transcripts complete (`137a724`, `6d0c74f`), window 5's trimmed text kept (`d6236ad`) |
-| vision | 9,595 | 8,493 | 6,021,129 | 4,888 | 4,433,241 | the generated images' text removed (4,322 lines, 2,161,782 runes); the rest, 4,171 lines and 3,859,347 runes, rises to 4,888 and 4,433,241 at 1,120 image tokens and the card sampling |
-| **total** | **28,937** | **34,515** | **36,805,348** | **31,218** | **35,620,708** | |
+| metadata | 592 | 194,280 | 592 | 67,501 | 592 | 67,501 |
+| output | 18,485 | 30,597,410 | 25,422 | 30,708,770 | 25,436 | 30,701,934 |
+| transcript | 265 | 411,391 | 8 | 7,948 | 302 | 418,032 |
+| vision | 9,595 | 10,096,845 | 8,493 | 6,021,129 | 4,888 | 4,433,241 |
+| **total** | **28,937** | **41,299,926** | **34,515** | **36,805,348** | **31,218** | **35,620,708** |
 
-From the spike to run 1, 4,494,578 fewer runes over 5,578 more lines: run 1 chunks to 480 tokens
-measured by the row's tokenizer, where the spike cut 2,000-rune chunks (median 1,884 runes), and
-run 1 kept 8 transcript lines to the spike's 265. The share of each cause is not traceable from
-what the spike published.
+| Kind | Spike to run 1 | Run 1 to run 6 |
+|---|---|---|
+| metadata | −126,779: run 1's metadata text is shorter; for `README.md` the spike's names the file, path argument, path, size, mode, modified and created times, route, route reason, and detected MIME type, run 1's only the file name, size, route, and route reason | unchanged |
+| output | +111,360: chunking to 480 tokens by the row's tokenizer, where the spike cut 2,000-rune chunks, adds lines and raises covered runes slightly | the chunks e5 rejected in run 1, re-split under `chunk_runes` (`f121620`): +14 lines, −6,836 runes; embedding rejections 8 to 0 |
+| transcript | −403,443: run 1's grouping defect, 24 of 1,212 windows transcribed ([Run 1](#run-1-and-its-rerun)) | transcripts complete (`137a724`, `6d0c74f`), window 5's trimmed text kept (`d6236ad`) |
+| vision | −4,075,716: a different model, sampling, and image budget, and run 1's trimmed loops | the generated images' text removed (4,322 lines, 2,161,782 runes); the rest, 4,171 lines and 3,859,347 runes, rises to 4,888 and 4,433,241 at 1,120 image tokens and the card sampling |
+| **total** | **−4,494,578** | **−1,184,640** |
 
 ### Behavior 15, on runs 7 and 8
 
 | Criterion | Target | Result |
 |---|---|---|
-| Rerun's requests | no inference or tokenize request, the model listing aside | run 7: 0 in every capability (`run-7.log`); across run 8, `framework-2:8003`'s `http_requests_total` for `/tokenize` and `/v1/embeddings`, and the audio and vision rows' `vllm:request_success_total`, unchanged |
+| Rerun's requests | no inference or tokenize request, the model listing aside | run 7: 0 in every capability (`run-7.log`); across run 8, `framework-2:8003`'s `http_requests_total` for `/tokenize` and `/v1/embeddings`, and the audio and vision rows' `vllm:request_success_total`, unchanged (`~/runs/docinfer/logs/run-8-counters.txt`, before and after) |
 | Rerun's chunk lines | identical, `input` included | identical as a set, byte for byte, `input` included: runs 6, 7, and 8's sorted lines all hash to sha256 `71be448e…` (`cmp <(sort A) <(sort B)`); the file order differs, as inputs finish concurrently and an input's metadata and output lines interleave differently |
 | Time | recorded, not gated | run 7 2.1 s, run 8 2.1 s |
