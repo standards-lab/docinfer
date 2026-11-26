@@ -315,7 +315,7 @@ carry no `digest`, so lines only); its lines match the findings' "Texts and chun
 
 | Kind | Spike to run 1 | Run 1 to run 6 |
 |---|---|---|
-| metadata | −126,779: run 1's metadata text is shorter; for `README.md` the spike's names the file, path argument, path, size, mode, modified and created times, route, route reason, and detected MIME type, run 1's only the file name, size, route, and route reason | unchanged |
+| metadata | −126,779: run 1's metadata text is shorter; for `README.md` the spike's names the file, path argument, path, size, mode, modified and created times, route, route reason, and detected MIME type, run 1's only the file name, size, route, and route reason, by design: `MetadataText` (`run.go`) keeps the part's name, size, and content type and leaves out its path and times, which differ between machines and runs | unchanged |
 | output | +111,360: chunking to 480 tokens by the row's tokenizer, where the spike cut 2,000-rune chunks, adds lines and raises covered runes slightly | the chunks e5 rejected in run 1, re-split under `chunk_runes` (`f121620`): +14 lines, −6,836 runes; embedding rejections 8 to 0 |
 | transcript | −403,443: run 1's grouping defect, 24 of 1,212 windows transcribed ([Run 1](#run-1-and-its-rerun)) | transcripts complete (`137a724`, `6d0c74f`), window 5's trimmed text kept (`d6236ad`) |
 | vision | −4,075,716: a different model, sampling, and image budget, and run 1's trimmed loops | the generated images' text removed (4,322 lines, 2,161,782 runes); the rest, 4,171 lines and 3,859,347 runes, rises to 4,888 and 4,433,241 at 1,120 image tokens and the card sampling |
