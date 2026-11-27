@@ -16,7 +16,8 @@ images paired with a vision text, those with at least N layer words, those of th
 under 0.5, and the pages and distinct images the rule finds; then one line for each page image
 whose vision text opens by describing the image, whether the rule finds it or not; then one line
 per route, sorted by images: the images, those with a vision text, and those whose text opens by
-describing the image, each image counted under the first input the run names it for.
+describing the image, each image counted under the first input the run holds its text for, or
+the first input it names the image for when it holds none.
 """
 
 import collections
