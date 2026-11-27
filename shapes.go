@@ -201,8 +201,8 @@ type Counts struct {
 	Tokens        Tokens               `json:"tokens"`                  // this job's requests only
 }
 
-// VisionCounts counts each image under its outcome; Empty counts those of the Incomplete with no
-// text.
+// VisionCounts counts each image under its outcome, or as Skipped; Empty counts those of the
+// Incomplete with no text.
 type VisionCounts struct {
 	Described  int `json:"described"`
 	Incomplete int `json:"incomplete"`
@@ -211,6 +211,9 @@ type VisionCounts struct {
 	Failed     int `json:"failed"`
 	Held       int `json:"held"`
 	Requests   int `json:"requests"`
+	// Skipped counts the page images sent no request, their page's text layer holding at least
+	// Vision.LayerWords words.
+	Skipped int `json:"skipped"`
 }
 
 // TranscriptionCounts counts each window under its outcome, or as Unplaced, the transcripts

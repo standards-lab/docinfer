@@ -109,7 +109,8 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // batches and extraction; an image's inference, batches, and extraction; for a window, and an audio
 // plan record, its group's transcript inference, that transcript's batches, and its extraction, so
 // neither settles before its group is joined, at the end of the inputs at the latest; and an input
-// that needs no work, a skipped output or a passed-through input, at once, after its echo.
+// that needs no work, a skipped output or a passed-through input, at once, after its echo; a page
+// image that skips vision, once its page's text is read.
 // Settlement is not in pull order: a window waits on its group while a later text settles. A job
 // that stops settles nothing more.
 //
@@ -122,6 +123,14 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // reply is outcome described; one with a refusal and no text, refused, held, its Reason the
 // refusal's text; an incomplete one keeps its text, held, its Reason, and its chunks' Source's
 // Incomplete, why the model stopped.
+//
+// With Vision.LayerWords above 0, a page image skips vision when its page's text layer holds at
+// least LayerWords words. The image is matched to its page's text output: one of the document
+// stage's, the stage docproc names "document", of the image's Origin, part, stage, and
+// dispatch.MetaPage, the last such text of its input pulled before it. A skipped image is sent no
+// request, yields no [Inference], holds nothing, and is counted Skipped in [VisionCounts]; the
+// page's text is chunked, and extracted, as any text output. An image with no such text, one whose
+// text holds fewer words, and one of another stage, are described.
 //
 // A metadata record is a record output of dispatch.MediaOfficeMetadata, dispatch.MediaPDFMetadata,
 // dispatch.MediaMediaMetadata, or dispatch.MediaPictureMetadata; of dispatch.MediaMail whose Meta
@@ -299,6 +308,7 @@ type run struct {
 	inputsEnded bool
 	pulled      int
 	settled     []int
+	layers      map[string]*layer
 }
 
 type event interface{ isEvent() }
@@ -330,6 +340,8 @@ type inferenceEvent struct {
 
 type emptyEvent struct{ st *inputState }
 
+type skipEvent struct{ pos int }
+
 type errEvent struct{ err error }
 
 func (inputEvent) isEvent()     {}
@@ -338,6 +350,7 @@ func (splitEvent) isEvent()     {}
 func (doneEvent) isEvent()      {}
 func (inferenceEvent) isEvent() {}
 func (emptyEvent) isEvent()     {}
+func (skipEvent) isEvent()      {}
 func (errEvent) isEvent()       {}
 
 type inputState struct {
@@ -506,6 +519,10 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			}
 		case emptyEvent:
 			r.finishState(e.st)
+		case skipEvent:
+			r.counts.Vision.Skipped++
+			r.finish()
+			r.settleInput(e.pos)
 		case errEvent:
 			return e.err
 		}
@@ -581,12 +598,26 @@ func (r *run) admit(in Input) error {
 			pos:    pos,
 			source: Source{Kind: sourceOutput, Origin: in.Origin, Stage: &stage, Output: new(*out)},
 		}
-		return r.start(st, func() (string, error) { return r.text(in.Event) })
+		text := func() (string, error) { return r.text(in.Event) }
+		if l := r.pageLayer(in); l != nil {
+			text = func() (string, error) {
+				s, err := r.text(in.Event)
+				if err == nil {
+					l.read(s)
+				}
+				return s, err
+			}
+		}
+		return r.start(st, text)
 	case dispatch.ImageOutput:
 		r.counts.Images++
 		if r.p.cfg.Vision != nil {
 			if out.MediaType == "" {
 				return fmt.Errorf("docinfer: run: image %s of part %s has no media type: %w", out.SHA256, in.Event.Part.ID, errInputDefect)
+			}
+			if l := r.matchLayer(in); l != nil {
+				r.spawn(func() { r.layered(in, pos, l) })
+				return nil
 			}
 			r.spawn(func() { r.describe(in, pos) })
 			return nil

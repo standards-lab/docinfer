@@ -7,10 +7,14 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/standards-lab/docproc/dispatch"
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-const sourceVision = "vision"
+const (
+	sourceVision  = "vision"
+	documentStage = "document"
+)
 
 func (r *run) describe(in Input, pos int) {
 	ev := in.Event
@@ -256,4 +260,72 @@ func (r *run) countVision(e inferenceEvent) {
 
 func layerWords(text string) int {
 	return len(strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }))
+}
+
+type pageKey struct {
+	part  string
+	stage dispatch.Identity
+	page  string
+}
+
+type layer struct {
+	key   pageKey
+	done  chan struct{}
+	words int
+}
+
+func (l *layer) read(text string) {
+	l.words = layerWords(text)
+	close(l.done)
+}
+
+func (r *run) layerKey(in Input) (pageKey, bool) {
+	ev := in.Event
+	if v := r.p.cfg.Vision; v == nil || v.LayerWords == 0 || ev.Stage.Name != documentStage {
+		return pageKey{}, false
+	}
+	page := ev.Output.Meta[dispatch.MetaPage]
+	return pageKey{part: ev.Part.ID, stage: ev.Stage, page: page}, page != ""
+}
+
+func (r *run) pageLayer(in Input) *layer {
+	if in.Event.Output.Kind != dispatch.TextOutput {
+		return nil
+	}
+	key, ok := r.layerKey(in)
+	if !ok {
+		return nil
+	}
+	l := &layer{key: key, done: make(chan struct{})}
+	if r.layers == nil {
+		r.layers = map[string]*layer{}
+	}
+	r.layers[in.Origin] = l
+	return l
+}
+
+func (r *run) matchLayer(in Input) *layer {
+	key, ok := r.layerKey(in)
+	if !ok {
+		return nil
+	}
+	l := r.layers[in.Origin]
+	if l == nil || l.key != key {
+		return nil
+	}
+	delete(r.layers, in.Origin)
+	return l
+}
+
+func (r *run) layered(in Input, pos int, l *layer) {
+	select {
+	case <-l.done:
+	case <-r.ctx.Done():
+		return
+	}
+	if l.words >= r.p.cfg.Vision.LayerWords {
+		r.send(skipEvent{pos})
+		return
+	}
+	r.describe(in, pos)
 }
