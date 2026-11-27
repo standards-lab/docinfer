@@ -59,6 +59,14 @@ func (l *lines) properties(props metadata.Properties) {
 	}
 }
 
+func (l *lines) tags(tags metadata.Properties) {
+	for _, p := range tags {
+		if !strings.EqualFold(p.Key, "encoder") && !strings.EqualFold(p.Key, "encoded_by") {
+			l.add(p.Key, propertyText(p.Value))
+		}
+	}
+}
+
 func renderAs[T any](render func(*lines, T)) func([]byte) (string, error) {
 	return func(content []byte) (string, error) {
 		var record T
@@ -144,14 +152,6 @@ func mediaLines(l *lines, r metadata.Media) {
 	}
 }
 
-func (l *lines) tags(tags metadata.Properties) {
-	for _, p := range tags {
-		if !strings.EqualFold(p.Key, "encoder") && !strings.EqualFold(p.Key, "encoded_by") {
-			l.add(p.Key, propertyText(p.Value))
-		}
-	}
-}
-
 func pictureLines(l *lines, r metadata.Picture) {
 	l.date("capture time", r.CaptureTime)
 	l.add("make", r.Make)
@@ -167,11 +167,11 @@ func messageLines(l *lines, m email.Message) {
 	l.add("to", addressList(m.To))
 	l.add("cc", addressList(m.CC))
 	l.add("bcc", addressList(m.BCC))
-	if !m.SubmitTime.IsZero() {
-		l.date("sent", m.SubmitTime)
-	} else {
-		l.date("sent", m.DeliveryTime)
+	sent := m.SubmitTime
+	if sent.IsZero() {
+		sent = m.DeliveryTime
 	}
+	l.date("sent", sent)
 	l.add("subject", m.Subject)
 }
 
