@@ -14,7 +14,7 @@ the postgres module keep their own.
 
 - `vision.layer_words`, override `DOCINFER_VISION_LAYER_WORDS`: the layer-word threshold, wired
   to `docinfer.Vision.LayerWords`, starting at 100. A PDF page's image skips vision when the
-  page's text layer, the document stage's text output for the page just before it, holds at least
+  page's text layer, the document stage's text output for the page before it, holds at least
   that many words; 0 sends every page image. A negative one fails the configuration's Build,
   before docproc's run is read.
 - `layer_words` on the vision capability's manifest entry, beside its identity and bounds:

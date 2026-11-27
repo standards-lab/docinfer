@@ -170,7 +170,7 @@ type Capability struct {
 // 2,580,480, the vision row's Gemma 4 budget at 1,120 soft tokens (1,120 × 9 patches × 16² px),
 // 0 sending every image as it is; and layer_words, the layer-word threshold, starting at 100: a
 // PDF page's image skips vision when the page's text layer, the document stage's text output for
-// the page just before it, holds at least layer_words words, 0 sending every page image.
+// the page before it, holds at least layer_words words, 0 sending every page image.
 type Vision struct {
 	Capability
 	Prompt     string                   `json:"prompt"`

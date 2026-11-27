@@ -127,10 +127,12 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // With Vision.LayerWords above 0, a page image skips vision when its page's text layer holds at
 // least LayerWords words. The image is matched to its page's text output: one of the document
 // stage's, the stage docproc names "document", of the image's Origin, part, stage, and
-// dispatch.MetaPage, the last such text of its input pulled before it. A skipped image is sent no
-// request, yields no [Inference], holds nothing, and is counted Skipped in [VisionCounts]; the
-// page's text is chunked, and extracted, as any text output. An image with no such text, one whose
-// text holds fewer words, and one of another stage, are described.
+// dispatch.MetaPage, pulled before the image with no event of their part's own, one with neither
+// Output nor Warning set, pulled between them; of several such texts, the last pulled. A text
+// matches one image at most. A skipped image is sent no request, yields no [Inference], holds
+// nothing, and is counted Skipped in [VisionCounts]; the page's text is chunked, and extracted, as
+// any text output. An image with no such text, one whose text holds fewer words, and one of another
+// stage, are described.
 //
 // A metadata record is a record output of dispatch.MediaOfficeMetadata, dispatch.MediaPDFMetadata,
 // dispatch.MediaMediaMetadata, or dispatch.MediaPictureMetadata; of dispatch.MediaMail whose Meta
@@ -308,7 +310,7 @@ type run struct {
 	inputsEnded bool
 	pulled      int
 	settled     []int
-	layers      map[string]*layer
+	layers      map[partKey]map[pageKey]*layer
 }
 
 type event interface{ isEvent() }
@@ -578,6 +580,7 @@ func (r *run) admit(in Input) error {
 	r.pulled++
 	out := in.Event.Output
 	if out == nil {
+		r.releaseLayers(in)
 		if in.Metadata == "" {
 			r.finish()
 			r.settleInput(pos)

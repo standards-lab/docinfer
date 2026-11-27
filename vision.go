@@ -262,14 +262,17 @@ func layerWords(text string) int {
 	return len(strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }))
 }
 
+type partKey struct {
+	origin string
+	part   string
+}
+
 type pageKey struct {
-	part  string
 	stage dispatch.Identity
 	page  string
 }
 
 type layer struct {
-	key   pageKey
 	done  chan struct{}
 	words int
 }
@@ -279,42 +282,54 @@ func (l *layer) read(text string) {
 	close(l.done)
 }
 
-func (r *run) layerKey(in Input) (pageKey, bool) {
+func (r *run) layerKey(in Input) (partKey, pageKey, bool) {
 	ev := in.Event
 	if v := r.p.cfg.Vision; v == nil || v.LayerWords == 0 || ev.Stage.Name != documentStage {
-		return pageKey{}, false
+		return partKey{}, pageKey{}, false
 	}
 	page := ev.Output.Meta[dispatch.MetaPage]
-	return pageKey{part: ev.Part.ID, stage: ev.Stage, page: page}, page != ""
+	return partKey{origin: in.Origin, part: ev.Part.ID}, pageKey{stage: ev.Stage, page: page}, page != ""
 }
 
 func (r *run) pageLayer(in Input) *layer {
 	if in.Event.Output.Kind != dispatch.TextOutput {
 		return nil
 	}
-	key, ok := r.layerKey(in)
+	pk, k, ok := r.layerKey(in)
 	if !ok {
 		return nil
 	}
-	l := &layer{key: key, done: make(chan struct{})}
+	l := &layer{done: make(chan struct{})}
 	if r.layers == nil {
-		r.layers = map[string]*layer{}
+		r.layers = map[partKey]map[pageKey]*layer{}
 	}
-	r.layers[in.Origin] = l
+	if r.layers[pk] == nil {
+		r.layers[pk] = map[pageKey]*layer{}
+	}
+	r.layers[pk][k] = l
 	return l
 }
 
 func (r *run) matchLayer(in Input) *layer {
-	key, ok := r.layerKey(in)
+	pk, k, ok := r.layerKey(in)
 	if !ok {
 		return nil
 	}
-	l := r.layers[in.Origin]
-	if l == nil || l.key != key {
+	l := r.layers[pk][k]
+	if l == nil {
 		return nil
 	}
-	delete(r.layers, in.Origin)
+	delete(r.layers[pk], k)
+	if len(r.layers[pk]) == 0 {
+		delete(r.layers, pk)
+	}
 	return l
+}
+
+func (r *run) releaseLayers(in Input) {
+	if ev := in.Event; ev.Output == nil && ev.Warning == nil {
+		delete(r.layers, partKey{origin: in.Origin, part: ev.Part.ID})
+	}
 }
 
 func (r *run) layered(in Input, pos int, l *layer) {

@@ -44,8 +44,8 @@ type Vision struct {
 	// a negative one.
 	MaxPixels int
 	// LayerWords is the layer-word threshold: a PDF page's image skips vision when the page's text
-	// layer, the text output the document stage emits for the page just before its image, holds at
-	// least LayerWords words, a word being a run of Unicode letters or digits. It isn't part of
+	// layer, the text output the document stage emits for the page before its image, holds at least
+	// LayerWords words, a word being a run of Unicode letters or digits. It isn't part of
 	// [Vision.Identity], so changing it never misses a held description. 0 sends every page image;
 	// [New] refuses a negative one.
 	LayerWords int

@@ -190,6 +190,19 @@ func TestRunSkipsPagesWithALayer(t *testing.T) {
 				layerImage(t, c, "a.pdf", pdfPart, pdfStage, 1), layerImage(t, c, "b.pdf", pdfPart, pdfStage, 1),
 			}
 		}, nil},
+		{"texts before their images", layerThreshold, func(t *testing.T, c *dispatch.MemoryContent) []docinfer.Input {
+			return []docinfer.Input{
+				layerText(t, c, "", pdfPart, pdfStage, 1, aboveLayer), layerText(t, c, "", pdfPart, pdfStage, 2, aboveLayer+" Page two."),
+				layerImage(t, c, "", pdfPart, pdfStage, 1), layerImage(t, c, "", pdfPart, pdfStage, 2),
+			}
+		}, nil},
+		{"an image after its part's own event", layerThreshold, func(t *testing.T, c *dispatch.MemoryContent) []docinfer.Input {
+			return []docinfer.Input{
+				layerText(t, c, "", pdfPart, pdfStage, 1, aboveLayer), layerText(t, c, "", pdfChild, pdfStage, 1, aboveLayer+" Its child."),
+				{Event: dispatch.Event{Part: pdfPart, Stage: pdfStage, Outcome: dispatch.Prepared, Outputs: 1}},
+				layerImage(t, c, "", pdfPart, pdfStage, 1), layerImage(t, c, "", pdfChild, pdfStage, 1),
+			}
+		}, []int{3}},
 		{"an image before its text", layerThreshold, func(t *testing.T, c *dispatch.MemoryContent) []docinfer.Input {
 			return []docinfer.Input{layerImage(t, c, "", pdfPart, pdfStage, 1), layerText(t, c, "", pdfPart, pdfStage, 1, aboveLayer)}
 		}, []int{0}},
@@ -215,6 +228,9 @@ func TestRunSkipsPagesWithALayer(t *testing.T) {
 				var images, texts int
 				var want, skipped []string
 				for i, in := range inputs {
+					if in.Event.Output == nil {
+						continue
+					}
 					switch in.Event.Output.Kind {
 					case dispatch.TextOutput:
 						texts++

@@ -12,21 +12,22 @@ each nested module keeps its own.
 ## [v0.5.0] - 2026-11-27
 
 This release skips vision for a PDF page whose text layer already holds its words: a page image
-whose page's text, the document stage's text output just before it, holds at least
+whose page's text, the document stage's text output for the page pulled before it, holds at least
 `Vision.LayerWords` words is sent no request and counted `Skipped`. It requires docproc v0.10.0
 and go-ai v0.5.0.
 
 ### Added
 
-- `LayerWords` on `Vision`, the layer-word threshold. `Pipeline.Run` matches a page image, an
-  image output of the document stage, the stage docproc names "document", to its page's text
-  output: one of the same stage, `Origin`, part, and `dispatch.MetaPage`, the last such text of
-  its input pulled before the image. When that text holds at least `LayerWords` words, a word
-  being a run of Unicode letters or digits, the image is sent no request, yields no `Inference`,
-  and holds nothing; the page's text is chunked, and extracted, as any text output. An image with
-  no such text, one whose text holds fewer words, and one of another stage are described. 0 sends
-  every page image; `New` refuses a negative `LayerWords`, matching `ErrRequest`. It isn't part of
-  vision's identity, so changing it never misses a held description.
+- `LayerWords` on `Vision`, the layer-word threshold. `Pipeline.Run` matches a page image, an image
+  output of the document stage, the stage docproc names "document", to its page's text output: one
+  of the same stage, `Origin`, part, and `dispatch.MetaPage`, pulled before the image with no event
+  of their part's own, one with neither `Output` nor `Warning` set, pulled between them; of several
+  such texts, the last pulled. A text matches one image at most. When that text holds at least
+  `LayerWords` words, a word being a run of Unicode letters or digits, the image is sent no request,
+  yields no `Inference`, and holds nothing; the page's text is chunked, and extracted, as any text
+  output. An image with no such text, one whose text holds fewer words, and one of another stage are
+  described. 0 sends every page image; `New` refuses a negative `LayerWords`, matching `ErrRequest`.
+  It isn't part of vision's identity, so changing it never misses a held description.
 - `VisionLayerWords` on `Profile`, JSON `vision_layer_words`: vision's `LayerWords`, kept out of
   its identity, omitted when 0 or when vision is unset.
 - `Skipped` on `VisionCounts`, JSON `skipped`: the page images sent no request, their page's text
