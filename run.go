@@ -174,19 +174,19 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 //
 // With Options.Extract set, Run refuses, matching [ErrRequest], an Extract whose prompt is empty or
 // isn't UTF-8, or whose name or schema go-ai's json_schema format refuses, and stops, [Permanent],
-// when the pipeline has no Config.Extraction, each before it reads an input. Each source text but
-// metadata, an input's or a record's, an output's text, an image's description, and a transcript,
-// is then extracted once, unless it is empty: keyed by extraction's Identity for the Extract and
-// the text's SHA-256, read from the cache, or streamed from the model by GenerateStream with the
-// prompt as instructions and the text as the user message, the Extract's name and schema a strict
-// json_schema format, and folded by a protocol.Accumulator. Each text delta is yielded as
-// [Progress] as it streams, at most one a second per source text, each carrying the text since the
-// last; the text a stream ends with unsent is its inference's. A held extraction yields no
-// progress. The folded reply is held before its [Inference] is yielded: a completed one is outcome
-// extracted, its text the reply's JSON, which nothing decodes; an incomplete one keeps its partial
-// text, its Reason why the model stopped; one with a refusal and no text is refused. A stream that
-// breaks part way holds nothing and stops the job, transient, the progress it yielded standing. An
-// input finishes once its chunks are complete and its extraction is in.
+// when the pipeline has no Config.Extraction, each before it reads an input. A metadata text, an
+// input's or a record's, is never extracted. Every other source text, an output's text, an image's
+// description, or a transcript, is then extracted once, unless it is empty: keyed by extraction's
+// Identity for the Extract and the text's SHA-256, read from the cache, or streamed from the model
+// by GenerateStream with the prompt as instructions and the text as the user message, the Extract's
+// name and schema a strict json_schema format, and folded by a protocol.Accumulator. Each text
+// delta is yielded as [Progress] as it streams, at most one a second per source text, each carrying
+// the text since the last; the text a stream ends with unsent is its inference's. A held extraction
+// yields no progress. The folded reply is held before its [Inference] is yielded: a completed one
+// is outcome extracted, its text the reply's JSON, which nothing decodes; an incomplete one keeps
+// its partial text, its Reason why the model stopped; one with a refusal and no text is refused. A
+// stream that breaks part way holds nothing and stops the job, transient, the progress it yielded
+// standing. An input finishes once its chunks are complete and its extraction is in.
 //
 // Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
 // from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything

@@ -11,33 +11,33 @@ each nested module keeps its own.
 
 ## [v0.4.0] - 2026-11-27
 
-This release renders docproc's metadata records as metadata texts: the office, PDF, media, and
-picture metadata records, and the mail message and OneNote page records, are each chunked and
-embedded as a text of its own. It requires docproc v0.10.0 and go-ai v0.5.0.
+This release chunks and embeds docproc's metadata records, each as a metadata text of its own: the
+office, PDF, media, and picture metadata records, and the mail message and OneNote page records.
+It requires docproc v0.10.0 and go-ai v0.5.0.
 
 ### Added
 
-- `Pipeline.Run` takes docproc's office, PDF, media, and picture metadata records, record outputs
-  of `dispatch.MediaOfficeMetadata`, `dispatch.MediaPDFMetadata`, `dispatch.MediaMediaMetadata`,
-  and `dispatch.MediaPictureMetadata`, and its mail message and OneNote page records, record
-  outputs of `dispatch.MediaMail` whose `Meta` holds `dispatch.MetaSubject` and of
-  `dispatch.MediaOneNote` whose `Meta` holds `dispatch.MetaTitle`, as metadata texts. Each is
-  opened by its SHA-256 and decoded as `metadata.Office`, `metadata.PDF`, `metadata.Media`,
-  `metadata.Picture`, `email.Message`, or `onenote.Page`. It is rendered as a "label: value" line
-  per field, a date in RFC 3339 in UTC, and chunked as a source of kind `metadata` whose `Output`
-  is the record output and whose `SHA256` is the rendered text's. It is never extracted, and
-  `Counts.Metadata` counts it.
-- A media record renders its duration and its container's and streams' tags but the tags naming
-  the encoder, container brand, handler, vendor, bit rate, byte or frame counts, or the writing
-  tool; a picture record its capture time, make, model, and GPS position. Neither
+- `Pipeline.Run` renders each metadata record as a metadata text of its own. A metadata record is
+  a record output of `dispatch.MediaOfficeMetadata`, `dispatch.MediaPDFMetadata`,
+  `dispatch.MediaMediaMetadata`, or `dispatch.MediaPictureMetadata`; of `dispatch.MediaMail` whose
+  `Meta` holds `dispatch.MetaSubject`, a message; or of `dispatch.MediaOneNote` whose `Meta` holds
+  `dispatch.MetaTitle`, a page. `Run` opens the record by its SHA-256, decodes it as
+  `metadata.Office`, `metadata.PDF`, `metadata.Media`, `metadata.Picture`, `email.Message`, or
+  `onenote.Page`, and renders a "label: value" line per field, dates in RFC 3339 in UTC. It chunks
+  the text as a source of kind `metadata` whose `Output` is the record output and whose `SHA256`
+  is the rendered text's. The text is never extracted, and `Counts.Metadata` counts it.
+- A media record renders its duration and its container's and streams' tags, except the tags
+  naming the encoder, container brand, handler, vendor, bit rate, byte or frame counts, or the
+  writing tool. A picture record renders its capture time, make, model, and GPS position. Neither
   renders codecs, rates, sizes, orientation, format names, or the EXIF dump.
-- A message renders its sender, its To, CC, and BCC recipients, each its name and its SMTP
-  address, else its address, in angle brackets, its submit time, else its delivery time, as
-  "sent", and its subject; a page its title, author, and creation and modification times. Neither
-  renders a body, transport headers, threading ids, attachments, or media.
-- A mail store's or folder's record, a notebook's, section group's, or section's, and a
-  conversation's pass through. A record that renders no line is no source; one whose content
-  doesn't decode stops the job, `Permanent`.
+- A message renders its sender and its To, CC, and BCC recipients, each as its name and, in angle
+  brackets, its SMTP address or, lacking one, its address; then its submit time, else its delivery
+  time, as "sent"; then its subject. A page renders its title, author, and creation and
+  modification times. Neither renders a body, transport headers, threading ids, attachments, or
+  media.
+- The records of a mail store, folder, or conversation, and of a OneNote notebook, section group,
+  or section, pass through. A record that renders no line yields no source. A record whose content
+  doesn't decode stops the job with an error that `Permanent` reports as permanent.
 
 ### Changed
 
