@@ -109,7 +109,7 @@ ol.chunks li { margin: .4rem 0; }
 <h2>Counts</h2>
 {{- with .Manifest.Counts}}
 <dl class="facts">
-<dt>vision</dt><dd>{{with .Vision}}images {{$.Manifest.Counts.Images}}: described {{.Described}}, incomplete {{.Incomplete}} (empty {{.Empty}}), refused {{.Refused}}, failed {{.Failed}}, held {{.Held}}; requests {{.Requests}}{{else}}<span class="muted">skipped</span>; images {{.Images}}{{end}}</dd>
+<dt>vision</dt><dd>{{with .Vision}}images {{$.Manifest.Counts.Images}}: described {{.Described}}, incomplete {{.Incomplete}} (empty {{.Empty}}), refused {{.Refused}}, failed {{.Failed}}, skipped {{.Skipped}}, held {{.Held}}; requests {{.Requests}}{{else}}<span class="muted">skipped</span>; images {{.Images}}{{end}}</dd>
 <dt>transcription</dt><dd>{{with .Transcription}}windows {{$.Manifest.Counts.Windows}}: transcribed {{.Transcribed}}, incomplete {{.Incomplete}}, refused {{.Refused}}, failed {{.Failed}}, held {{.Held}}; requests {{.Requests}}; transcripts {{.Transcripts}}, seams matched {{.SeamsMatched}}, unmatched {{.SeamsUnmatched}}{{else}}<span class="muted">skipped</span>; windows {{.Windows}}{{end}}</dd>
 <dt>embeddings</dt><dd>texts {{.Texts}}, metadata {{.Metadata}}: embedded {{.Embedded}}, rejected {{.Rejected}}, held {{.Held}}; requests {{.Requests}}</dd>
 </dl>

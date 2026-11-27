@@ -266,5 +266,5 @@ func probeNodes(a *app.App, read func(inv *cli.Invocation)) {
 			read(inv)
 			return nil
 		},
-	}).Use(n.Config, n.HTTPClients, n.VisionClient, n.TranscriptionClient, n.EmbeddingsClient, n.TokenizerClient))
+	}).Use(n.Config, n.HTTPClients, n.VisionClient, n.TranscriptionClient, n.EmbeddingsClient, n.TokenizerClient, n.RunConfig))
 }

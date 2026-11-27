@@ -16,6 +16,7 @@ import (
 	"github.com/standards-lab/go-ai/aitest"
 
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/app"
+	"github.com/standards-lab/docinfer/cmd/docinfer/internal/run"
 )
 
 const unusedURL = "http://127.0.0.1:1/v1"
@@ -43,6 +44,7 @@ type probed struct {
 	transcription *ai.Client
 	embeddings    *ai.Client
 	tokenizer     *ai.Client
+	run           run.Config
 }
 
 func probeConfig(t *testing.T, configJSON string) probed {
@@ -59,6 +61,7 @@ func probeConfig(t *testing.T, configJSON string) probed {
 			transcription: inv.Get(n.TranscriptionClient),
 			embeddings:    inv.Get(n.EmbeddingsClient),
 			tokenizer:     inv.Get(n.TokenizerClient),
+			run:           inv.Get(n.RunConfig),
 		}
 	})
 
@@ -98,6 +101,8 @@ func TestConfig_StartingValues(t *testing.T) {
 	for name, got := range map[string][2]int{
 		"vision max_tokens":              {*v.MaxTokens, 2048},
 		"vision max_pixels":              {*v.MaxPixels, 2580480},
+		"vision layer_words":             {*v.LayerWords, 100},
+		"run config vision LayerWords":   {p.run.Vision.LayerWords, 100},
 		"vision concurrency":             {*v.Concurrency, 4},
 		"transcription words_per_second": {*tr.WordsPerSecond, 8},
 		"transcription max_tokens":       {*tr.MaxTokens, 0},
@@ -183,6 +188,7 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 		"DOCINFER_VISION_SERVED_MODEL":               "org/vision",
 		"DOCINFER_VISION_NATIVE":                     `{"temperature":0}`,
 		"DOCINFER_VISION_MAX_PIXELS":                 "1000",
+		"DOCINFER_VISION_LAYER_WORDS":                "0",
 		"DOCINFER_EMBEDDINGS_BATCH":                  "32",
 		"DOCINFER_EMBEDDINGS_CHUNK_RUNES":            "4096",
 		"DOCINFER_EMBEDDINGS_INPUT_TYPES":            `{"query":{"prefix":"query: "}}`,
@@ -217,6 +223,9 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	}
 	if v := p.cfg.Vision; v == nil || v.ServedModel != "org/vision" || string(v.Native) != `{"temperature":0}` || *v.MaxPixels != 1000 {
 		t.Errorf("vision = %+v, want the overrides' served_model, native, and max_pixels", v)
+	}
+	if v := p.run.Vision; v == nil || v.LayerWords != 0 {
+		t.Errorf("run config vision = %+v, want the override's layer_words 0", v)
 	}
 	if got := p.embeddings.EmbeddingProfile().InputTypes[ai.InputQuery].Prefix; got != "query: " {
 		t.Errorf("embeddings client's query prefix = %q, want the override's", got)
@@ -342,6 +351,8 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "chunk_runes within the prefix", config: withEndpoint(completions, embeddingsWith(`,"input_types":{"document":{"prefix":"passage: "}},"tokenizer":"gb10","chunk_runes":9`)), want: "embeddings: chunk_runes 9 leaves no character beside the document prefix's 9"},
 		{name: "negative max_pixels", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","max_pixels":-1}`), want: "vision: max_pixels -1 is below zero"},
 		{name: "negative max_pixels override", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v"}`), env: map[string]string{"DOCINFER_VISION_MAX_PIXELS": "-5"}, want: "vision: max_pixels -5 is below zero"},
+		{name: "negative layer_words", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","layer_words":-1}`), want: "vision: layer_words -1 is below zero"},
+		{name: "negative layer_words override", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v"}`), env: map[string]string{"DOCINFER_VISION_LAYER_WORDS": "-5"}, want: "vision: layer_words -5 is below zero"},
 		{name: "count below 1", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","concurrency":0}`), want: "vision: concurrency 0 is below 1"},
 		{name: "unknown format", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"grpc"}`, embeddings), want: `endpoints "gb10": format "grpc" is not completions, messages, or responses`},
 		{name: "unknown profile member", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"completions","profile":{"completions":{"bogus":true}}}`, embeddings), want: `endpoints "gb10": profile: `},

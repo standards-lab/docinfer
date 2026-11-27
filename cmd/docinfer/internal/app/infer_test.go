@@ -142,7 +142,7 @@ func TestRun_EndsWithAFailedImageRecorded(t *testing.T) {
 	if !strings.Contains(stdout.String(), "/in/a.pdf  images 2  windows 0  chunks 3  failures 1\n") {
 		t.Errorf("stdout = %q, want a.pdf's progress line", stdout)
 	}
-	if !strings.Contains(stdout.String(), "vision: images 2: described 1, incomplete 0 (empty 0), refused 0, failed 1, held 0; requests 2\n") {
+	if !strings.Contains(stdout.String(), "vision: images 2: described 1, incomplete 0 (empty 0), refused 0, failed 1, skipped 0, held 0; requests 2\n") {
 		t.Errorf("stdout = %q, want vision's counts", stdout)
 	}
 	if want := "docinfer run " + m.Run + ": inputs 2, outputs 3, chunks 3, failures 1\n"; !strings.HasSuffix(stdout.String(), want) {

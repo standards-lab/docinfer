@@ -28,9 +28,11 @@
 // http://localhost:8000, with AI_TOKENIZE_TOKEN and AI_TOKENIZE_HEADER as its credentials, or, with
 // it unset, through the embedding endpoint itself, as a gateway forwards it. The docproc run
 // directory the suite writes holds a short text input, and an image, the base module's
-// integration/testdata/shapes.png, for vision, and an audio window, its phrase.wav, for
+// integration/testdata/shapes.png, for vision, with a scanned PDF page, a document-stage text
+// layer of over 100 words and its page image, and an audio window, its phrase.wav, for
 // transcription. The suite wants run to exit 0 with its run's manifest ended with no error and
-// naming each capability configured, and the report's index, whose path the run prints last; then
-// report over the same directory to exit 0 and print the same path. Each run is bounded by
-// processtest's Failsafe.
+// naming each capability configured, vision's line counting the page image skipped at
+// layer_words' starting value, and the report's index, whose path the run prints last; then report
+// over the same directory to exit 0 and print the same path. Each run is bounded by processtest's
+// Failsafe.
 package integration

@@ -308,6 +308,58 @@ func TestRun_VisionKeysAndAppliesItsMaxPixels(t *testing.T) {
 	}
 }
 
+func TestRun_VisionSkipsAPageImageItsTextLayerCovers(t *testing.T) {
+	words := func(n int) []byte { return []byte(strings.TrimSpace(strings.Repeat("word ", n))) }
+	for _, tt := range []struct {
+		name       string
+		layerWords *int
+		layer      []byte
+		requests   int
+		want       string
+	}{
+		{"unset starts at 100, met", nil, words(100), 0, "described 0, incomplete 0 (empty 0), refused 0, failed 0, skipped 1, held 0; requests 0"},
+		{"unset starts at 100, short of it", nil, words(99), 1, "described 1, incomplete 0 (empty 0), refused 0, failed 0, skipped 0, held 0; requests 1"},
+		{"0 sends every page image", new(0), words(100), 1, "described 1, incomplete 0 (empty 0), refused 0, failed 0, skipped 0, held 0; requests 1"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var asked recorded[aitest.ChatRequest]
+			e := aitest.Serve(t, aitest.Routes{
+				Models:     listed,
+				Embeddings: unitVectors,
+				Tokenize:   wordTokens,
+				ChatCompletions: func(_ context.Context, req aitest.ChatRequest) aitest.Reply {
+					asked.add(req)
+					return aitest.ChatReply{Text: "a scanned page"}
+				},
+			})
+			cfg := inferConfig(e.URL(), true)
+			cfg.Vision.LayerWords = tt.layerWords
+			root := t.TempDir()
+			docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
+			dr := newDocprocRun(t, docproc)
+			part := inputPart("a.pdf", []byte("pdf-bytes"))
+			dr.pageOutput("/in/a.pdf", part, dispatch.TextOutput, "text/plain", "1", tt.layer)
+			dr.pageOutput("/in/a.pdf", part, dispatch.ImageOutput, "image/png", "1", []byte("page-1"))
+			dr.part("/in/a.pdf", part, 2)
+			dr.end()
+			stdout := new(bytes.Buffer)
+			a, stderr := inferApp(t, cfg, stdout)
+
+			code := a.Run(context.Background(), []string{"run", docproc, "--out", out})
+
+			if code != process.ExitOK {
+				t.Fatalf("code = %d, want %d; stderr = %q", code, process.ExitOK, stderr)
+			}
+			if got := len(asked.all()); got != tt.requests {
+				t.Errorf("vision requests = %d, want %d", got, tt.requests)
+			}
+			if want := "vision: images 1: " + tt.want + "\n"; !strings.Contains(stdout.String(), want) {
+				t.Errorf("stdout = %q, want %q", stdout, want)
+			}
+		})
+	}
+}
+
 func TestRun_TranscriptionKeysItsMaxTokensAndNative(t *testing.T) {
 	for _, tt := range []struct {
 		name      string

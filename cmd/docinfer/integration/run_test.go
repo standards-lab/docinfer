@@ -35,6 +35,8 @@ const media = "../../../integration/testdata"
 
 const noteText = "The access code is seven four two nine. It opens the side door of the depot on weekdays."
 
+var layerText = strings.Repeat(noteText+" ", 6)
+
 func TestCLI_RunAndReport(t *testing.T) {
 	eps := liveEndpoints(t)
 	caps := capabilities(eps)
@@ -66,6 +68,9 @@ func TestCLI_RunAndReport(t *testing.T) {
 		if !slices.Contains(ran, c.name) {
 			t.Errorf("the manifest's capabilities are %q, want %s among them", ran, c.name)
 		}
+	}
+	if slices.ContainsFunc(caps, func(c capability) bool { return c.name == "vision" }) && !strings.Contains(res.Stdout, ", skipped 1, ") {
+		t.Errorf("run: stdout = %q, want vision's line to count the scanned page's image skipped", res.Stdout)
 	}
 	index := filepath.Join(out, "runs", id, "report", "index.html")
 	if !strings.HasSuffix(res.Stdout, "\n"+index+"\n") {
@@ -198,21 +203,26 @@ func writeDocprocRun(t *testing.T, root string, caps []capability) {
 		t.Fatal(err)
 	}
 	stage := dispatch.Identity{Name: "integration", Version: "1"}
-	input := func(path string, data []byte, out dispatch.Output) {
+	put := func(data []byte) string {
 		sum := sha256.Sum256(data)
-		out.SHA256 = hex.EncodeToString(sum[:])
-		if err := d.Content().Put(t.Context(), out.SHA256, bytes.NewReader(data)); err != nil {
+		s := hex.EncodeToString(sum[:])
+		if err := d.Content().Put(t.Context(), s, bytes.NewReader(data)); err != nil {
 			t.Fatal(err)
 		}
-		part := dispatch.Part{ID: "/", Name: filepath.Base(path), Size: int64(len(data)), SHA256: out.SHA256}
-		for _, e := range []schema.Event{
-			{Kind: schema.OutputEvent, Input: path, Part: part, Stage: stage, Output: &out},
-			{Kind: schema.PartEvent, Input: path, Part: part, Stage: stage, Outcome: dispatch.Prepared, Outputs: 1},
-		} {
+		return s
+	}
+	write := func(events ...schema.Event) {
+		for _, e := range events {
 			if err := r.Write(e); err != nil {
 				t.Fatal(err)
 			}
 		}
+	}
+	input := func(path string, data []byte, out dispatch.Output) {
+		out.SHA256 = put(data)
+		part := dispatch.Part{ID: "/", Name: filepath.Base(path), Size: int64(len(data)), SHA256: out.SHA256}
+		write(schema.Event{Kind: schema.OutputEvent, Input: path, Part: part, Stage: stage, Output: &out},
+			schema.Event{Kind: schema.PartEvent, Input: path, Part: part, Stage: stage, Outcome: dispatch.Prepared, Outputs: 1})
 	}
 	input("/in/note.txt", []byte(noteText), dispatch.Output{Kind: dispatch.TextOutput, Name: "text", MediaType: "text/plain"})
 	for _, c := range caps {
@@ -220,6 +230,17 @@ func writeDocprocRun(t *testing.T, root string, caps []capability) {
 		case "vision":
 			input("/in/shapes.png", readMedia(t, "shapes.png"),
 				dispatch.Output{Kind: dispatch.ImageOutput, Name: "image", MediaType: "image/png"})
+			scan := []byte("scan.pdf")
+			part := dispatch.Part{ID: "/", Name: "scan.pdf", Size: int64(len(scan)), SHA256: put(scan)}
+			document := dispatch.Identity{Name: "document", Version: "1"}
+			page := map[string]string{dispatch.MetaPage: "1"}
+			write(
+				schema.Event{Kind: schema.OutputEvent, Input: "/in/scan.pdf", Part: part, Stage: document,
+					Output: &dispatch.Output{Kind: dispatch.TextOutput, Name: "text", MediaType: "text/plain", SHA256: put([]byte(layerText)), Meta: page}},
+				schema.Event{Kind: schema.OutputEvent, Input: "/in/scan.pdf", Part: part, Stage: document,
+					Output: &dispatch.Output{Kind: dispatch.ImageOutput, Name: "image", MediaType: "image/png", SHA256: put(readMedia(t, "shapes.png")), Meta: page}},
+				schema.Event{Kind: schema.PartEvent, Input: "/in/scan.pdf", Part: part, Stage: document, Outcome: dispatch.Prepared, Outputs: 2},
+			)
 		case "transcription":
 			input("/in/phrase.wav", readMedia(t, "phrase.wav"),
 				dispatch.Output{Kind: dispatch.AudioOutput, Name: "window", MediaType: "audio/wav",

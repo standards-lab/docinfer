@@ -49,7 +49,9 @@ vision               endpoint, model, served_model, prompt, max_tokens 2048, rea
                        max_pixels 2580480, the vision row's Gemma 4 budget at 1,120 soft
                        tokens (1,120 × 9 patches × 16² px, aspect kept), a larger PNG or JPEG
                        downscaled to it, 0 sending every image as it is, a negative one
-                       refused, concurrency 4
+                       refused, layer_words 100, a PDF page's image skipping vision when its
+                       page's text layer holds at least that many words, 0 sending every page
+                       image, a negative one refused, concurrency 4
 transcription        endpoint, model, served_model, prompt, language, mode route (the start) or
                        chat, set on this capability's own client as ai.TranscribeRoute or
                        ai.TranscribeChat, chat for an endpoint with no transcription route and

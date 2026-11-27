@@ -65,6 +65,18 @@ func (d *docprocRun) output(path string, part dispatch.Part, kind dispatch.Outpu
 	return s
 }
 
+func (d *docprocRun) pageOutput(path string, part dispatch.Part, kind dispatch.OutputKind, mediaType, page string, content []byte) {
+	d.t.Helper()
+	s := sha(content)
+	if err := d.dir.Content().Put(context.Background(), s, bytes.NewReader(content)); err != nil {
+		d.t.Fatal(err)
+	}
+	d.write(schema.Event{Kind: schema.OutputEvent, Input: path,
+		Part:   part,
+		Stage:  dispatch.Identity{Name: "document"},
+		Output: &dispatch.Output{Kind: kind, MediaType: mediaType, SHA256: s, Meta: map[string]string{dispatch.MetaPage: page}}})
+}
+
 func (d *docprocRun) part(path string, part dispatch.Part, outputs int) {
 	d.t.Helper()
 	d.write(schema.Event{Kind: schema.PartEvent, Input: path,
