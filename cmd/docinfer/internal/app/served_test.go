@@ -316,10 +316,11 @@ func TestRun_VisionSkipsAPageImageItsTextLayerCovers(t *testing.T) {
 		layer      []byte
 		requests   int
 		want       string
+		manifest   int
 	}{
-		{"unset starts at 100, met", nil, words(100), 0, "described 0, incomplete 0 (empty 0), refused 0, failed 0, skipped 1, held 0; requests 0"},
-		{"unset starts at 100, short of it", nil, words(99), 1, "described 1, incomplete 0 (empty 0), refused 0, failed 0, skipped 0, held 0; requests 1"},
-		{"0 sends every page image", new(0), words(100), 1, "described 1, incomplete 0 (empty 0), refused 0, failed 0, skipped 0, held 0; requests 1"},
+		{"unset starts at 100, met", nil, words(100), 0, "described 0, incomplete 0 (empty 0), refused 0, failed 0, skipped 1, held 0; requests 0", 100},
+		{"unset starts at 100, short of it", nil, words(99), 1, "described 1, incomplete 0 (empty 0), refused 0, failed 0, skipped 0, held 0; requests 1", 100},
+		{"0 sends every page image", new(0), words(100), 1, "described 1, incomplete 0 (empty 0), refused 0, failed 0, skipped 0, held 0; requests 1", 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var asked recorded[aitest.ChatRequest]
@@ -355,6 +356,17 @@ func TestRun_VisionSkipsAPageImageItsTextLayerCovers(t *testing.T) {
 			}
 			if want := "vision: images 1: " + tt.want + "\n"; !strings.Contains(stdout.String(), want) {
 				t.Errorf("stdout = %q, want %q", stdout, want)
+			}
+			_, m := openOut(t, out)
+			if got := capabilityOf(t, m, docinfer.CapabilityVision).LayerWords; got != tt.manifest {
+				t.Errorf("manifest vision layer_words = %d, want %d", got, tt.manifest)
+			}
+			raw, err := os.ReadFile(filepath.Join(out, "runs", m.Run, "manifest.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Contains(string(raw), `"layer_words"`); got != (tt.manifest != 0) {
+				t.Errorf("manifest.json holds layer_words: %t, want %t", got, tt.manifest != 0)
 			}
 		})
 	}

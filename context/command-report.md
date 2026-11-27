@@ -131,6 +131,7 @@ type Capability struct { // C14
     Concurrency int    `json:"concurrency"`
     Batch       int    `json:"batch,omitzero"`      // embeddings
     ChunkSize   int    `json:"chunk_size,omitzero"` // embeddings
+    LayerWords  int    `json:"layer_words,omitzero"` // vision: Profile.VisionLayerWords, 0 none
 }
 type Skipped struct { Name, Reason string } // "name", "reason": not configured
 type Space struct { … } // the measured embedding space and its norms, as the spike's
