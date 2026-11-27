@@ -59,9 +59,27 @@ func (l *lines) properties(props metadata.Properties) {
 	}
 }
 
+var encodingTags = map[string]bool{
+	"encoder":           true,
+	"encoded_by":        true,
+	"major_brand":       true,
+	"minor_version":     true,
+	"compatible_brands": true,
+	"handler_name":      true,
+	"vendor_id":         true,
+	"bps":               true,
+	"number_of_bytes":   true,
+	"number_of_frames":  true,
+}
+
+func encodingTag(key string) bool {
+	key = strings.ToLower(key)
+	return encodingTags[key] || strings.HasPrefix(key, "_statistics_")
+}
+
 func (l *lines) tags(tags metadata.Properties) {
 	for _, p := range tags {
-		if !strings.EqualFold(p.Key, "encoder") && !strings.EqualFold(p.Key, "encoded_by") {
+		if !encodingTag(p.Key) {
 			l.add(p.Key, propertyText(p.Value))
 		}
 	}

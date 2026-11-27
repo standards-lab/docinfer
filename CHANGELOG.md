@@ -27,8 +27,9 @@ embedded as a text of its own. It requires docproc v0.10.0 and go-ai v0.5.0.
   per field, a date in RFC 3339 in UTC, and chunked as a source of kind `metadata` whose `Output`
   is the record output and whose `SHA256` is the rendered text's. It is never extracted, and
   `Counts.Metadata` counts it.
-- A media record renders its duration and its container's and streams' tags but an `encoder` or
-  `encoded_by` tag; a picture record its capture time, make, model, and GPS position. Neither
+- A media record renders its duration and its container's and streams' tags but the tags naming
+  the encoder, container brand, handler, vendor, bit rate, byte or frame counts, or the writing
+  tool; a picture record its capture time, make, model, and GPS position. Neither
   renders codecs, rates, sizes, orientation, format names, or the EXIF dump.
 - A message renders its sender, its To, CC, and BCC recipients, each its name and its SMTP
   address, else its address, in angle brackets, its submit time, else its delivery time, as

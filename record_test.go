@@ -51,15 +51,19 @@ var (
 		"Department: Finance\n" +
 		"description: The year's plan\n" +
 		"subjects: plan, budget, 2026\n"
-	mediaRec = `{"format":"mp3","duration":245.32,"bit_rate":320000,"tags":{"title":"Morning Song","encoder":"Lavf60.16.100",` +
-		`"artist":"Ann Lee","Encoded_By":"LAME"},` +
-		`"streams":[{"index":0,"type":"audio","codec":"mp3","sample_rate":44100,"channels":2,"tags":{"language":"eng","ENCODER":"Lavc60"}},` +
+	mediaRec = `{"format":"mp3","duration":245.32,"bit_rate":320000,"tags":{"major_brand":"isom","title":"Morning Song","Minor_Version":"512",` +
+		`"encoder":"Lavf60.16.100","COMPATIBLE_BRANDS":"isomiso2avc1mp41","artist":"Ann Lee","Encoded_By":"LAME"},` +
+		`"streams":[{"index":0,"type":"audio","codec":"mp3","sample_rate":44100,"channels":2,"tags":{"language":"eng",` +
+		`"ENCODER":"Lavc60","Handler_Name":"SoundHandler","vendor_id":"[0][0][0][0]","BPS":"320000","DURATION":"00:04:05.320000000",` +
+		`"number_of_bytes":"9812800","Number_Of_Frames":"9393","_STATISTICS_WRITING_APP":"mkvmerge v80.0",` +
+		`"_statistics_writing_date_utc":"2026-03-15 09:30:00","_Statistics_Tags":"BPS DURATION NUMBER_OF_FRAMES NUMBER_OF_BYTES"}},` +
 		`{"index":1,"type":"video","codec":"mjpeg","width":500,"height":500,"frame_rate":90000,"attached_picture":true,` +
 		`"tags":{"comment":"Cover (front)"}}]}`
 	mediaText = "duration: 245.32 seconds\n" +
 		"title: Morning Song\n" +
 		"artist: Ann Lee\n" +
 		"language: eng\n" +
+		"DURATION: 00:04:05.320000000\n" +
 		"comment: Cover (front)\n"
 	pictureRec = `{"capture_time":"2026-03-15T09:30:00+05:30","make":"Canon","model":"Canon EOS R5","orientation":6,` +
 		`"width":8192,"height":5464,"gps":{"latitude":40.6892,"longitude":-74.0445},` +

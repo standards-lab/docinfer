@@ -136,9 +136,10 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // information dictionary's title, author, subject, keywords, creation and modification dates, and
 // custom keys, then its XMP title, creators, description, and subjects, each only when the
 // dictionary doesn't hold the same value; a media record renders its duration in seconds, then the
-// container's tags, then each stream's tags, each tag by its stored key, in stored order, but an
-// encoder or encoded_by tag; a picture record renders its capture time, make, model, and GPS
-// latitude and longitude in decimal degrees. A message renders its sender, its To, CC, and BCC
+// container's tags, then each stream's tags, each tag by its stored key, in stored order, but the
+// tags naming the encoder, container brand, handler, vendor, bit rate, byte or frame counts, or
+// the writing tool; a picture record renders its capture time, make, model, and GPS latitude and
+// longitude in decimal degrees. A message renders its sender, its To, CC, and BCC
 // recipients, each its name and its SMTP address, else its address, in angle brackets, its submit
 // time, else its delivery time, as sent, and its subject; a page its title, author, and creation
 // and modification times. A record's text holds no file lines, no body, no transport headers,
