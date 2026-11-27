@@ -9,6 +9,34 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-11-27
+
+This release skips vision for a PDF page whose text layer already holds its words: a page image
+whose page's text, the document stage's text output just before it, holds at least
+`Vision.LayerWords` words is sent no request and counted `Skipped`. It requires docproc v0.10.0
+and go-ai v0.5.0.
+
+### Added
+
+- `LayerWords` on `Vision`, the layer-word threshold. `Pipeline.Run` matches a page image, an
+  image output of the document stage, the stage docproc names "document", to its page's text
+  output: one of the same stage, `Origin`, part, and `dispatch.MetaPage`, the last such text of
+  its input pulled before the image. When that text holds at least `LayerWords` words, a word
+  being a run of Unicode letters or digits, the image is sent no request, yields no `Inference`,
+  and holds nothing; the page's text is chunked, and extracted, as any text output. An image with
+  no such text, one whose text holds fewer words, and one of another stage are described. 0 sends
+  every page image; `New` refuses a negative `LayerWords`, matching `ErrRequest`. It isn't part of
+  vision's identity, so changing it never misses a held description.
+- `VisionLayerWords` on `Profile`, JSON `vision_layer_words`: vision's `LayerWords`, kept out of
+  its identity, omitted when 0 or when vision is unset.
+- `Skipped` on `VisionCounts`, JSON `skipped`: the page images sent no request, their page's text
+  layer holding at least `Vision.LayerWords` words.
+
+### Changed
+
+- An image `Counts.Images` counts may now be counted under none of `VisionCounts`' outcomes:
+  a page image that skips vision is counted `Skipped` alone. With `LayerWords` 0, none is.
+
 ## [v0.4.0] - 2026-11-27
 
 This release chunks and embeds docproc's metadata records, each as a metadata text of its own: the
@@ -286,7 +314,8 @@ extraction, and the integration tier are new.
   release workflow, which makes a GitHub release from `CHANGELOG.md` for a `v*` tag and from
   `<module>/CHANGELOG.md` for a `<module>/v*` tag.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/standards-lab/docinfer/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/standards-lab/docinfer/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/standards-lab/docinfer/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/standards-lab/docinfer/compare/v0.1.0...v0.2.0
