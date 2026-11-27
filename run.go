@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"iter"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/standards-lab/docproc/dispatch"
@@ -27,9 +26,10 @@ type Options struct {
 // Input is one of a job's inputs to [Pipeline.Run]: an output's event, the input's metadata
 // text, or any other event, which Run passes through.
 type Input struct {
-	// Event is an output's event: a text or Markdown output is chunked; image, audio, and record
-	// outputs are described, transcribed, or read as their capabilities say. Its content is
-	// opened by its Output.SHA256 from Run's content, only on a cache miss or to chunk its text.
+	// Event is an output's event: a text or Markdown output, and a metadata record, is chunked;
+	// image, audio, and other record outputs are described, transcribed, or read as their
+	// capabilities say. Its content is opened by its Output.SHA256 from Run's content, only on a
+	// cache miss or to chunk its text.
 	// For a Metadata input, Event is the depth-0 part's own event.
 	Event dispatch.Event
 	// Metadata is the input's metadata text, [MetadataText]'s, read when Event has no Output.
@@ -75,21 +75,20 @@ func (e *MissingError) Unwrap() error { return e.Err }
 // MetadataText is an input's metadata text, from its depth-0 part: the one builder of it. It is a
 // readable line per field routing and the input gave, "label: value", in a fixed order, a field
 // with no value left out: the part's name, size, and content type's kind, route, route reason,
-// and stored MIME type.
+// and stored MIME type. [Pipeline.Run] renders an input's metadata records itself.
 func MetadataText(p dispatch.Part) string {
-	var b strings.Builder
-	line := func(label, value string) {
-		if value != "" {
-			b.WriteString(label + ": " + value + "\n")
-		}
-	}
-	line("file name", p.Name)
-	line("size", strconv.FormatInt(p.Size, 10)+" bytes")
-	line("kind", string(p.ContentType.Kind))
-	line("route", string(p.ContentType.Route))
-	line("route reason", p.ContentType.RouteReason)
-	line("stored MIME type", p.ContentType.Stored)
-	return b.String()
+	var l lines
+	l.add("file name", p.Name)
+	l.add("size", strconv.FormatInt(p.Size, 10)+" bytes")
+	l.add("kind", string(p.ContentType.Kind))
+	l.add("route", string(p.ContentType.Route))
+	l.add("route reason", p.ContentType.RouteReason)
+	l.add("stored MIME type", p.ContentType.Stored)
+	return l.String()
+}
+
+func recordText(mediaType string, content []byte) (string, error) {
+	return metadataRecords[mediaType](content)
 }
 
 const (
@@ -106,7 +105,8 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // Each input is echoed as Result.Input exactly once, in pull order, before anything derived from
 // it: its inference, its progress, and the batches holding its chunks. An input that is neither an
 // output nor a metadata text, such as a warning or a part's own event, is passed through: echoed,
-// then settled, with no work and nothing counted.
+// then settled, with no work and nothing counted; so is a record output that is neither a
+// metadata record nor, with Config.Transcription set, an audio plan record.
 //
 // Each input settles exactly once, before the counts, as Result.Settled, its position in pull
 // order from 0, once everything derived from it is out: a text, Markdown, or metadata input's
@@ -126,6 +126,19 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // reply is outcome described; one with a refusal and no text, refused, held, its Reason the
 // refusal's text; an incomplete one keeps its text, held, its Reason, and its chunks' Source's
 // Incomplete, why the model stopped.
+//
+// A metadata record, a record output of dispatch.MediaOfficeMetadata or dispatch.MediaPDFMetadata,
+// is a metadata text of its own: its content is opened, decoded as docproc's metadata.Office or
+// metadata.PDF, and rendered as a line per field, "label: value", in a fixed order, a field with no
+// value left out, a date in RFC 3339 in UTC; its text is chunked as a source of kind metadata, its
+// Output the record output, its SHA256 the text's. An office record renders each core and custom
+// property by its stored key, in stored order, then the extended properties Company and Manager,
+// then the format it was converted from; a PDF record renders its information dictionary's title,
+// author, subject, keywords, creation and modification dates, and custom keys, then its XMP title,
+// creators, description, and subjects, each only when the dictionary doesn't hold the same value. A
+// record's text holds no file lines, no body, no XMP packet, and no tool names. A record that
+// renders no line is no source, and settles once read; a record whose content doesn't decode stops
+// the job, [Permanent], the error naming its SHA-256 and part.
 //
 // With Config.Transcription set, an audio output is a window, transcribed from its content, sent as
 // window.wav for audio/wav or window.mp3 for audio/mpeg, its content opened by each attempt; a
@@ -153,25 +166,25 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // With Options.Extract set, Run refuses, matching [ErrRequest], an Extract whose prompt is empty or
 // isn't UTF-8, or whose name or schema go-ai's json_schema format refuses, and stops, [Permanent],
 // when the pipeline has no Config.Extraction, each before it reads an input. Each source text but
-// metadata, an output's text, an image's description, and a transcript, is then extracted once,
-// unless it is empty: keyed by extraction's Identity for the Extract and the text's SHA-256, read
-// from the cache, or streamed from the model by GenerateStream with the prompt as instructions and
-// the text as the user message, the Extract's name and schema a strict json_schema format, and
-// folded by a protocol.Accumulator. Each text delta is yielded as [Progress] as it streams, at most
-// one a second per source text, each carrying the text since the last; the text a stream ends with
-// unsent is its inference's. A held extraction yields no progress. The folded reply is held before
-// its [Inference] is yielded: a completed one is outcome extracted, its text the reply's JSON,
-// which nothing decodes; an incomplete one keeps its partial text, its Reason why the model
-// stopped; one with a refusal and no text is refused. A stream that breaks part way holds nothing
-// and stops the job, transient, the progress it yielded standing. An input finishes once its chunks
-// are complete and its extraction is in.
+// metadata, an input's or a record's, an output's text, an image's description, and a transcript,
+// is then extracted once, unless it is empty: keyed by extraction's Identity for the Extract and
+// the text's SHA-256, read from the cache, or streamed from the model by GenerateStream with the
+// prompt as instructions and the text as the user message, the Extract's name and schema a strict
+// json_schema format, and folded by a protocol.Accumulator. Each text delta is yielded as
+// [Progress] as it streams, at most one a second per source text, each carrying the text since the
+// last; the text a stream ends with unsent is its inference's. A held extraction yields no
+// progress. The folded reply is held before its [Inference] is yielded: a completed one is outcome
+// extracted, its text the reply's JSON, which nothing decodes; an incomplete one keeps its partial
+// text, its Reason why the model stopped; one with a refusal and no text is refused. A stream that
+// breaks part way holds nothing and stops the job, transient, the progress it yielded standing. An
+// input finishes once its chunks are complete and its extraction is in.
 //
 // Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
 // from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything
 // derived from it is yielded. A held value that doesn't decode is a miss, which
 // the model's reply replaces; a vector, held or made, whose length isn't Config.Dimensions stops
-// the job, [Permanent]. Content is opened only on a miss, or to chunk an output's text; a content
-// store's miss stops the job with a [MissingError].
+// the job, [Permanent]. Content is opened only on a miss, or to chunk an output's text or a
+// metadata record's; a content store's miss stops the job with a [MissingError].
 //
 // Run pulls an input only while fewer than Config.Pending of the job's inputs are admitted and
 // not yet finished, so a slow model holds the job's inputs back. A batch is yielded when its next
@@ -306,6 +319,8 @@ type inferenceEvent struct {
 	last     bool
 }
 
+type emptyEvent struct{ st *inputState }
+
 type errEvent struct{ err error }
 
 func (inputEvent) isEvent()     {}
@@ -313,6 +328,7 @@ func (endEvent) isEvent()       {}
 func (splitEvent) isEvent()     {}
 func (doneEvent) isEvent()      {}
 func (inferenceEvent) isEvent() {}
+func (emptyEvent) isEvent()     {}
 func (errEvent) isEvent()       {}
 
 type inputState struct {
@@ -479,6 +495,8 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			if ok, err := r.planDone(e, yield); err != nil || !ok {
 				return err
 			}
+		case emptyEvent:
+			r.finishState(e.st)
 		case errEvent:
 			return e.err
 		}
@@ -574,9 +592,46 @@ func (r *run) admit(in Input) error {
 			r.admitPlan(in, pos)
 			return nil
 		}
+		if _, ok := metadataRecords[out.MediaType]; ok {
+			return r.admitRecord(in, pos)
+		}
 	}
 	r.finish()
 	r.settleInput(pos)
+	return nil
+}
+
+func (r *run) admitRecord(in Input, pos int) error {
+	ev := in.Event
+	stage := ev.Stage
+	st := &inputState{
+		part:   ev.Part,
+		pos:    pos,
+		source: Source{Kind: sourceMetadata, Origin: in.Origin, Stage: &stage, Output: new(*ev.Output)},
+	}
+	b, err := marshal(st.part)
+	if err != nil {
+		return err
+	}
+	st.partJSON = b
+	r.spawn(func() {
+		content, err := r.read(ev)
+		if err != nil {
+			r.fail(err)
+			return
+		}
+		text, err := recordText(ev.Output.MediaType, content)
+		if err != nil {
+			r.fail(fmt.Errorf("docinfer: run: metadata record %s of part %s: %v: %w", ev.Output.SHA256, ev.Part.ID, err, errInputDefect))
+			return
+		}
+		if text == "" {
+			r.send(emptyEvent{st})
+			return
+		}
+		st.source.SHA256 = sha256Hex([]byte(text))
+		r.embed(st, text)
+	})
 	return nil
 }
 

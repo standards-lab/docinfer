@@ -9,6 +9,16 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+### Added
+
+- `Pipeline.Run` takes docproc's office and PDF metadata records, record outputs of
+  `dispatch.MediaOfficeMetadata` and `dispatch.MediaPDFMetadata`, as metadata texts: each is
+  opened by its SHA-256, decoded as `metadata.Office` or `metadata.PDF`, rendered as a
+  "label: value" line per field, a date in RFC 3339 in UTC, and chunked as a source of kind
+  `metadata` whose `Output` is the record output and whose `SHA256` is the rendered text's. It is
+  never extracted, and `Counts.Metadata` counts it. A record that renders no line is no source; one
+  whose content doesn't decode stops the job, `Permanent`.
+
 ## [v0.3.0] - 2026-11-25
 
 This release meets the live rows: embeddings carry e5's document convention and chunk by the
