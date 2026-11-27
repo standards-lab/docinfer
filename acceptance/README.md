@@ -11,6 +11,7 @@ otherwise. Results stay out of git.
 | [`run.sh`](run.sh) | The acceptance run: `docinfer run --report` over a docproc run directory, through the gateway |
 | [`check-run.py`](check-run.py) | A run's vectors and covered runes by source kind, and its metadata texts by what they render, from its `chunks.jsonl` |
 | [`layer-words.py`](layer-words.py) | Each `vision.layer_words` threshold's skipped page images, and the thin pages among them with the vision words they lose, from a run's held vision texts |
+| [`described.py`](described.py) | The pages whose vision text describes the image instead of transcribing its text layer, and the images that reach vision by route, from a run's held vision texts |
 | [`sweep/`](sweep) | The vision measurements: the concurrency sweep, the native-sampling probe, the re-probe, and the confirmation |
 | [`transcribe-eval/`](transcribe-eval) | The transcription measurements: capped against uncapped, temperature 0's repeatability, and error against a corpus's references |
 
@@ -62,6 +63,14 @@ directory and a run that described its page images:
 
 ```sh
 python3 -I acceptance/layer-words.py ~/runs/docproc/corpus-v0.2.0 ~/runs/docinfer-v0.2.0/out/runs/<id>
+```
+
+Find the pages with at least 100 layer words, or the count given, whose vision text describes the
+image instead of transcribing the page, and count the images that reached vision by route, with a
+docproc run directory and a docinfer run:
+
+```sh
+python3 -I acceptance/described.py ~/runs/docproc/corpus-v0.2.0 ~/runs/docinfer-v0.2.0/out/runs/<id>
 ```
 
 ## Vision
