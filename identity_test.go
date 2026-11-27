@@ -170,6 +170,7 @@ func TestGoldenKeysAreIdentities(t *testing.T) {
 
 func TestProfile(t *testing.T) {
 	cfg := validConfig(t)
+	cfg.Vision.LayerWords = 40
 	p, err := docinfer.New(cfg)
 	if err != nil {
 		t.Fatal(err)
@@ -179,6 +180,7 @@ func TestProfile(t *testing.T) {
 			Capability: docinfer.CapabilityVision, Model: "org/vision-1",
 			Settings: `{"request":"2","prompt":"Describe the image.","max_tokens":2,"effort":"low","max_pixels":0}`,
 		},
+		VisionLayerWords: 40,
 		Transcription: &docinfer.Identity{
 			Capability: docinfer.CapabilityTranscription, Model: "org/transcription-1",
 			Settings: `{"request":"3","mode":"route","prompt":"","language":"en","max_tokens":0}`,
@@ -191,7 +193,7 @@ func TestProfile(t *testing.T) {
 		Dimensions: 2,
 		Chunker:    `{"version":"2","bound":2,"runes":2,"model":"org/embedding-1"}`,
 	}
-	cfg.Vision.Prompt, cfg.Transcription.Language, cfg.Extraction.MaxTokens = "changed", "de", 3
+	cfg.Vision.Prompt, cfg.Vision.LayerWords, cfg.Transcription.Language, cfg.Extraction.MaxTokens = "changed", 7, "de", 3
 	first := p.Profile()
 	first.Vision.Model, first.Transcription.Model, first.Extraction.Model = "x", "x", "x"
 	got := p.Profile()
@@ -203,7 +205,7 @@ func TestProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want.Vision, want.Transcription, want.Extraction = nil, nil, nil
+	want.Vision, want.VisionLayerWords, want.Transcription, want.Extraction = nil, 0, nil, nil
 	equalProfile(t, p.Profile(), want)
 }
 
@@ -224,6 +226,9 @@ func equalProfile(t *testing.T, got, want docinfer.Profile) {
 		case c.got != nil && *c.got != *c.want:
 			t.Errorf("Profile.%s:\n %+v, want\n %+v", c.name, *c.got, *c.want)
 		}
+	}
+	if got.VisionLayerWords != want.VisionLayerWords {
+		t.Errorf("Profile.VisionLayerWords %d, want %d", got.VisionLayerWords, want.VisionLayerWords)
 	}
 	if got.Dimensions != want.Dimensions || got.Chunker != want.Chunker {
 		t.Errorf("Profile's Dimensions and Chunker: %d, %s; want %d, %s", got.Dimensions, got.Chunker, want.Dimensions, want.Chunker)

@@ -14,3 +14,6 @@ func OnSlotWait(b *Bounds, f func(Capability)) { b.onWait = f }
 // SetClock sets the clock p coalesces an extraction's progress by, so a test steps it per text
 // delta rather than sleep. It is set before p runs a job.
 func SetClock(p *Pipeline, now func() time.Time) { p.now = now }
+
+// LayerWords counts the words in a page's text layer as [Pipeline.Run] does.
+func LayerWords(text string) int { return layerWords(text) }

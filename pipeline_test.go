@@ -135,6 +135,11 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		cfg.Vision.MaxPixels = -1
 		refused(t, cfg, "Vision.MaxPixels")
 	})
+	t.Run("Vision.LayerWords=-1", func(t *testing.T) {
+		cfg := validConfig(t)
+		cfg.Vision.LayerWords = -1
+		refused(t, cfg, "Vision.LayerWords")
+	})
 	models := []struct {
 		field string
 		clear func(*docinfer.Config)

@@ -51,10 +51,14 @@ type Identity struct {
 // Profile is a pipeline's resolved identity: the served models, settings, dimensions, and chunker,
 // known before any job runs.
 type Profile struct {
-	Vision        *Identity `json:"vision,omitempty"`
-	Transcription *Identity `json:"transcription,omitempty"`
-	Extraction    *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
-	Embeddings    Identity  `json:"embeddings"`
+	Vision *Identity `json:"vision,omitempty"`
+	// VisionLayerWords is vision's LayerWords, kept out of its identity: a page image skips
+	// vision when the page's text layer holds at least this many words; 0, or no vision, skips
+	// none.
+	VisionLayerWords int       `json:"vision_layer_words,omitempty"`
+	Transcription    *Identity `json:"transcription,omitempty"`
+	Extraction       *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
+	Embeddings       Identity  `json:"embeddings"`
 	// EmbeddingQuery is the query convention the embeddings' client declares, which a consumer
 	// applies to its search queries so they land in the space the chunks were embedded in; nil
 	// when the client declares none, and the queries go as they are.

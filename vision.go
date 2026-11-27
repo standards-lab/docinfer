@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/standards-lab/go-ai/protocol"
 )
@@ -251,4 +252,8 @@ func (r *run) countVision(e inferenceEvent) {
 	vc.Requests += e.requests
 	r.counts.Tokens.Vision.Input += e.usage.Input
 	r.counts.Tokens.Vision.Output += e.usage.Output
+}
+
+func layerWords(text string) int {
+	return len(strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }))
 }
