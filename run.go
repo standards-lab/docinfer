@@ -87,10 +87,6 @@ func MetadataText(p dispatch.Part) string {
 	return l.String()
 }
 
-func recordText(mediaType string, content []byte) (string, error) {
-	return metadataRecords[mediaType](content)
-}
-
 const (
 	sourceOutput   = "output"
 	sourceMetadata = "metadata"
@@ -597,8 +593,8 @@ func (r *run) admit(in Input) error {
 			r.admitPlan(in, pos)
 			return nil
 		}
-		if _, ok := metadataRecords[out.MediaType]; ok {
-			return r.admitRecord(in, pos)
+		if render := recordRender(out); render != nil {
+			return r.admitRecord(in, pos, render)
 		}
 	}
 	r.finish()
@@ -606,7 +602,7 @@ func (r *run) admit(in Input) error {
 	return nil
 }
 
-func (r *run) admitRecord(in Input, pos int) error {
+func (r *run) admitRecord(in Input, pos int, render func([]byte) (string, error)) error {
 	ev := in.Event
 	stage := ev.Stage
 	st := &inputState{
@@ -625,7 +621,7 @@ func (r *run) admitRecord(in Input, pos int) error {
 			r.fail(err)
 			return
 		}
-		text, err := recordText(ev.Output.MediaType, content)
+		text, err := render(content)
 		if err != nil {
 			r.fail(fmt.Errorf("docinfer: run: metadata record %s of part %s: %v: %w", ev.Output.SHA256, ev.Part.ID, err, errInputDefect))
 			return

@@ -13,14 +13,23 @@ each nested module keeps its own.
 
 - `Pipeline.Run` takes docproc's office, PDF, media, and picture metadata records, record outputs
   of `dispatch.MediaOfficeMetadata`, `dispatch.MediaPDFMetadata`, `dispatch.MediaMediaMetadata`,
-  and `dispatch.MediaPictureMetadata`, as metadata texts: each is opened by its SHA-256, decoded as
-  `metadata.Office`, `metadata.PDF`, `metadata.Media`, or `metadata.Picture`, rendered as a
-  "label: value" line per field, a date in RFC 3339 in UTC, and chunked as a source of kind
-  `metadata` whose `Output` is the record output and whose `SHA256` is the rendered text's. It is
-  never extracted, and `Counts.Metadata` counts it. A media record renders its duration and its
-  container's and streams' tags; a picture record its capture time, make, model, and GPS position;
-  neither renders codecs, rates, sizes, orientation, format names, or the EXIF dump. A record that
-  renders no line is no source; one whose content doesn't decode stops the job, `Permanent`.
+  and `dispatch.MediaPictureMetadata`, and its mail message and OneNote page records, record
+  outputs of `dispatch.MediaMail` whose `Meta` holds `dispatch.MetaSubject` and of
+  `dispatch.MediaOneNote` whose `Meta` holds `dispatch.MetaTitle`, as metadata texts: each is
+  opened by its SHA-256, decoded as `metadata.Office`, `metadata.PDF`, `metadata.Media`,
+  `metadata.Picture`, `email.Message`, or `onenote.Page`, rendered as a "label: value" line per
+  field, a date in RFC 3339 in UTC, and chunked as a source of kind `metadata` whose `Output` is
+  the record output and whose `SHA256` is the rendered text's. It is never extracted, and
+  `Counts.Metadata` counts it. A media record renders its duration and its container's and
+  streams' tags but an `encoder` or `encoded_by` tag; a picture record its capture time, make,
+  model, and GPS position; neither renders codecs, rates, sizes, orientation, format names, or the
+  EXIF dump. A message renders its sender, its To, CC, and BCC recipients, each its name and its
+  SMTP address, else its address, in angle brackets, its submit time, else its delivery time, as
+  "sent", and its subject; a page its title, author, and creation and modification times. Neither
+  renders a body, transport headers, threading ids, attachments, or media. A mail store's or
+  folder's record, a notebook's, section group's, or section's, and a conversation's pass through.
+  A record that renders no line is no source; one whose content doesn't decode stops the job,
+  `Permanent`.
 
 ## [v0.3.0] - 2026-11-25
 

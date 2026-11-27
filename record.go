@@ -8,15 +8,35 @@ import (
 	"time"
 
 	"github.com/standards-lab/docproc/dispatch"
+	"github.com/standards-lab/docproc/email"
 	"github.com/standards-lab/docproc/metadata"
+	"github.com/standards-lab/docproc/onenote"
 	"github.com/standards-lab/docproc/rundir/schema"
 )
 
-var metadataRecords = map[string]func([]byte) (string, error){
-	dispatch.MediaOfficeMetadata:  renderAs(officeLines),
-	dispatch.MediaPDFMetadata:     renderAs(pdfLines),
-	dispatch.MediaMediaMetadata:   renderAs(mediaLines),
-	dispatch.MediaPictureMetadata: renderAs(pictureLines),
+type metadataRecord struct {
+	meta   string
+	render func([]byte) (string, error)
+}
+
+var metadataRecords = map[string]metadataRecord{
+	dispatch.MediaOfficeMetadata:  {render: renderAs(officeLines)},
+	dispatch.MediaPDFMetadata:     {render: renderAs(pdfLines)},
+	dispatch.MediaMediaMetadata:   {render: renderAs(mediaLines)},
+	dispatch.MediaPictureMetadata: {render: renderAs(pictureLines)},
+	dispatch.MediaMail:            {meta: dispatch.MetaSubject, render: renderAs(messageLines)},
+	dispatch.MediaOneNote:         {meta: dispatch.MetaTitle, render: renderAs(pageLines)},
+}
+
+func recordRender(out *dispatch.Output) func([]byte) (string, error) {
+	r, ok := metadataRecords[out.MediaType]
+	if !ok {
+		return nil
+	}
+	if _, ok := out.Meta[r.meta]; r.meta != "" && !ok {
+		return nil
+	}
+	return r.render
 }
 
 type lines struct{ strings.Builder }
@@ -118,9 +138,17 @@ func mediaLines(l *lines, r metadata.Media) {
 	if r.Duration != 0 {
 		l.add("duration", numberText(r.Duration)+" seconds")
 	}
-	l.properties(r.Tags)
+	l.tags(r.Tags)
 	for _, s := range r.Streams {
-		l.properties(s.Tags)
+		l.tags(s.Tags)
+	}
+}
+
+func (l *lines) tags(tags metadata.Properties) {
+	for _, p := range tags {
+		if !strings.EqualFold(p.Key, "encoder") && !strings.EqualFold(p.Key, "encoded_by") {
+			l.add(p.Key, propertyText(p.Value))
+		}
 	}
 }
 
@@ -132,6 +160,50 @@ func pictureLines(l *lines, r metadata.Picture) {
 		l.add("GPS latitude", numberText(r.GPS.Latitude))
 		l.add("GPS longitude", numberText(r.GPS.Longitude))
 	}
+}
+
+func messageLines(l *lines, m email.Message) {
+	l.add("from", addressText(m.Sender))
+	l.add("to", addressList(m.To))
+	l.add("cc", addressList(m.CC))
+	l.add("bcc", addressList(m.BCC))
+	if !m.SubmitTime.IsZero() {
+		l.date("sent", m.SubmitTime)
+	} else {
+		l.date("sent", m.DeliveryTime)
+	}
+	l.add("subject", m.Subject)
+}
+
+func addressText(a email.Address) string {
+	addr := a.SMTPAddress
+	if addr == "" {
+		addr = a.Address
+	}
+	switch {
+	case a.Name == "":
+		return addr
+	case addr == "":
+		return a.Name
+	}
+	return a.Name + " <" + addr + ">"
+}
+
+func addressList(as []email.Address) string {
+	var texts []string
+	for _, a := range as {
+		if t := addressText(a); t != "" {
+			texts = append(texts, t)
+		}
+	}
+	return strings.Join(texts, ", ")
+}
+
+func pageLines(l *lines, p onenote.Page) {
+	l.add("title", p.Title)
+	l.add("author", p.Author)
+	l.date("created", p.CreationTime)
+	l.date("modified", p.ModificationTime)
 }
 
 func numberText(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
