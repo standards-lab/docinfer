@@ -355,31 +355,33 @@ incomplete, the sample 29 and 3, and timed the scans six-fold faster downscaled,
 
 ### Described pages
 
-spike-ai-pipeline's
-[docinfer finding](https://github.com/JaimeStill/spike-ai-pipeline/blob/main/docs/findings/docinfer.md)
-found 24 of the 1,289 pages with at least 100 layer words (1.9%) described, not transcribed, over
-the retired `~/docs` pool, with Gemma 4 26B-A4B at temperature 1 on llama.cpp at 560 image tokens. A
-page counts as described when its vision text holds under half its text layer's words, compared
+A page counts as described when its vision text holds under half its text layer's words, compared
 lowercased as multisets, and opens by describing the image: "This image…", "The image…", "A …
-shows…". `acceptance/described.py` applies the finding's rule and its pattern unchanged.
+shows…". spike-ai-pipeline's
+[docinfer finding](https://github.com/JaimeStill/spike-ai-pipeline/blob/main/docs/findings/docinfer.md)
+set this rule. Leaving out the synthetic `text_heavy.pdf`, it found 24 of the 1,289 pages with at
+least 100 layer words (1.9%) described over the retired `~/docs` pool, with Gemma 4 26B-A4B at
+temperature 1 on llama.cpp at 560 image tokens. `acceptance/described.py` applies the finding's
+rule and its pattern unchanged.
 
-Over the baseline run, card sampling on the vLLM NVFP4 row at 1,120 image tokens, read against
-the docproc v0.9.0 run it consumed: of the 1,329 pages with a layer and a vision text, 1,234 hold
-at least 100 layer words, 2 of them recall under 0.5, and both are described. They are one
-image, `807f6a4f…`, serving `digitally-signed-3d-portfolio.pdf`'s attachments `Landing Gear
-Project data.pdf` page 2 and `Technical Specification.pdf` page 1: a small table "too low to read
-clearly", recall 0.013, the portfolio table the finding found too low in resolution to read under
-either prompt. No CFR or DoDM page is described. Read against the docproc v0.10.0 run, the recipe's
-output is the same, byte for byte. Four other page images open by describing the image, each with
-no layer: `pdfa2b-interactive-form-pass.pdf` page 1, a cyan square, and
-`stella-maberly-1896-ia-scan.pdf` pages 3 and 6, blank, and 250, a textured surface.
+The baseline run used card sampling on the vLLM NVFP4 row at 1,120 image tokens. Read against the
+docproc v0.9.0 run it consumed, it has 1,329 pages with a layer and a vision text; 1,234 of them
+hold at least 100 layer words, 2 of those recall under 0.5, and both are described. Both are one
+image, `807f6a4f…`, which is `Landing Gear Project data.pdf` page 2 and `Technical
+Specification.pdf` page 1, attachments of `digitally-signed-3d-portfolio.pdf`. It is a small
+table whose vision text calls it "too low to read clearly", at recall 0.013: the portfolio table
+the finding found too low in resolution to read under either prompt. No CFR or DoDM page is
+described. Read against the docproc v0.10.0 run, the recipe's output is the same, byte for byte.
+Four other page images open by describing the image, each with no layer:
+`pdfa2b-interactive-form-pass.pdf` page 1, a cyan square, and `stella-maberly-1896-ia-scan.pdf`
+pages 3 and 6, blank, and 250, a textured surface.
 
-The text-layer skip leaves vision the images below, from the text-layer run read against the docproc
-v0.10.0 run it consumed, counted by the route docproc gave each input. None of its 95 pages with a
-layer and a vision text holds 100 layer words, so the rule finds none. The video keyframes are most
-of what remains, and for them a one-sentence description is the useful output; the 4 PDF page images
-opening with a description are the four above. The email image without a text is `jwz.mbox`'s
-truncated attachment, the run's refusal.
+The table below counts the images that still reach vision after the text-layer skip, by the route
+docproc gave each input, from the text-layer run read against the docproc v0.10.0 run it consumed.
+None of that run's 95 pages with a layer and a vision text holds 100 layer words, so the rule
+finds none. Video keyframes are most of the images, and for them a one-sentence description is
+the useful output. The 4 PDF page images opening with a description are the four above. The email
+image without a vision text is `jwz.mbox`'s truncated attachment, which the model refused.
 
 | Route | What they are | Images | With a vision text | Opening with a description |
 |---|---|---|---|---|
