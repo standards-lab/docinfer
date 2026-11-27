@@ -10,10 +10,17 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-11-27
+
+This release embeds each input's metadata records: its chunk records gain a metadata source per
+office, PDF, media, or picture record and per mail message or OneNote page, rendered by docinfer
+v0.4.0. It requires docinfer v0.4.0, go-ai v0.5.0, and docproc v0.10.0.
+
 ### Changed
 
-- The module requires docproc v0.10.0, the release whose records carry the metadata docinfer
-  renders.
+- The module requires docinfer v0.4.0 and docproc v0.10.0. `chunks.jsonl` carries a source of
+  kind `metadata` for each metadata record docinfer renders, its `output` the record and its
+  `sha256` the rendered text's, beside the input's own metadata text, whose `output` is absent.
 
 ## [v0.2.0] - 2026-11-25
 
@@ -210,5 +217,7 @@ go-cli-sdk-template template/v0.3.1 to the design in `context/command.md`.
   the report's index to be printed. A role whose variable is unset is left out of the run, and
   with `AI_EMBEDDING_BASE_URL` unset the scenario skips.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.1.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.3.0...HEAD
+[v0.3.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.2.0...cmd/docinfer/v0.3.0
+[v0.2.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.1.0...cmd/docinfer/v0.2.0
 [v0.1.0]: https://github.com/standards-lab/docinfer/releases/tag/cmd/docinfer/v0.1.0

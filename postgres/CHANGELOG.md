@@ -10,6 +10,15 @@ keeps its own.
 
 ## [Unreleased]
 
+## [v0.1.2] - 2026-11-27
+
+This release requires docinfer v0.4.0, which embeds metadata records, with nothing to adapt.
+
+### Changed
+
+- The module requires docinfer v0.4.0; its `Cache` passes docinfertest's suite unchanged, since
+  record texts add keys of the same form.
+
 ## [v0.1.1] - 2026-11-25
 
 This release requires docinfer v0.3.0, whose `Held` gains chunk spans, and sqlate's additive
@@ -48,5 +57,7 @@ The first release. The module is new: the spike has no PostgreSQL cache to copy.
   value are refused, matching `docinfer.ErrRequest`, and an ended context with its own error,
   before any query.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.2...HEAD
+[v0.1.2]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.1...postgres/v0.1.2
+[v0.1.1]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.0...postgres/v0.1.1
 [v0.1.0]: https://github.com/standards-lab/docinfer/releases/tag/postgres/v0.1.0
