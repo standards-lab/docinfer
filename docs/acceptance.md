@@ -396,7 +396,8 @@ truncated attachment, the run's refusal.
 
 | Setting | Value | Why |
 |---|---|---|
-| `vision.native` | `{"temperature":1.0,"top_p":0.95,"top_k":64}`, sent explicitly (`38df198`) | at 1,120 image tokens the row's default loops less than temperature 0 on real pages |
+| `vision.prompt` | "Transcribe the text in this picture. If it has no text, describe it in one sentence.", kept | the spike-ai-pipeline finding's stricter prompt ("Transcribe all the text in this picture, word for word, in reading order. Do not summarize or describe text…", its full wording never recorded) is rejected: on the baseline only 2 of 1,234 pages with at least 100 layer words come back described, both one unreadable table ([Described pages](#described-pages)); the text-layer skip keeps such pages out of vision, and most images still reaching it are video keyframes, where a one-sentence description is the useful output |
+| `vision.native` | `{"temperature":1.0,"top_p":0.95,"top_k":64}`, sent explicitly (`38df198`) | at 1,120 image tokens the row's default loops less than temperature 0 on real pages; the finding's lower temperature is rejected: temperature 0 looped on 3 of the 32 sample pages, all CFR, and card sampling on none ([re-probe](#re-probe-at-1120-image-tokens), [confirmation](#confirmation)), it was taken once (`eab052e`) and reversed, and Azure overflow (`gpt-5-mini`) is tested only at temperature 1.0 |
 | `max_tokens` | 2,048, held | the retired `~/docs` re-probe's real pages complete within it |
 | `vision.max_pixels` | 2,580,480 (`38df198`) | Gemma 4's processor rule; oversized scans no longer sent whole |
 | concurrency | 4 | the row's cap |
