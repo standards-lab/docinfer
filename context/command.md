@@ -14,7 +14,7 @@ Citations are relative to spike-ai-pipeline's `internal/docinfer/` at 6a631f1. A
 such as `timeouts.md`, is a Go Elemental principle under the architecture repository's
 `standards/go-elemental/principles/`; `principles/<page>` is an architecture principle; a quoted
 name is the page's section. "layers" is docproc's `context/layers.md` at 673ed3d.
-"data-intelligence" is standards-lab's `docs/data-intelligence.md`, which states what Cerebro
+"data-intelligence" is standards-lab's `docs/data-intelligence.md`, which states what Bunrei
 asks of v1.ai.inference.
 
 ## The command

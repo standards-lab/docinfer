@@ -128,7 +128,7 @@ Every name of the command's that layers' docinfer sections write, against this A
 | --- | --- | --- |
 | module `github.com/standards-lab/docinfer/cmd/docinfer` | carried | go-cli-sdk and go-core at their latest (C2) |
 | `apptest.Serve` | dropped | go-ai's `aitest` (C22; `docs/library-evaluation.md`, Rejected) |
-| the manifest's `Attempt` | dropped | Cerebro's manifest, outside docinfer's API |
+| the manifest's `Attempt` | dropped | Bunrei's manifest, outside docinfer's API |
 | `outdir.Line` | renamed | `docinfer.Chunk` in the library; `outdir.Line` stays the command's |
 | `outdir.Part` | dropped | its outcome is the part's own event |
 | `outdir.Dir.WriteChunks` | dropped | the record is appended per batch (C12) |

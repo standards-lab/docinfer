@@ -13,7 +13,7 @@ directory, by a path computed at render time from the manifest's absolute `docpr
 docproc's report is `runs/<run>/report/index.html` and a `<sha256>.html` per distinct content, the
 index listing every input linked to its content's page and each page holding the content's part tree
 with every output inline and whole; it reads its own directory alone, links relatively, and reads no
-clock. Cerebro asks for docinfer's pages "linked to docproc's by the input's SHA-256 and holding the
+clock. Bunrei asks for docinfer's pages "linked to docproc's by the input's SHA-256 and holding the
 full vision texts, transcripts, and chunks" (data-intelligence, "The input reports").
 
 **Decision.** Per run, one page per input content: `runs/<run>/report/index.html` and a
