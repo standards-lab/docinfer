@@ -10,6 +10,16 @@ keeps its own.
 
 ## [Unreleased]
 
+## [v0.1.3] - 2026-11-27
+
+This release requires docinfer v0.5.0, which skips vision for a page whose text layer holds its
+words, with nothing to adapt.
+
+### Changed
+
+- The module requires docinfer v0.5.0; its `Cache` passes docinfertest's suite unchanged, since a
+  skipped page image holds nothing.
+
 ## [v0.1.2] - 2026-11-27
 
 This release requires docinfer v0.4.0, which embeds metadata records, with nothing to adapt.
@@ -57,7 +67,8 @@ The first release. The module is new: the spike has no PostgreSQL cache to copy.
   value are refused, matching `docinfer.ErrRequest`, and an ended context with its own error,
   before any query.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.2...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.3...HEAD
+[v0.1.3]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.2...postgres/v0.1.3
 [v0.1.2]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.1...postgres/v0.1.2
 [v0.1.1]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.0...postgres/v0.1.1
 [v0.1.0]: https://github.com/standards-lab/docinfer/releases/tag/postgres/v0.1.0
