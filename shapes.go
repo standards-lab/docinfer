@@ -132,9 +132,12 @@ func (b Batch) Digest() string {
 
 // Source is the text a chunk is cut from, and where it sits.
 type Source struct {
-	Kind   string `json:"kind"` // output, metadata, vision, or transcript
-	Origin string `json:"-"`    // local: its input's [Input].Origin
-	// SHA256 is the text's; an output's is its Output.SHA256, held there alone.
+	// Kind is output, metadata, vision, or transcript: metadata for an input's metadata text, its
+	// Output nil, and for a metadata record's text, its Output the record output.
+	Kind   string `json:"kind"`
+	Origin string `json:"-"` // local: its input's [Input].Origin
+	// SHA256 is the text's, a metadata record's its rendered text's; an output's is its
+	// Output.SHA256, held there alone.
 	SHA256     string             `json:"sha256,omitzero"`
 	Incomplete string             `json:"incomplete,omitzero"` // why its inference is incomplete
 	Part       int                `json:"part"`                // an index into the batch's Parts
@@ -180,7 +183,7 @@ func DecodeVector(s string) ([]float32, error) {
 // as the job holds it, and the cache hits among them.
 type Counts struct {
 	Texts    int `json:"texts"`    // text and Markdown outputs chunked
-	Metadata int `json:"metadata"` // metadata texts: one per job
+	Metadata int `json:"metadata"` // metadata texts: the input's and each metadata record's
 	Embedded int `json:"embedded"` // chunks with a vector
 	Rejected int `json:"rejected"` // chunks refused, or failed on the last delivery
 	Held     int `json:"held"`     // of those, read from the cache or another call's request

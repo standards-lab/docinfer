@@ -207,7 +207,7 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 		case r.Batch != nil:
 			for _, s := range r.Batch.Sources {
 				switch {
-				case s.Kind == "metadata":
+				case s.Kind == "metadata" && s.Output == nil:
 					unechoed("a batch of metadata", s.SHA256)
 				case s.Output != nil:
 					unechoed("a batch of "+s.Kind, s.Output.SHA256)
@@ -299,7 +299,8 @@ func (d *derivation) derived(r docinfer.Result) (string, []int) {
 		for _, s := range r.Batch.Sources {
 			if s.SHA256 != "" {
 				add(s.SHA256)
-			} else {
+			}
+			if s.SHA256 == "" || (s.Kind == "metadata" && s.Output != nil) {
 				add(s.Output.SHA256)
 			}
 		}

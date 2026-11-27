@@ -9,6 +9,45 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-11-27
+
+This release chunks and embeds docproc's metadata records, each as a metadata text of its own: the
+office, PDF, media, and picture metadata records, and the mail message and OneNote page records.
+It requires docproc v0.10.0 and go-ai v0.5.0.
+
+### Added
+
+- `Pipeline.Run` renders each metadata record as a metadata text of its own. A metadata record is
+  a record output of `dispatch.MediaOfficeMetadata`, `dispatch.MediaPDFMetadata`,
+  `dispatch.MediaMediaMetadata`, or `dispatch.MediaPictureMetadata`; of `dispatch.MediaMail` whose
+  `Meta` holds `dispatch.MetaSubject`, a message; or of `dispatch.MediaOneNote` whose `Meta` holds
+  `dispatch.MetaTitle`, a page. `Run` opens the record by its SHA-256, decodes it as
+  `metadata.Office`, `metadata.PDF`, `metadata.Media`, `metadata.Picture`, `email.Message`, or
+  `onenote.Page`, and renders a "label: value" line per field, dates in RFC 3339 in UTC. It chunks
+  the text as a source of kind `metadata` whose `Output` is the record output and whose `SHA256`
+  is the rendered text's. The text is never extracted, and `Counts.Metadata` counts it.
+- A media record renders its duration and its container's and streams' tags, except the tags
+  naming the encoder, container brand, handler, vendor, bit rate, byte or frame counts, or the
+  writing tool. A picture record renders its capture time, make, model, and GPS position. Neither
+  renders codecs, rates, sizes, orientation, format names, or the EXIF dump.
+- A message renders its sender and its To, CC, and BCC recipients, each as its name and, in angle
+  brackets, its SMTP address or, lacking one, its address; then its submit time, else its delivery
+  time, as "sent"; then its subject. A page renders its title, author, and creation and
+  modification times. Neither renders a body, transport headers, threading ids, attachments, or
+  media.
+- The records of a mail store, folder, or conversation, and of a OneNote notebook, section group,
+  or section, pass through. A record that renders no line yields no source. A record whose content
+  doesn't decode stops the job with an error that `Permanent` reports as permanent.
+
+### Changed
+
+- `Counts.Metadata` counts every metadata text in the job, the input's and each metadata
+  record's, no longer one per job.
+- A `Source` of kind `metadata` may carry `Output`: nil for an input's metadata text, the record
+  output for a metadata record's, whose `SHA256` is the rendered text's.
+- The module requires docproc v0.10.0, the release whose records carry the metadata docinfer
+  renders.
+
 ## [v0.3.0] - 2026-11-25
 
 This release meets the live rows: embeddings carry e5's document convention and chunk by the
@@ -247,6 +286,8 @@ extraction, and the integration tier are new.
   release workflow, which makes a GitHub release from `CHANGELOG.md` for a `v*` tag and from
   `<module>/CHANGELOG.md` for a `<module>/v*` tag.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/standards-lab/docinfer/compare/v0.3.0...v0.4.0
+[v0.3.0]: https://github.com/standards-lab/docinfer/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/standards-lab/docinfer/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/standards-lab/docinfer/releases/tag/v0.1.0
