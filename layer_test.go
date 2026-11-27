@@ -203,6 +203,11 @@ func TestRunSkipsPagesWithALayer(t *testing.T) {
 				layerImage(t, c, "", pdfPart, pdfStage, 1), layerImage(t, c, "", pdfChild, pdfStage, 1),
 			}
 		}, []int{3}},
+		{"two images of one page", layerThreshold, func(t *testing.T, c *dispatch.MemoryContent) []docinfer.Input {
+			again := imageInput(t, c, fmt.Appendf(slices.Clone(imageBytes), " page 1 again"), imageType)
+			again.Event.Part, again.Event.Stage, again.Event.Output.Meta = pdfPart, pdfStage, layerMeta(1)
+			return []docinfer.Input{layerText(t, c, "", pdfPart, pdfStage, 1, aboveLayer), layerImage(t, c, "", pdfPart, pdfStage, 1), again}
+		}, []int{2}},
 		{"an image before its text", layerThreshold, func(t *testing.T, c *dispatch.MemoryContent) []docinfer.Input {
 			return []docinfer.Input{layerImage(t, c, "", pdfPart, pdfStage, 1), layerText(t, c, "", pdfPart, pdfStage, 1, aboveLayer)}
 		}, []int{0}},
