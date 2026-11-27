@@ -66,7 +66,7 @@ func TestRunRendersMetadataRecord(t *testing.T) {
 			input = ev.Part
 		}
 	}
-	if input.Depth != 0 || len(outputs) != 2 {
+	if input.Name != "plan.txt" || input.Depth != 0 || len(outputs) != 2 {
 		t.Fatalf("input %+v and outputs %v, want a depth-0 part with its text and its record", input, outputs)
 	}
 
