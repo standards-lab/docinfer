@@ -115,6 +115,7 @@ under the names in the first column.
 | `run-acceptance.sh` | [`acceptance/run.sh`](../acceptance/run.sh) | `acceptance/run.sh --work DIR --docproc DIR`, the rerun the same again |
 | `tools/check-run.py` | [`acceptance/check-run.py`](../acceptance/check-run.py) | `python3 -I acceptance/check-run.py OUT/runs/<id>` |
 | none, new for the [text-layer run](#the-layer-word-threshold) | [`acceptance/layer-words.py`](../acceptance/layer-words.py) | `python3 -I acceptance/layer-words.py DOCPROC OUT/runs/<id> [N...]` |
+| none, new for the [described pages](#described-pages) | [`acceptance/described.py`](../acceptance/described.py) | `python3 -I acceptance/described.py DOCPROC OUT/runs/<id> [N]` |
 | `tools/sweep/` `run-sweep.sh`, `run-native.sh`, `run-reprobe.sh`, `run-confirm.sh` | [`acceptance/sweep/`](../acceptance/sweep): `run.sh sweep`, `native`, `reprobe`, `confirm` | `acceptance/sweep/run.sh reprobe --out DIR --docproc DIR --only FILE` |
 | `tools/sweep/compare.py` | [`acceptance/sweep/compare.py`](../acceptance/sweep/compare.py), its base label an argument | `python3 -I acceptance/sweep/compare.py DIR BASE LABEL...` |
 | `tools/transcribe-eval/` `run-eval.sh`, `run-t0.sh` | [`acceptance/transcribe-eval/`](../acceptance/transcribe-eval): `run.sh eval`, `t0` | `acceptance/transcribe-eval/run.sh eval --out DIR --docproc DIR` |
@@ -352,11 +353,53 @@ retired `~/docs` confirmation, over 11 CFR pages and the same 3 scans, described
 incomplete, the sample 29 and 3, and timed the scans six-fold faster downscaled, 190 s against
 1,200 s whole.
 
+### Described pages
+
+A page counts as described when its vision text holds under half its text layer's words, compared
+lowercased as multisets, and opens by describing the image: "This image…", "The image…", "A …
+shows…". spike-ai-pipeline's
+[docinfer finding](https://github.com/JaimeStill/spike-ai-pipeline/blob/main/docs/findings/docinfer.md)
+set this rule. Leaving out the synthetic `text_heavy.pdf`, it found 24 of the 1,289 pages with at
+least 100 layer words (1.9%) described over the retired `~/docs` pool, with Gemma 4 26B-A4B at
+temperature 1 on llama.cpp at 560 image tokens. `acceptance/described.py` applies the finding's
+rule and its pattern unchanged.
+
+The baseline run used card sampling on the vLLM NVFP4 row at 1,120 image tokens. Read against the
+docproc v0.9.0 run it consumed, it has 1,329 pages with a layer and a vision text; 1,234 of them
+hold at least 100 layer words, 2 of those recall under 0.5, and both are described. Both are one
+image, `807f6a4f…`, which is `Landing Gear Project data.pdf` page 2 and `Technical
+Specification.pdf` page 1, attachments of `digitally-signed-3d-portfolio.pdf`. It is a small
+table whose vision text calls it "too low to read clearly", at recall 0.013: the portfolio table
+the finding found too low in resolution to read under either prompt. No CFR or DoDM page is
+described. Read against the docproc v0.10.0 run, the recipe's output is the same, byte for byte.
+Four other page images open by describing the image, each with no layer:
+`pdfa2b-interactive-form-pass.pdf` page 1, a cyan square, and `stella-maberly-1896-ia-scan.pdf`
+pages 3 and 6, blank, and 250, a textured surface.
+
+The table below counts the images that still reach vision after the text-layer skip, by the route
+docproc gave each input, from the text-layer run read against the docproc v0.10.0 run it consumed.
+None of that run's 95 pages with a layer and a vision text holds 100 layer words, so the rule
+finds none. Video keyframes are most of the images, and for them a one-sentence description is
+the useful output. The 4 PDF page images opening with a description are the four above. The email
+image without a vision text is `jwz.mbox`'s truncated attachment, which the model refused.
+
+| Route | What they are | Images | With a vision text | Opening with a description |
+|---|---|---|---|---|
+| `video` | video keyframes | 1,010 | 1,010 | 253 |
+| `document` | PDF page images | 117 | 117 | 4 |
+| `nested` | email images | 64 | 63 | 8 |
+| `office` | office images | 10 | 10 | 1 |
+| `vision`, `vision-converted` | pictures | 9 | 9 | 1 |
+| `onenote` | OneNote images | 7 | 7 | 2 |
+| `archive` | archive images | 5 | 5 | 0 |
+| **total** | | **1,222** | **1,221** | **269** |
+
 ### Decisions
 
 | Setting | Value | Why |
 |---|---|---|
-| `vision.native` | `{"temperature":1.0,"top_p":0.95,"top_k":64}`, sent explicitly (`38df198`) | at 1,120 image tokens the row's default loops less than temperature 0 on real pages |
+| `vision.prompt` | "Transcribe the text in this picture. If it has no text, describe it in one sentence.", kept | the spike-ai-pipeline finding's stricter prompt ("Transcribe all the text in this picture, word for word, in reading order. Do not summarize or describe text…", its full wording never recorded) is rejected: on the baseline only 2 of 1,234 pages with at least 100 layer words come back described, both one unreadable table ([Described pages](#described-pages)); the text-layer skip keeps such pages out of vision, and most images still reaching it are video keyframes, where a one-sentence description is the useful output |
+| `vision.native` | `{"temperature":1.0,"top_p":0.95,"top_k":64}`, sent explicitly (`38df198`) | at 1,120 image tokens the row's default loops less than temperature 0 on real pages; the finding's lower temperature is rejected: temperature 0 looped on 3 of the 32 sample pages, all CFR, and card sampling on none ([re-probe](#re-probe-at-1120-image-tokens), [confirmation](#confirmation)), it was taken once (`eab052e`) and reversed, and Azure overflow (`gpt-5-mini`) is tested only at temperature 1.0 (ai-hosting's `docs/gateway.md`, "Overflow", and `docs/findings/gateway.md`, "gateway-overflow-rewrite") |
 | `max_tokens` | 2,048, held | the retired `~/docs` re-probe's real pages complete within it |
 | `vision.max_pixels` | 2,580,480 (`38df198`) | Gemma 4's processor rule; oversized scans no longer sent whole |
 | concurrency | 4 | the row's cap |
