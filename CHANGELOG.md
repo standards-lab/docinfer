@@ -9,27 +9,43 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-11-27
+
+This release renders docproc's metadata records as metadata texts: the office, PDF, media, and
+picture metadata records, and the mail message and OneNote page records, are each chunked and
+embedded as a text of its own. It requires docproc v0.10.0 and go-ai v0.5.0.
+
 ### Added
 
 - `Pipeline.Run` takes docproc's office, PDF, media, and picture metadata records, record outputs
   of `dispatch.MediaOfficeMetadata`, `dispatch.MediaPDFMetadata`, `dispatch.MediaMediaMetadata`,
   and `dispatch.MediaPictureMetadata`, and its mail message and OneNote page records, record
   outputs of `dispatch.MediaMail` whose `Meta` holds `dispatch.MetaSubject` and of
-  `dispatch.MediaOneNote` whose `Meta` holds `dispatch.MetaTitle`, as metadata texts: each is
-  opened by its SHA-256, decoded as `metadata.Office`, `metadata.PDF`, `metadata.Media`,
-  `metadata.Picture`, `email.Message`, or `onenote.Page`, rendered as a "label: value" line per
-  field, a date in RFC 3339 in UTC, and chunked as a source of kind `metadata` whose `Output` is
-  the record output and whose `SHA256` is the rendered text's. It is never extracted, and
-  `Counts.Metadata` counts it. A media record renders its duration and its container's and
-  streams' tags but an `encoder` or `encoded_by` tag; a picture record its capture time, make,
-  model, and GPS position; neither renders codecs, rates, sizes, orientation, format names, or the
-  EXIF dump. A message renders its sender, its To, CC, and BCC recipients, each its name and its
-  SMTP address, else its address, in angle brackets, its submit time, else its delivery time, as
+  `dispatch.MediaOneNote` whose `Meta` holds `dispatch.MetaTitle`, as metadata texts. Each is
+  opened by its SHA-256 and decoded as `metadata.Office`, `metadata.PDF`, `metadata.Media`,
+  `metadata.Picture`, `email.Message`, or `onenote.Page`. It is rendered as a "label: value" line
+  per field, a date in RFC 3339 in UTC, and chunked as a source of kind `metadata` whose `Output`
+  is the record output and whose `SHA256` is the rendered text's. It is never extracted, and
+  `Counts.Metadata` counts it.
+- A media record renders its duration and its container's and streams' tags but an `encoder` or
+  `encoded_by` tag; a picture record its capture time, make, model, and GPS position. Neither
+  renders codecs, rates, sizes, orientation, format names, or the EXIF dump.
+- A message renders its sender, its To, CC, and BCC recipients, each its name and its SMTP
+  address, else its address, in angle brackets, its submit time, else its delivery time, as
   "sent", and its subject; a page its title, author, and creation and modification times. Neither
-  renders a body, transport headers, threading ids, attachments, or media. A mail store's or
-  folder's record, a notebook's, section group's, or section's, and a conversation's pass through.
-  A record that renders no line is no source; one whose content doesn't decode stops the job,
-  `Permanent`.
+  renders a body, transport headers, threading ids, attachments, or media.
+- A mail store's or folder's record, a notebook's, section group's, or section's, and a
+  conversation's pass through. A record that renders no line is no source; one whose content
+  doesn't decode stops the job, `Permanent`.
+
+### Changed
+
+- `Counts.Metadata` counts every metadata text in the job, the input's and each metadata
+  record's, no longer one per job.
+- A `Source` of kind `metadata` may carry `Output`: nil for an input's metadata text, the record
+  output for a metadata record's, whose `SHA256` is the rendered text's.
+- The module requires docproc v0.10.0, the release whose records carry the metadata docinfer
+  renders.
 
 ## [v0.3.0] - 2026-11-25
 
@@ -269,6 +285,8 @@ extraction, and the integration tier are new.
   release workflow, which makes a GitHub release from `CHANGELOG.md` for a `v*` tag and from
   `<module>/CHANGELOG.md` for a `<module>/v*` tag.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/standards-lab/docinfer/compare/v0.3.0...v0.4.0
+[v0.3.0]: https://github.com/standards-lab/docinfer/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/standards-lab/docinfer/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/standards-lab/docinfer/releases/tag/v0.1.0

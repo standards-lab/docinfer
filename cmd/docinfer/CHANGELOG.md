@@ -10,6 +10,11 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+### Changed
+
+- The module requires docproc v0.10.0, the release whose records carry the metadata docinfer
+  renders.
+
 ## [v0.2.0] - 2026-11-25
 
 This release runs against the live rows: each capability's served model from its listing, e5's
