@@ -16,6 +16,8 @@ var (
 	docxPart  = dispatch.Part{ID: "/", Name: "plan.docx", Size: 4096, SHA256: strings.Repeat("c", 64)}
 	pdfPart   = dispatch.Part{ID: "/", Name: "plan.pdf", Size: 8192, SHA256: strings.Repeat("d", 64)}
 	pdfStage  = dispatch.Identity{Name: "document", Version: "1", Config: "c1"}
+	jpegPart  = dispatch.Part{ID: "/", Name: "harbor.jpg", Size: 2048, SHA256: strings.Repeat("e", 64)}
+	jpegStage = dispatch.Identity{Name: "picture", Version: "1", Config: "p0"}
 	officeRec = `{"core":{"title":"Quarterly Report","creator":"Ann Lee","created":"2026-03-15T09:30:00+05:30",` +
 		`"lastModifiedBy":"Bo Chan"},` +
 		`"extended":{"Application":"Microsoft Office Word","Pages":3,"Company":"Acme","Manager":"Cy Diaz"},` +
@@ -45,6 +47,23 @@ var (
 		"Department: Finance\n" +
 		"description: The year's plan\n" +
 		"subjects: plan, budget, 2026\n"
+	mediaRec = `{"format":"mp3","duration":245.32,"bit_rate":320000,"tags":{"title":"Morning Song","artist":"Ann Lee"},` +
+		`"streams":[{"index":0,"type":"audio","codec":"mp3","sample_rate":44100,"channels":2,"tags":{"language":"eng"}},` +
+		`{"index":1,"type":"video","codec":"mjpeg","width":500,"height":500,"frame_rate":90000,"attached_picture":true,` +
+		`"tags":{"comment":"Cover (front)"}}]}`
+	mediaText = "duration: 245.32 seconds\n" +
+		"title: Morning Song\n" +
+		"artist: Ann Lee\n" +
+		"language: eng\n" +
+		"comment: Cover (front)\n"
+	pictureRec = `{"capture_time":"2026-03-15T09:30:00+05:30","make":"Canon","model":"Canon EOS R5","orientation":6,` +
+		`"width":8192,"height":5464,"gps":{"latitude":40.6892,"longitude":-74.0445},` +
+		`"exif":{"DateTimeOriginal":"2026:03:15 09:30:00","Make":"Canon","Model":"Canon EOS R5","Software":"Firmware 1.8"}}`
+	pictureText = "capture time: 2026-03-15T04:00:00Z\n" +
+		"make: Canon\n" +
+		"model: Canon EOS R5\n" +
+		"GPS latitude: 40.6892\n" +
+		"GPS longitude: -74.0445\n"
 )
 
 func recordInput(t *testing.T, content *dispatch.MemoryContent, part dispatch.Part, stage dispatch.Identity, mediaType, record string) docinfer.Input {
@@ -64,6 +83,8 @@ func TestRunRendersMetadataRecords(t *testing.T) {
 	inputs := []docinfer.Input{
 		recordInput(t, content, docxPart, textStage, dispatch.MediaOfficeMetadata, officeRec),
 		recordInput(t, content, pdfPart, pdfStage, dispatch.MediaPDFMetadata, pdfRec),
+		recordInput(t, content, audioPart, audioStage, dispatch.MediaMediaMetadata, mediaRec),
+		recordInput(t, content, jpegPart, jpegStage, dispatch.MediaPictureMetadata, pictureRec),
 		recordInput(t, content, childPart, textStage, dispatch.MediaForm, `{"fields":[]}`),
 	}
 
@@ -77,7 +98,12 @@ func TestRunRendersMetadataRecords(t *testing.T) {
 		text  string
 		in    docinfer.Input
 		stage dispatch.Identity
-	}{{officeText, inputs[0], textStage}, {pdfText, inputs[1], pdfStage}} {
+	}{
+		{officeText, inputs[0], textStage},
+		{pdfText, inputs[1], pdfStage},
+		{mediaText, inputs[2], audioStage},
+		{pictureText, inputs[3], jpegStage},
+	} {
 		pieces, err := cfg.Chunker.Split(t.Context(), w.text)
 		if err != nil {
 			t.Fatal(err)
@@ -114,9 +140,9 @@ func TestRunRendersMetadataRecords(t *testing.T) {
 	if n := chatRequests(e); n != 0 {
 		t.Errorf("%d extraction requests, want none for metadata records", n)
 	}
-	if o.counts == nil || o.counts.Metadata != 2 || o.counts.Texts != 0 || o.counts.Embedded != all ||
+	if o.counts == nil || o.counts.Metadata != 4 || o.counts.Texts != 0 || o.counts.Embedded != all ||
 		o.counts.Extraction == nil || *o.counts.Extraction != (docinfer.ExtractionCounts{}) {
-		t.Errorf("counts %+v, want two metadata texts, their chunks embedded, and nothing extracted", o.counts)
+		t.Errorf("counts %+v, want four metadata texts, their chunks embedded, and nothing extracted", o.counts)
 	}
 	if len(o.settled) != len(inputs) {
 		t.Errorf("settled %v, want every input", o.settled)
@@ -131,6 +157,10 @@ func TestRunMetadataRecordWithNoLines(t *testing.T) {
 			`{"extended":{"Application":"Microsoft Office Word","Pages":3},"custom":{}}`),
 		recordInput(t, content, pdfPart, pdfStage, dispatch.MediaPDFMetadata,
 			`{"version":"1.4","info":{"creator":"Writer","producer":"LibreOffice"},"xmp":{"creator_tool":"Writer","packet":"<x/>"}}`),
+		recordInput(t, content, audioPart, audioStage, dispatch.MediaMediaMetadata,
+			`{"format":"flac","bit_rate":900000,"streams":[{"index":0,"type":"audio","codec":"flac","sample_rate":48000,"channels":2}]}`),
+		recordInput(t, content, jpegPart, jpegStage, dispatch.MediaPictureMetadata,
+			`{"orientation":1,"width":640,"height":480,"exif":{"Software":"Firmware 1.8"}}`),
 	}
 	o := collect(t, newPipeline(t, runConfig(t, e, nil)).Run(t.Context(), content, seq(inputs...), docinfer.Options{}))
 	if o.err != nil {
@@ -139,15 +169,15 @@ func TestRunMetadataRecordWithNoLines(t *testing.T) {
 	if len(o.batches) != 0 || len(e.Requests()) != 0 {
 		t.Errorf("%d batches and %d requests, want none", len(o.batches), len(e.Requests()))
 	}
-	if !slices.Equal(slices.Sorted(slices.Values(o.settled)), []int{0, 1}) {
-		t.Errorf("settled %v, want both records", o.settled)
+	if !slices.Equal(slices.Sorted(slices.Values(o.settled)), []int{0, 1, 2, 3}) {
+		t.Errorf("settled %v, want every record", o.settled)
 	}
 	checkCounts(t, o, docinfer.Counts{})
 }
 
 func TestRunMetadataRecordUndecodable(t *testing.T) {
 	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
-	for _, mediaType := range []string{dispatch.MediaOfficeMetadata, dispatch.MediaPDFMetadata} {
+	for _, mediaType := range []string{dispatch.MediaOfficeMetadata, dispatch.MediaPDFMetadata, dispatch.MediaMediaMetadata, dispatch.MediaPictureMetadata} {
 		t.Run(mediaType, func(t *testing.T) {
 			content := dispatch.NewMemoryContent()
 			in := recordInput(t, content, childPart, textStage, mediaType, `{"core":`)

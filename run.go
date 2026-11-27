@@ -127,16 +127,21 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // refusal's text; an incomplete one keeps its text, held, its Reason, and its chunks' Source's
 // Incomplete, why the model stopped.
 //
-// A metadata record, a record output of dispatch.MediaOfficeMetadata or dispatch.MediaPDFMetadata,
-// is a metadata text of its own: its content is opened, decoded as docproc's metadata.Office or
-// metadata.PDF, and rendered as a line per field, "label: value", in a fixed order, a field with no
+// A metadata record, a record output of dispatch.MediaOfficeMetadata, dispatch.MediaPDFMetadata,
+// dispatch.MediaMediaMetadata, or dispatch.MediaPictureMetadata, is a metadata text of its own: its
+// content is opened, decoded as docproc's metadata.Office, metadata.PDF, metadata.Media, or
+// metadata.Picture, and rendered as a line per field, "label: value", in a fixed order, a field with no
 // value left out, a date in RFC 3339 in UTC; its text is chunked as a source of kind metadata, its
 // Output the record output, its SHA256 the text's. An office record renders each core and custom
 // property by its stored key, in stored order, then the extended properties Company and Manager,
 // then the format it was converted from; a PDF record renders its information dictionary's title,
 // author, subject, keywords, creation and modification dates, and custom keys, then its XMP title,
-// creators, description, and subjects, each only when the dictionary doesn't hold the same value. A
-// record's text holds no file lines, no body, no XMP packet, and no tool names. A record that
+// creators, description, and subjects, each only when the dictionary doesn't hold the same value; a
+// media record renders its duration in seconds, then the container's tags, then each stream's tags,
+// each tag by its stored key, in stored order; a picture record renders its capture time, make,
+// model, and GPS latitude and longitude in decimal degrees. A record's text holds no file lines, no
+// body, no XMP packet, no EXIF dump, no codecs, rates, sizes, orientation, or format names, and no
+// tool names. A record that
 // renders no line is no source, and settles once read; a record whose content doesn't decode stops
 // the job, [Permanent], the error naming its SHA-256 and part.
 //

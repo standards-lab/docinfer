@@ -13,8 +13,10 @@ import (
 )
 
 var metadataRecords = map[string]func([]byte) (string, error){
-	dispatch.MediaOfficeMetadata: renderAs(officeLines),
-	dispatch.MediaPDFMetadata:    renderAs(pdfLines),
+	dispatch.MediaOfficeMetadata:  renderAs(officeLines),
+	dispatch.MediaPDFMetadata:     renderAs(pdfLines),
+	dispatch.MediaMediaMetadata:   renderAs(mediaLines),
+	dispatch.MediaPictureMetadata: renderAs(pictureLines),
 }
 
 type lines struct{ strings.Builder }
@@ -61,7 +63,7 @@ func propertyText(v any) string {
 		}
 		return v
 	case float64:
-		return strconv.FormatFloat(v, 'f', -1, 64)
+		return numberText(v)
 	case bool:
 		return strconv.FormatBool(v)
 	}
@@ -111,6 +113,28 @@ func pdfLines(l *lines, r metadata.PDF) {
 		l.add("subjects", strings.Join(r.XMP.Subjects, ", "))
 	}
 }
+
+func mediaLines(l *lines, r metadata.Media) {
+	if r.Duration != 0 {
+		l.add("duration", numberText(r.Duration)+" seconds")
+	}
+	l.properties(r.Tags)
+	for _, s := range r.Streams {
+		l.properties(s.Tags)
+	}
+}
+
+func pictureLines(l *lines, r metadata.Picture) {
+	l.date("capture time", r.CaptureTime)
+	l.add("make", r.Make)
+	l.add("model", r.Model)
+	if r.GPS != nil {
+		l.add("GPS latitude", numberText(r.GPS.Latitude))
+		l.add("GPS longitude", numberText(r.GPS.Longitude))
+	}
+}
+
+func numberText(f float64) string { return strconv.FormatFloat(f, 'f', -1, 64) }
 
 func sameList(stored string, list []string) bool {
 	if stored == strings.Join(list, ", ") {
