@@ -5,11 +5,16 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
+	"github.com/standards-lab/docproc/dispatch"
 	"github.com/standards-lab/go-ai/protocol"
 )
 
-const sourceVision = "vision"
+const (
+	sourceVision  = "vision"
+	documentStage = "document"
+)
 
 func (r *run) describe(in Input, pos int) {
 	ev := in.Event
@@ -251,4 +256,91 @@ func (r *run) countVision(e inferenceEvent) {
 	vc.Requests += e.requests
 	r.counts.Tokens.Vision.Input += e.usage.Input
 	r.counts.Tokens.Vision.Output += e.usage.Output
+}
+
+func layerWords(text string) int {
+	return len(strings.FieldsFunc(text, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }))
+}
+
+type partKey struct {
+	origin string
+	part   string
+}
+
+type pageKey struct {
+	stage dispatch.Identity
+	page  string
+}
+
+type layer struct {
+	done  chan struct{}
+	words int
+}
+
+func (l *layer) read(text string) {
+	l.words = layerWords(text)
+	close(l.done)
+}
+
+func (r *run) layerKey(in Input) (partKey, pageKey, bool) {
+	ev := in.Event
+	if v := r.p.cfg.Vision; v == nil || v.LayerWords == 0 || ev.Stage.Name != documentStage {
+		return partKey{}, pageKey{}, false
+	}
+	page := ev.Output.Meta[dispatch.MetaPage]
+	return partKey{origin: in.Origin, part: ev.Part.ID}, pageKey{stage: ev.Stage, page: page}, page != ""
+}
+
+func (r *run) pageLayer(in Input) *layer {
+	if in.Event.Output.Kind != dispatch.TextOutput {
+		return nil
+	}
+	pk, k, ok := r.layerKey(in)
+	if !ok {
+		return nil
+	}
+	l := &layer{done: make(chan struct{})}
+	if r.layers == nil {
+		r.layers = map[partKey]map[pageKey]*layer{}
+	}
+	if r.layers[pk] == nil {
+		r.layers[pk] = map[pageKey]*layer{}
+	}
+	r.layers[pk][k] = l
+	return l
+}
+
+func (r *run) matchLayer(in Input) *layer {
+	pk, k, ok := r.layerKey(in)
+	if !ok {
+		return nil
+	}
+	l := r.layers[pk][k]
+	if l == nil {
+		return nil
+	}
+	delete(r.layers[pk], k)
+	if len(r.layers[pk]) == 0 {
+		delete(r.layers, pk)
+	}
+	return l
+}
+
+func (r *run) releaseLayers(in Input) {
+	if ev := in.Event; ev.Output == nil && ev.Warning == nil {
+		delete(r.layers, partKey{origin: in.Origin, part: ev.Part.ID})
+	}
+}
+
+func (r *run) layered(in Input, pos int, l *layer) {
+	select {
+	case <-l.done:
+	case <-r.ctx.Done():
+		return
+	}
+	if l.words >= r.p.cfg.Vision.LayerWords {
+		r.send(skipEvent{pos})
+		return
+	}
+	r.describe(in, pos)
 }

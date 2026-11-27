@@ -209,7 +209,11 @@ func manifest(cfg Config, pr docinfer.Profile, d outdir.Docproc) outdir.Manifest
 			m.Skipped = append(m.Skipped, outdir.Skipped{Name: c.name, Reason: notConfigured})
 			continue
 		}
-		m.Capabilities = append(m.Capabilities, capability(*c.id))
+		mc := capability(*c.id)
+		if c.name == docinfer.CapabilityVision {
+			mc.LayerWords = pr.VisionLayerWords
+		}
+		m.Capabilities = append(m.Capabilities, mc)
 	}
 	embeddings := capability(pr.Embeddings)
 	embeddings.Batch, embeddings.ChunkSize = cfg.EmbedBatch, cfg.Chunker.Bound

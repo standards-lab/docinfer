@@ -51,10 +51,14 @@ type Identity struct {
 // Profile is a pipeline's resolved identity: the served models, settings, dimensions, and chunker,
 // known before any job runs.
 type Profile struct {
-	Vision        *Identity `json:"vision,omitempty"`
-	Transcription *Identity `json:"transcription,omitempty"`
-	Extraction    *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
-	Embeddings    Identity  `json:"embeddings"`
+	Vision *Identity `json:"vision,omitempty"`
+	// VisionLayerWords is vision's LayerWords, kept out of its identity: a page image skips
+	// vision when the page's text layer holds at least this many words; 0, or no vision, skips
+	// none.
+	VisionLayerWords int       `json:"vision_layer_words,omitempty"`
+	Transcription    *Identity `json:"transcription,omitempty"`
+	Extraction       *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
+	Embeddings       Identity  `json:"embeddings"`
 	// EmbeddingQuery is the query convention the embeddings' client declares, which a consumer
 	// applies to its search queries so they land in the space the chunks were embedded in; nil
 	// when the client declares none, and the queries go as they are.
@@ -197,8 +201,8 @@ type Counts struct {
 	Tokens        Tokens               `json:"tokens"`                  // this job's requests only
 }
 
-// VisionCounts counts each image under its outcome; Empty counts those of the Incomplete with no
-// text.
+// VisionCounts counts each image under its outcome, or as Skipped; Empty counts those of the
+// Incomplete with no text.
 type VisionCounts struct {
 	Described  int `json:"described"`
 	Incomplete int `json:"incomplete"`
@@ -207,6 +211,9 @@ type VisionCounts struct {
 	Failed     int `json:"failed"`
 	Held       int `json:"held"`
 	Requests   int `json:"requests"`
+	// Skipped counts the page images sent no request, their page's text layer holding at least
+	// Vision.LayerWords words.
+	Skipped int `json:"skipped"`
 }
 
 // TranscriptionCounts counts each window under its outcome, or as Unplaced, the transcripts

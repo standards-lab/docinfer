@@ -9,10 +9,10 @@ failure table in [`doc.go`](../doc.go); the join of work in flight has
 
 A job is a `run`. Run's own goroutine is its coordinator, the only goroutine that yields: every
 other goroutine of the job hands it an event on one channel, and the coordinator alone keeps the
-counts, the embedded chunks waiting for a batch, the window groups, and the settlements. The
-job's context is cancelled when Run stops, which ends every request in flight; Run waits for the
-job's goroutines before it returns, and nothing derived from the job is yielded once its context
-has ended.
+counts, the embedded chunks waiting for a batch, the window groups, the page layers, and the
+settlements. The job's context is cancelled when Run stops, which ends every request in flight;
+Run waits for the job's goroutines before it returns, and nothing derived from the job is yielded
+once its context has ended.
 
 `spawn` recovers a goroutine's panic once its deferred calls, a lease's release among them, have
 run; the first panic stops the job, and `repanic` raises it on Run's goroutine, so it reaches Run's
@@ -56,6 +56,19 @@ A window is sent as `window.wav` or `window.mp3`: the extension is what a chat-m
 reads the clip's encoding from, and the route's file part's name. An incomplete transcript is held
 with its reason, or else its status, or else `incomplete`, so a held incomplete transcript is never
 read as a transcribed empty one.
+
+## Page layers
+
+With `Vision.LayerWords` above 0, the coordinator keeps a `layer` for each document-stage page
+text it admits, keyed by the input's `Origin` and part ID, then by stage and `dispatch.MetaPage`.
+A later text of the same page replaces it, and the page's image takes it out, so a text matches
+one image at most. The part's own event, an event with neither `Output` nor `Warning`, drops the
+part's layers. An image admitted before its page's text finds no layer and is described.
+
+The text's goroutine counts the layer's words as it reads the text and closes the layer's `done`
+channel. The image's goroutine waits on `done`, or on the job's context, then either describes the
+image or hands the coordinator a `skipEvent`, which counts the image `Skipped` and settles its
+input.
 
 ## Batches
 

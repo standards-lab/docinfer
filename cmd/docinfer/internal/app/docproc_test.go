@@ -54,15 +54,23 @@ func (d *docprocRun) write(e schema.Event) {
 
 func (d *docprocRun) output(path string, part dispatch.Part, kind dispatch.OutputKind, mediaType string, content []byte) string {
 	d.t.Helper()
-	s := sha(content)
-	if err := d.dir.Content().Put(context.Background(), s, bytes.NewReader(content)); err != nil {
+	return d.emit(path, part, dispatch.Identity{Name: "stage"}, &dispatch.Output{Kind: kind, MediaType: mediaType}, content)
+}
+
+func (d *docprocRun) pageOutput(path string, part dispatch.Part, kind dispatch.OutputKind, mediaType, page string, content []byte) {
+	d.t.Helper()
+	d.emit(path, part, dispatch.Identity{Name: "document"},
+		&dispatch.Output{Kind: kind, MediaType: mediaType, Meta: map[string]string{dispatch.MetaPage: page}}, content)
+}
+
+func (d *docprocRun) emit(path string, part dispatch.Part, stage dispatch.Identity, out *dispatch.Output, content []byte) string {
+	d.t.Helper()
+	out.SHA256 = sha(content)
+	if err := d.dir.Content().Put(context.Background(), out.SHA256, bytes.NewReader(content)); err != nil {
 		d.t.Fatal(err)
 	}
-	d.write(schema.Event{Kind: schema.OutputEvent, Input: path,
-		Part:   part,
-		Stage:  dispatch.Identity{Name: "stage"},
-		Output: &dispatch.Output{Kind: kind, MediaType: mediaType, SHA256: s}})
-	return s
+	d.write(schema.Event{Kind: schema.OutputEvent, Input: path, Part: part, Stage: stage, Output: out})
+	return out.SHA256
 }
 
 func (d *docprocRun) part(path string, part dispatch.Part, outputs int) {

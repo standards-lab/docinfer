@@ -168,14 +168,17 @@ type Capability struct {
 // configured native replaces it whole, and {} sends none; and max_pixels, the most pixels an image
 // is sent at, a larger PNG or JPEG downscaled to it with its aspect ratio kept, starting at
 // 2,580,480, the vision row's Gemma 4 budget at 1,120 soft tokens (1,120 × 9 patches × 16² px),
-// 0 sending every image as it is.
+// 0 sending every image as it is; and layer_words, the layer-word threshold, starting at 100: a
+// PDF page's image skips vision when the page's text layer, the document stage's text output for
+// the page before it, holds at least layer_words words, 0 sending every page image.
 type Vision struct {
 	Capability
-	Prompt    string                   `json:"prompt"`
-	MaxTokens *int                     `json:"max_tokens"`
-	Reasoning protocol.ReasoningEffort `json:"reasoning"`
-	Native    json.RawMessage          `json:"native"`
-	MaxPixels *int                     `json:"max_pixels"`
+	Prompt     string                   `json:"prompt"`
+	MaxTokens  *int                     `json:"max_tokens"`
+	Reasoning  protocol.ReasoningEffort `json:"reasoning"`
+	Native     json.RawMessage          `json:"native"`
+	MaxPixels  *int                     `json:"max_pixels"`
+	LayerWords *int                     `json:"layer_words"`
 }
 
 // Transcription is the transcription capability: its prompt and language, empty sending none;
@@ -240,6 +243,7 @@ const (
 	startVisionReasoning       = protocol.ReasoningEffortNone
 	startVisionNative          = `{"temperature":1.0,"top_p":0.95,"top_k":64}`
 	startVisionMaxPixels       = 2580480
+	startVisionLayerWords      = 100
 	startTranscriptionTokens   = 512
 	startTranscriptionNative   = `{"temperature":0}`
 	startWordsPerSecond        = 8
@@ -313,6 +317,7 @@ func (v *Vision) merge(src *Vision) {
 		v.Native = src.Native
 	}
 	set(&v.MaxPixels, src.MaxPixels)
+	set(&v.LayerWords, src.LayerWords)
 }
 
 func (t *Transcription) merge(src *Transcription) {
@@ -364,12 +369,12 @@ func mergeMap(dst, src map[string]string) map[string]string {
 // value, and checks what is docinfer's to check: each endpoint's format and profile and a
 // response_header_timeout not below zero, each capability's endpoint among endpoints, each count at
 // least 1, chunk_runes over the document prefix's characters, chat transcription on the completions
-// format, transcription's max_tokens not below zero and 0 in route mode, vision's max_pixels not
-// below zero, the embeddings' input_types set and their tokenizer among endpoints, vision's and
-// transcription's native a JSON object with unique member names, transcription's none or {} in
-// route mode, and no two endpoint names composing the same overrides. What ai.New refuses, such as
-// a base URL or a retry policy, the client nodes report, named for their endpoint. An empty prefix
-// reads no override.
+// format, transcription's max_tokens not below zero and 0 in route mode, vision's max_pixels and
+// layer_words not below zero, the embeddings' input_types set and their tokenizer among endpoints,
+// vision's and transcription's native a JSON object with unique member names, transcription's none
+// or {} in route mode, and no two endpoint names composing the same overrides. What ai.New
+// refuses, such as a base URL or a retry policy, the client nodes report, named for their
+// endpoint. An empty prefix reads no override.
 func (c *Config) Finalize(prefix string) error {
 	overrides, err := c.overrides(prefix)
 	c.Merge(overrides)
@@ -415,6 +420,7 @@ func (c *Config) overrides(prefix string) (*Config, error) {
 		setFromEnv(&v.Reasoning, config.EnvName(prefix, "vision", "reasoning"), parseEffort),
 		setFromEnv(&v.Native, config.EnvName(prefix, "vision", "native"), parseRaw),
 		config.SetFromEnv(&v.MaxPixels, config.EnvName(prefix, "vision", "max_pixels"), parseCount),
+		config.SetFromEnv(&v.LayerWords, config.EnvName(prefix, "vision", "layer_words"), parseCount),
 	)
 	if !reflect.ValueOf(v).IsZero() {
 		o.Vision = &v
@@ -523,6 +529,7 @@ func (c *Config) start() {
 		startAt(&v.Concurrency, startConcurrency)
 		startAt(&v.MaxTokens, startVisionMaxTokens)
 		startAt(&v.MaxPixels, startVisionMaxPixels)
+		startAt(&v.LayerWords, startVisionLayerWords)
 		if v.Prompt == "" {
 			v.Prompt = startVisionPrompt
 		}
@@ -576,6 +583,9 @@ func (c *Config) validate() error {
 			checkNative("vision", v.Native))
 		if n := *v.MaxPixels; n < 0 {
 			errs = append(errs, fmt.Errorf("vision: max_pixels %d is below zero", n))
+		}
+		if n := *v.LayerWords; n < 0 {
+			errs = append(errs, fmt.Errorf("vision: layer_words %d is below zero", n))
 		}
 	}
 	if t := c.Transcription; t != nil {

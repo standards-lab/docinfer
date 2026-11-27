@@ -131,8 +131,8 @@ func writeEnd(w io.Writer, id string, m outdir.Manifest) error {
 	failures := c.Rejected
 	if v := c.Vision; v != nil {
 		failures += v.Refused + v.Failed
-		lines = append(lines, fmt.Sprintf("vision: images %d: described %d, incomplete %d (empty %d), refused %d, failed %d, held %d; requests %d",
-			c.Images, v.Described, v.Incomplete, v.Empty, v.Refused, v.Failed, v.Held, v.Requests))
+		lines = append(lines, fmt.Sprintf("vision: images %d: described %d, incomplete %d (empty %d), refused %d, failed %d, skipped %d, held %d; requests %d",
+			c.Images, v.Described, v.Incomplete, v.Empty, v.Refused, v.Failed, v.Skipped, v.Held, v.Requests))
 	} else {
 		lines = append(lines, fmt.Sprintf("vision: skipped, %s; images %d", notConfigured, c.Images))
 	}

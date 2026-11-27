@@ -9,7 +9,8 @@ otherwise. Results stay out of git.
 | Recipe | What it does |
 |---|---|
 | [`run.sh`](run.sh) | The acceptance run: `docinfer run --report` over a docproc run directory, through the gateway |
-| [`check-run.py`](check-run.py) | A run's vectors and covered runes by source kind, from its `chunks.jsonl` |
+| [`check-run.py`](check-run.py) | A run's vectors and covered runes by source kind, and its metadata texts by what they render, from its `chunks.jsonl` |
+| [`layer-words.py`](layer-words.py) | Each `vision.layer_words` threshold's skipped page images, and the thin pages among them with the vision words they lose, from a run's held vision texts |
 | [`sweep/`](sweep) | The vision measurements: the concurrency sweep, the native-sampling probe, the re-probe, and the confirmation |
 | [`transcribe-eval/`](transcribe-eval) | The transcription measurements: capped against uncapped, temperature 0's repeatability, and error against a corpus's references |
 
@@ -54,6 +55,13 @@ Check a finished run's vectors and runes with its run directory, `out/runs/<id>`
 
 ```sh
 python3 -I acceptance/check-run.py ~/runs/docinfer-v0.2.0/out/runs/<id>
+```
+
+Measure the layer-word thresholds, by default 50, 100, 150, and 200 words, with a docproc run
+directory and a run that described its page images:
+
+```sh
+python3 -I acceptance/layer-words.py ~/runs/docproc/corpus-v0.2.0 ~/runs/docinfer-v0.2.0/out/runs/<id>
 ```
 
 ## Vision

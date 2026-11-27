@@ -43,6 +43,12 @@ type Vision struct {
 	// decode, which the endpoint's refusal classifies. 0 sends every image as it is; [New] refuses
 	// a negative one.
 	MaxPixels int
+	// LayerWords is the layer-word threshold: a PDF page's image skips vision when the page's text
+	// layer, the text output the document stage emits for the page before its image, holds at least
+	// LayerWords words, a word being a run of Unicode letters or digits. It isn't part of
+	// [Vision.Identity], so changing it never misses a held description. 0 sends every page image;
+	// [New] refuses a negative one.
+	LayerWords int
 	// Native is the native tier, sent as every request's protocol.Request.Native: a JSON object
 	// whose members the endpoint defines, such as temperature. Empty sends none; [New] refuses
 	// one that isn't a JSON object with unique member names.

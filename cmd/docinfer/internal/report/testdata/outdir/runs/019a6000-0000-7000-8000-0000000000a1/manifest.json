@@ -90,7 +90,8 @@
       "refused": 1,
       "failed": 1,
       "held": 2,
-      "requests": 3
+      "requests": 3,
+      "skipped": 1
     },
     "windows": 3,
     "transcription": {

@@ -42,10 +42,10 @@ type Pipeline struct {
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
 // Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each
-// MaxTokens but Transcription's), a negative Transcription.MaxTokens or Vision.MaxPixels, a nil
-// Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision, Transcription, or
-// Extraction Native that isn't a JSON object with unique member names. It copies the capabilities
-// cfg points to, so a later change to them changes nothing.
+// MaxTokens but Transcription's), a negative Transcription.MaxTokens, Vision.MaxPixels, or
+// Vision.LayerWords, a nil Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision,
+// Transcription, or Extraction Native that isn't a JSON object with unique member names. It copies
+// the capabilities cfg points to, so a later change to them changes nothing.
 func New(cfg Config) (*Pipeline, error) {
 	if cfg.Cache == nil {
 		panic("docinfer: New: nil Cache")
@@ -112,6 +112,9 @@ func New(cfg Config) (*Pipeline, error) {
 	if v := cfg.Vision; v != nil && v.MaxPixels < 0 {
 		return nil, fmt.Errorf("docinfer: New: %w: Vision.MaxPixels %d is negative", ErrRequest, v.MaxPixels)
 	}
+	if v := cfg.Vision; v != nil && v.LayerWords < 0 {
+		return nil, fmt.Errorf("docinfer: New: %w: Vision.LayerWords %d is negative", ErrRequest, v.LayerWords)
+	}
 	if cfg.Chunker.Count == nil {
 		return nil, fmt.Errorf("docinfer: New: %w: Chunker.Count is nil", ErrRequest)
 	}
@@ -145,6 +148,7 @@ func New(cfg Config) (*Pipeline, error) {
 	}
 	if cfg.Vision != nil {
 		p.profile.Vision = new(cfg.Vision.Identity())
+		p.profile.VisionLayerWords = cfg.Vision.LayerWords
 	}
 	if cfg.Transcription != nil {
 		p.profile.Transcription = new(cfg.Transcription.Identity())
@@ -155,13 +159,13 @@ func New(cfg Config) (*Pipeline, error) {
 	return p, nil
 }
 
-// Profile returns the pipeline's resolved identity: each capability's [Identity], the query
-// convention the embeddings' client declares, the embeddings' Dimensions, and the Chunker's
-// Settings, known before any job runs. Each identity's Model is the capability's Served, the model
-// the deployment serves, not the one its request names, so a consumer recording the embedding space
-// records the model. An unset capability's identity is nil, and the extraction's settings are
-// {"request","max_tokens", "effort","native"}, "native" there only when Native is set, less the
-// name, prompt, and schema each run's [Extract] gives.
+// Profile returns the pipeline's resolved identity: each capability's [Identity], vision's
+// LayerWords, the query convention the embeddings' client declares, the embeddings' Dimensions, and
+// the Chunker's Settings, known before any job runs. Each identity's Model is the capability's
+// Served, the model the deployment serves, not the one its request names, so a consumer recording
+// the embedding space records the model. An unset capability's identity is nil, and the
+// extraction's settings are {"request","max_tokens", "effort","native"}, "native" there only when
+// Native is set, less the name, prompt, and schema each run's [Extract] gives.
 func (p *Pipeline) Profile() Profile {
 	pr := p.profile
 	for _, id := range []**Identity{&pr.Vision, &pr.Transcription, &pr.Extraction} {

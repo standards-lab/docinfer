@@ -70,7 +70,10 @@ type Input struct {
 // are under, whose "model" is the model the deployment serves; "request_model", the model its
 // requests named, which the deployment serves as "model"; and the endpoint it sent to, by name,
 // base URL, and format, with its bounds: "concurrency", its requests in flight, and for
-// embeddings "batch", the texts per request, and "chunk_size", the tokens per chunk.
+// embeddings "batch", the texts per request, and "chunk_size", the tokens per chunk; and for vision
+// "layer_words", docinfer.Profile's VisionLayerWords, kept out of the identity: a page image skips
+// vision when its page's text layer holds at least that many words, omitted when it is 0 and none
+// skips.
 type Capability struct {
 	docinfer.Identity
 	RequestModel string `json:"request_model"`
@@ -80,6 +83,7 @@ type Capability struct {
 	Concurrency  int    `json:"concurrency"`
 	Batch        int    `json:"batch,omitzero"`
 	ChunkSize    int    `json:"chunk_size,omitzero"`
+	LayerWords   int    `json:"layer_words,omitzero"`
 }
 
 // Skipped is a capability a run didn't run: "name", the capability, and "reason", why.

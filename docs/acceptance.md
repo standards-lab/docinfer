@@ -1,11 +1,12 @@
 # Acceptance
 
 The evidence that docinfer runs against the live rows: the timed run over docs-corpus v0.2.0, the
-vision and transcription measurements that set the request shapes, and the live tiers. The raw
-results stay out of git, under `~/runs/docs-corpus/baseline/v0.2.0/docinfer`: the run and its
-rerun in `acceptance`, the re-probe in `reprobe`, the confirmation in `confirm`. Each table names
-the file it is read from. The earlier runs, over the retired `~/docs` pool, are kept as their
-[findings](#findings-from-the-retired-docs-runs-2026-11-25).
+run with the text-layer skip that reused its cache, the vision and transcription measurements that
+set the request shapes, and the live tiers. The raw results stay out of git, under
+`~/runs/docs-corpus/baseline/v0.2.0/docinfer`: the run and its rerun in `acceptance`, the
+text-layer run and its rerun in `text-layer`, the re-probe in `reprobe`, the confirmation in
+`confirm`. Each table names the file it is read from. The earlier runs, over the retired `~/docs`
+pool, are kept as their [findings](#findings-from-the-retired-docs-runs-2026-11-25).
 
 ## docs-corpus v0.2.0
 
@@ -113,6 +114,7 @@ under the names in the first column.
 |---|---|---|
 | `run-acceptance.sh` | [`acceptance/run.sh`](../acceptance/run.sh) | `acceptance/run.sh --work DIR --docproc DIR`, the rerun the same again |
 | `tools/check-run.py` | [`acceptance/check-run.py`](../acceptance/check-run.py) | `python3 -I acceptance/check-run.py OUT/runs/<id>` |
+| none, new for the [text-layer run](#the-layer-word-threshold) | [`acceptance/layer-words.py`](../acceptance/layer-words.py) | `python3 -I acceptance/layer-words.py DOCPROC OUT/runs/<id> [N...]` |
 | `tools/sweep/` `run-sweep.sh`, `run-native.sh`, `run-reprobe.sh`, `run-confirm.sh` | [`acceptance/sweep/`](../acceptance/sweep): `run.sh sweep`, `native`, `reprobe`, `confirm` | `acceptance/sweep/run.sh reprobe --out DIR --docproc DIR --only FILE` |
 | `tools/sweep/compare.py` | [`acceptance/sweep/compare.py`](../acceptance/sweep/compare.py), its base label an argument | `python3 -I acceptance/sweep/compare.py DIR BASE LABEL...` |
 | `tools/transcribe-eval/` `run-eval.sh`, `run-t0.sh` | [`acceptance/transcribe-eval/`](../acceptance/transcribe-eval): `run.sh eval`, `t0` | `acceptance/transcribe-eval/run.sh eval --out DIR --docproc DIR` |
@@ -120,6 +122,126 @@ under the names in the first column.
 
 The `~/docs` runs and measurements sent straight to the rows; the v0.2.0 runs and measurements went
 through the gateway.
+
+## docs-corpus v0.2.0 with the text-layer skip
+
+docinfer reran over a fresh docproc v0.10.0 run of the same corpus, the first run with the
+metadata texts and with `vision.layer_words` at its starting value, 100. It replayed the baseline
+run's results from a copy of its cache, so only the new work sent requests: 3 vision requests and
+416 embedding requests, in 11.9 s. Vision skipped 1,234 page images, the count measured over the
+baseline when the skip was planned, and lost the 1,173 vision words of 3 thin pages
+([The layer-word threshold](#the-layer-word-threshold)). The metadata texts number 789: 299
+inputs' and 490 records'.
+
+### What the text-layer run ran
+
+| | |
+|---|---|
+| docproc run | `01a21e45-0fa6-7946-acae-8c99adb84e46` (docproc v0.10.0, cmd/docproc v0.2.8), in `~/runs/docs-corpus/baseline/v0.2.0/docproc-v0.10.0`, 120 s by its manifest |
+| docproc command | from the docs-corpus checkout at `v0.2.0-22-g416d25f`, whose corpus files match `v0.2.0`, as the [baseline's](https://github.com/standards-lab/docs-corpus/blob/main/docs/baseline.md) with cmd/docproc v0.2.8 in its place: `GOBIN=~/runs/docs-corpus/baseline/v0.2.0/bin-v0.10.0 go install github.com/standards-lab/docproc/cmd/docproc@v0.2.8`, then, with `bin-v0.10.0/`, the baseline's `bin/`, and the real `7zz` first on `PATH`, `docproc run archive audio email exec image office onenote pdf text video --out ~/runs/docs-corpus/baseline/v0.2.0/docproc-v0.10.0`; its summary in `docproc-v0.10.0-run.stdout`, its empty stderr in `docproc-v0.10.0-run.stderr` |
+| docproc's tools | the baseline's, with pdfinfo 26.10.0 added and soffice in `gotenberg/gotenberg:9.10.2-libreoffice`, the image docproc v0.10.0 pins, still LibreOffice 26.8.2.2 |
+| docinfer runs | run `01a21e47-7088-75fa-a4fd-e5355fb97149` and its rerun, `01a21e47-b634-790c-a631-1c9916508bc8` |
+| Build | docinfer `b392583` (`v0.4.0-7-gb392583`), cmd/docinfer `cmd/docinfer/v0.3.0-5-gb392583`, with go-ai v0.5.0 and docproc v0.10.0, go1.27.4, built by `acceptance/run.sh` (`BUILD.txt`) |
+| Machine | the laptop, `terminal`, as for the baseline |
+| Command | `acceptance/run.sh --work ~/runs/docs-corpus/baseline/v0.2.0/docinfer/text-layer --docproc ~/runs/docs-corpus/baseline/v0.2.0/docproc-v0.10.0 --vision 32 --audio 48 --embedding 16`, twice |
+| Cache | `text-layer/out/` seeded with a copy of the baseline run's `acceptance/out/` `outdir.json`, `results/`, and `texts/`; the baseline's directories unchanged |
+| Configuration | the baseline's, so `layer_words` at its starting value, 100, which the run's manifest records on vision's entry |
+| Gateway | `http://gb10-2:3000`, docinfer's consumer key |
+
+The docproc run differs from the baseline's only in its new records and in 3 frames. Its 6,258
+outputs are the baseline's 6,068 and 190 metadata records: 70 PDF, 60 office, 57 media (48 audio,
+9 video), and 3 picture. Every output the two runs share has the same SHA-256, but for 3 frames of
+`duck-and-cover-theora.ogv`, 178 to 180, which ffmpeg encoded anew. Those 3 were the only images
+missing vision's cache, so the run's 3 vision requests are theirs.
+
+### The text-layer run and its rerun
+
+From `text-layer/logs/run-1.log` and `run-2.log`; vectors, runes, and metadata texts from
+`acceptance/check-run.py` over each run's directory.
+
+| | Baseline run | Run | Rerun |
+|---|---|---|---|
+| Run ID | `01a218e4-ddaa-7101-949b-0c9030a50690` | `01a21e47-7088-75fa-a4fd-e5355fb97149` | `01a21e47-b634-790c-a631-1c9916508bc8` |
+| Started | 2026-11-26T12:26:21-05:00 | 2026-11-27T13:32:08-05:00 | 2026-11-27T13:32:25-05:00 |
+| Exit | 0 | 0 | 0 |
+| Wall time | 8,330.5 s | 11.9 s | 1.2 s |
+| Vision | 2,558 images: 2,551 described, 6 incomplete, 1 refused | 2,558 images: 1,318 described, 5 incomplete, 1 refused, 0 failed, **1,234 skipped**; 3 requests, 1,321 held | 0 requests, 1,324 held; outcomes unchanged |
+| Transcription | 1,055 windows: 1,054 transcribed, 1 incomplete | the same; 0 requests, 1,055 held | the same |
+| Embeddings | 1,964 texts and 299 metadata: 18,814 embedded | 1,964 texts and 789 metadata: 15,990 embedded, 0 rejected; 416 requests, 15,574 held | 0 requests, 15,990 held |
+| Totals | 299 inputs, 6,068 outputs, 18,814 chunks, 2 failures | 299 inputs, 6,258 outputs, 15,990 chunks, 2 failures (the refusal and the incomplete window) | the same |
+| Vectors | 18,814, 1,024 dimensions | 15,990, all 1,024 dimensions; worst \|norm − 1\| 8.86e-08 | the same |
+
+The skip cost the run 3,314 vision chunk lines, 4,727 down to 1,413, and their 4,082,950
+covered runes; the metadata texts added 490 lines. The other kinds' lines and runes are the
+baseline's.
+
+| Kind | Lines | Distinct | Runes | Distinct runes |
+|---|---|---|---|---|
+| metadata | 789 | 711 | 96,587 | 86,024 |
+| output | 13,523 | 12,945 | 15,273,177 | 14,898,558 |
+| transcript | 265 | 261 | 346,783 | 346,588 |
+| vision | 1,413 | 1,135 | 308,632 | 284,035 |
+| **total** | **15,990** | **15,052** | **16,025,179** | **15,615,205** |
+
+### The skipped page images against the planned count
+
+The run skipped 1,234 page images, the count measured over the baseline when the skip was
+planned: of the 1,368 PDF page images, 1,329 have a text layer and 39 none, and 1,234 of the
+1,329 hold at least 100 words. The run's skipped images, the images it holds no inference for, are
+by SHA-256 exactly the 1,232 distinct images `acceptance/layer-words.py` counts at 100; two of them
+each serve two pages. One of them was an incomplete page in the baseline: olmocr-bench
+`tables-fa18a15c…_pg2_pg1.pdf`, the table past 2,048 tokens, whose layer holds its words. So 5
+images are incomplete, not 6.
+
+### Metadata texts
+
+The metadata texts by what they render, from `acceptance/check-run.py`. Each is one chunk line.
+
+| Renders | Records in docproc's run | Metadata texts |
+|---|---|---|
+| an input | 299 inputs | 299 |
+| a mail message (`mail+jsonl` with a subject) | 300 | 299 |
+| a OneNote page (`onenote+jsonl` with a title) | 14 | 14 |
+| office metadata | 60 | 60 |
+| PDF metadata | 70 | 57 |
+| media metadata | 57 | 57 |
+| picture metadata | 3 | 3 |
+| **total** | | **789** |
+
+The records with no text render no line: 13 PDF records hold only a producer and a PDF version,
+and one message, `jwz.mbox`'s message 19's embedded message, holds only transport headers and a
+body.
+
+### The layer-word threshold
+
+`acceptance/layer-words.py` measured each threshold over the docproc v0.10.0 run and the baseline
+run's held vision texts, which cover every page image with a text layer. A page is thin, by the
+rule of spike-ai-pipeline's
+[docinfer finding](https://github.com/JaimeStill/spike-ai-pipeline/blob/main/docs/findings/docinfer.md),
+when its vision text holds at least twice its layer's words and at least 60 more. 47 of the 1,329
+pages are thin, 43 in `cfr-2024-title32-vol1.pdf` and 4 in `dodm-5200-01.pdf`. In the table, the
+thin pages' vision words are what skipping those pages loses. The words the layers lack count the
+skipped pages' vision words, compared lowercased, that their layers don't hold. The vision time is
+the skipped images' share of the baseline run's vision request time. The figures over the
+baseline's docproc run are the same.
+
+| Threshold | Skipped | Thin skipped | Thin pages' vision words | Words the layers lack | Vision time |
+|---|---|---|---|---|---|
+| 50 | 1,244 | 4 | 1,409 | 5,985 | 84.6% |
+| 100 | 1,234 | 3 | 1,173 | 5,791 | 84.4% |
+| 150 | 1,212 | 2 | 750 | 5,375 | 83.6% |
+| 200 | 1,030 | 1 | 433 | 4,242 | 78.9% |
+
+The thin pages 100 skips are `dodm-5200-01.pdf` pages 50 (202 layer words, 433 vision words) and
+45 (150, 317), and `cfr-2024-title32-vol1.pdf` page 149 (106, 423). 50 adds a fourth,
+`dodm-5200-01.pdf` page 35 (73, 236).
+
+### The text-layer run's Azure check
+
+No request was answered by Azure. The gateway's request log, read as in the baseline's
+[Azure check](#the-azure-check), holds 419 `docinfer` rows from the run's start to its end: 416
+embedding to `framework-2:8003` and 3 vision to `gb10-2:8001`, all 200, all provider `custom`,
+none holding `azure` in its attributes. The rerun has none.
 
 ## Vision
 

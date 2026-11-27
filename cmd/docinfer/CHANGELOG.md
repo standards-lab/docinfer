@@ -10,6 +10,22 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+### Added
+
+- `vision.layer_words`, override `DOCINFER_VISION_LAYER_WORDS`: the layer-word threshold, passed
+  to `docinfer.Vision.LayerWords`, starting at 100. A PDF page's image skips vision when the page's
+  text layer, the document stage's text output for the page, pulled before the image, holds at
+  least that many words; 0 sends every page image. A negative value fails the configuration's
+  Build before docproc's run is read.
+- `layer_words` on the vision capability's manifest entry, beside its identity and bounds:
+  docinfer's `Profile.VisionLayerWords`, the threshold the run skipped page images at, omitted
+  when 0, since then no page image skips.
+
+### Changed
+
+- `run`'s vision line and the report index's vision counts gain `skipped`, the page images sent
+  no request, between `failed` and `held`; the manifest's `counts.vision` gains `skipped`.
+
 ## [v0.3.0] - 2026-11-27
 
 This release embeds each input's metadata records: its chunk records gain a metadata source per

@@ -28,7 +28,8 @@
 // runs; a --run naming a run that hasn't ended is refused too, matching rundir.ErrNotEnded. It
 // opens docinfer's directory at --out with outdir.Create and begins a run there, its manifest
 // recording the build, the docproc run and its directory relative to --out, each capability's
-// identity, its model as its requests name it, endpoint, and bounds, and the capabilities skipped.
+// identity, its model as its requests name it, endpoint, and bounds, vision's layer_words, and the
+// capabilities skipped.
 // It feeds every line of docproc's record to docinfer.Pipeline.Run, each input's depth-0 part line
 // with its metadata text, as the job's last delivery, docinfer.Options.Final, so an image, window,
 // or chunk a model fails on is recorded failed and the run goes on. Each inference's text goes into

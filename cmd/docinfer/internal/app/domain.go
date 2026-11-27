@@ -37,14 +37,15 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 		rc.Build.Command, rc.Build.Library = versions()
 		if v := cfg.Vision; v != nil {
 			rc.Vision = &docinfer.Vision{
-				Client:    s.Use(n.VisionClient),
-				Model:     v.Model,
-				Served:    v.ServedModel,
-				Prompt:    v.Prompt,
-				MaxTokens: *v.MaxTokens,
-				Reasoning: v.Reasoning,
-				MaxPixels: *v.MaxPixels,
-				Native:    native(v.Native),
+				Client:     s.Use(n.VisionClient),
+				Model:      v.Model,
+				Served:     v.ServedModel,
+				Prompt:     v.Prompt,
+				MaxTokens:  *v.MaxTokens,
+				Reasoning:  v.Reasoning,
+				MaxPixels:  *v.MaxPixels,
+				LayerWords: *v.LayerWords,
+				Native:     native(v.Native),
 			}
 			rc.Endpoints[docinfer.CapabilityVision] = endpoint(cfg, v.Endpoint)
 			rc.Concurrency[docinfer.CapabilityVision] = *v.Concurrency
