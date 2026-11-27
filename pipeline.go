@@ -160,12 +160,12 @@ func New(cfg Config) (*Pipeline, error) {
 }
 
 // Profile returns the pipeline's resolved identity: each capability's [Identity], vision's
-// LayerWords, the query convention the embeddings' client declares, the embeddings' Dimensions,
-// and the Chunker's Settings, known before any job runs. Each identity's Model is the capability's Served, the model
-// the deployment serves, not the one its request names, so a consumer recording the embedding space
-// records the model. An unset capability's identity is nil, and the extraction's settings are
-// {"request","max_tokens", "effort","native"}, "native" there only when Native is set, less the
-// name, prompt, and schema each run's [Extract] gives.
+// LayerWords, the query convention the embeddings' client declares, the embeddings' Dimensions, and
+// the Chunker's Settings, known before any job runs. Each identity's Model is the capability's
+// Served, the model the deployment serves, not the one its request names, so a consumer recording
+// the embedding space records the model. An unset capability's identity is nil, and the
+// extraction's settings are {"request","max_tokens", "effort","native"}, "native" there only when
+// Native is set, less the name, prompt, and schema each run's [Extract] gives.
 func (p *Pipeline) Profile() Profile {
 	pr := p.profile
 	for _, id := range []**Identity{&pr.Vision, &pr.Transcription, &pr.Extraction} {
