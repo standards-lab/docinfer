@@ -14,7 +14,7 @@ import (
 	"github.com/standards-lab/go-ai/aitest"
 )
 
-func TestLayerWords(t *testing.T) {
+func TestRunCountsLayerWords(t *testing.T) {
 	cases := []struct {
 		name, text string
 		want       int
@@ -31,8 +31,21 @@ func TestLayerWords(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := docinfer.LayerWords(tc.text); got != tc.want {
-				t.Errorf("LayerWords(%q) = %d, want %d", tc.text, got, tc.want)
+			for _, threshold := range []int{tc.want, tc.want + 1} {
+				if threshold == 0 {
+					continue
+				}
+				e := serveLayers(t, aitest.ChatReply{Text: description}, nil)
+				content := dispatch.NewMemoryContent()
+				inputs := seq(layerText(t, content, "", pdfPart, pdfStage, 1, tc.text), layerImage(t, content, "", pdfPart, pdfStage, 1))
+
+				o := collect(t, newPipeline(t, layerConfig(t, e, threshold, 1, false)).Run(t.Context(), content, inputs, docinfer.Options{}))
+				if o.err != nil {
+					t.Fatal(o.err)
+				}
+				if got, want := o.counts.Vision.Skipped == 1, threshold <= tc.want; got != want {
+					t.Errorf("%q at LayerWords %d: skipped %t, want %t, the text holding %d words", tc.text, threshold, got, want, tc.want)
+				}
 			}
 		})
 	}
