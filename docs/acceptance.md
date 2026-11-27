@@ -1,13 +1,12 @@
 # Acceptance
 
-The evidence that docinfer runs against the live rows: the timed run over docs-corpus v0.2.0 and
-its cached rerun with the text-layer skip, the vision and transcription measurements that set the
-request shapes, and the live tiers. The raw results stay out of git, under
+The evidence that docinfer runs against the live rows: the timed run over docs-corpus v0.2.0, the
+run with the text-layer skip that reused its cache, the vision and transcription measurements that
+set the request shapes, and the live tiers. The raw results stay out of git, under
 `~/runs/docs-corpus/baseline/v0.2.0/docinfer`: the run and its rerun in `acceptance`, the
 text-layer run and its rerun in `text-layer`, the re-probe in `reprobe`, the confirmation in
-`confirm`. Each table names
-the file it is read from. The earlier runs, over the retired `~/docs` pool, are kept as their
-[findings](#findings-from-the-retired-docs-runs-2026-11-25).
+`confirm`. Each table names the file it is read from. The earlier runs, over the retired `~/docs`
+pool, are kept as their [findings](#findings-from-the-retired-docs-runs-2026-11-25).
 
 ## docs-corpus v0.2.0
 
@@ -129,10 +128,12 @@ through the gateway.
 docinfer reran over a fresh docproc v0.10.0 run of the same corpus, the first run with the
 metadata texts and with `vision.layer_words` at its starting value, 100. It replayed the baseline
 run's results from a copy of its cache, so only the new work sent requests: 3 vision requests and
-416 embedding requests, in 11.9 s. Vision skipped 1,234 page images, the 1,234 PLAN measured, and
-lost 3 thin pages' 1,173 vision words. The metadata texts number 789: 299 inputs' and 490 records'.
+416 embedding requests, in 11.9 s. Vision skipped 1,234 page images, the count measured over the
+baseline when the skip was planned, and lost the 1,173 vision words of 3 thin pages
+([The layer-word threshold](#the-layer-word-threshold)). The metadata texts number 789: 299
+inputs' and 490 records'.
 
-### What ran
+### What the text-layer run ran
 
 | | |
 |---|---|
@@ -153,7 +154,7 @@ outputs are the baseline's 6,068 and 190 metadata records: 70 PDF, 60 office, 57
 `duck-and-cover-theora.ogv`, 178 to 180, which ffmpeg encoded anew. Those 3 were the only images
 missing vision's cache, so the run's 3 vision requests are theirs.
 
-### The run and its rerun
+### The text-layer run and its rerun
 
 From `text-layer/logs/run-1.log` and `run-2.log`; vectors, runes, and metadata texts from
 `acceptance/check-run.py` over each run's directory.
@@ -182,14 +183,15 @@ baseline's.
 | vision | 1,413 | 1,135 | 308,632 | 284,035 |
 | **total** | **15,990** | **15,052** | **16,025,179** | **15,615,205** |
 
-### Skipped against PLAN
+### The skipped page images against the planned count
 
-The run skipped 1,234 page images, the count PLAN measured over the baseline: of the 1,368 PDF
-page images, 1,329 have a text layer and 39 none, and 1,234 of the 1,329 hold at least 100 words.
-The run's skipped images, the images it holds no inference for, are by SHA-256 exactly the 1,232
-distinct images `acceptance/layer-words.py` counts at 100; two of them each serve two pages. One
-of them was an incomplete page in the baseline: olmocr-bench `tables-fa18a15c…_pg2_pg1.pdf`, the
-table past 2,048 tokens, whose layer holds its words. So 5 images are incomplete, not 6.
+The run skipped 1,234 page images, the count measured over the baseline when the skip was
+planned: of the 1,368 PDF page images, 1,329 have a text layer and 39 none, and 1,234 of the
+1,329 hold at least 100 words. The run's skipped images, the images it holds no inference for, are
+by SHA-256 exactly the 1,232 distinct images `acceptance/layer-words.py` counts at 100; two of them
+each serve two pages. One of them was an incomplete page in the baseline: olmocr-bench
+`tables-fa18a15c…_pg2_pg1.pdf`, the table past 2,048 tokens, whose layer holds its words. So 5
+images are incomplete, not 6.
 
 ### Metadata texts
 
@@ -212,13 +214,16 @@ body.
 
 ### The layer-word threshold
 
-From `acceptance/layer-words.py` over the docproc v0.10.0 run and the baseline run's held vision
-texts; every page image with a text layer has one. A page is thin by the finding's rule: its vision
-text holds at least twice its layer's words and at least 60 more. 47 of the 1,329 pages are thin,
-43 in `cfr-2024-title32-vol1.pdf` and 4 in `dodm-5200-01.pdf`. The thin pages' vision words are
-what skipping them loses; the words the layers lack are the skipped pages' vision words, by
-lowercased word, missing from their layers; the vision time is the skipped images' share of the
-baseline run's vision request time. The figures over the baseline's docproc run are the same.
+`acceptance/layer-words.py` measured each threshold over the docproc v0.10.0 run and the baseline
+run's held vision texts, which cover every page image with a text layer. A page is thin, by the
+rule of spike-ai-pipeline's
+[docinfer finding](https://github.com/JaimeStill/spike-ai-pipeline/blob/main/docs/findings/docinfer.md),
+when its vision text holds at least twice its layer's words and at least 60 more. 47 of the 1,329
+pages are thin, 43 in `cfr-2024-title32-vol1.pdf` and 4 in `dodm-5200-01.pdf`. In the table, the
+thin pages' vision words are what skipping those pages loses. The words the layers lack count the
+skipped pages' vision words, compared lowercased, that their layers don't hold. The vision time is
+the skipped images' share of the baseline run's vision request time. The figures over the
+baseline's docproc run are the same.
 
 | Threshold | Skipped | Thin skipped | Thin pages' vision words | Words the layers lack | Vision time |
 |---|---|---|---|---|---|
@@ -231,7 +236,7 @@ The thin pages 100 skips are `dodm-5200-01.pdf` pages 50 (202 layer words, 433 v
 45 (150, 317), and `cfr-2024-title32-vol1.pdf` page 149 (106, 423). 50 adds a fourth,
 `dodm-5200-01.pdf` page 35 (73, 236).
 
-### The Azure check
+### The text-layer run's Azure check
 
 No request was answered by Azure. The gateway's request log, read as in the baseline's
 [Azure check](#the-azure-check), holds 419 `docinfer` rows from the run's start to its end: 416
