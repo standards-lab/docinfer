@@ -2,7 +2,9 @@ github.com/standards-lab/docinfer v0.6.0 h1:1tqN4ccBb1pxxmN6PDxjvHWr2bTQ43pf2Ra6
 github.com/standards-lab/docinfer v0.6.0/go.mod h1:wumYp5B0jIf0eLr7qKue7mMFQxnTj9qqJXrUIOz+X5o=
 github.com/standards-lab/docproc v0.10.0 h1:4neT6syfThhNA9YmfHKMRt6OXt1MXSI9uJbFGOUE19k=
 github.com/standards-lab/docproc v0.10.0/go.mod h1:ZA8JYQPooA6YA84b00Lpu5AiSL2VSj/u7QnenltqVBA=
-github.com/standards-lab/go-ai v0.5.0 h1:Ao7Ov78dpqVYSacCrJ9ewHuUf6dp7JQlmUfqIrar84Q=
-github.com/standards-lab/go-ai v0.5.0/go.mod h1:UHiE2lCeAnZ6SmnbfyYSyT5UsKPvDRdil6GozyHPu9A=
+github.com/standards-lab/go-ai v0.6.0 h1:Ir2bffFzvmmZ+hY/aNXRzOyNVjdp4zQ2pBYbPQfeJTc=
+github.com/standards-lab/go-ai v0.6.0/go.mod h1:lPjXktHWjAeCQ57YAZ8/KsmzGYKaDWYFnC0/nWRH2C0=
+github.com/standards-lab/go-core v0.14.0 h1:n8FRpoCqE0HErfo5V1iWASipo3ORx36V6ESQhgFZ27E=
+github.com/standards-lab/go-core v0.14.0/go.mod h1:Yl/R+gM9YWczsePBCKXdPGh3FSdZ/5i8SapLIh3BDHU=
 golang.org/x/text v0.44.0 h1:YItdp/mQNGnsmrgpcdA5yQ3bnRxCfo/Tj/iByGW9GGo=
 golang.org/x/text v0.44.0/go.mod h1:S4FR1waQ9LbjQTls97SyRjDaUUVkaM+cXwwuG/G+MwY=
