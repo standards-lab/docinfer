@@ -11,6 +11,7 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -259,9 +260,22 @@ func checkHeld(t *testing.T, first, second outcome) {
 	if len(second.inferences) != len(first.inferences) {
 		t.Fatalf("the second run yielded %d inferences, the first %d", len(second.inferences), len(first.inferences))
 	}
+	want := map[inferenceKey][]docinfer.Inference{}
+	for _, inf := range first.inferences {
+		k := keyOf(inf)
+		want[k] = append(want[k], inf)
+	}
 	for i, inf := range second.inferences {
-		if !inf.Held || inf.Text != first.inferences[i].Text || inf.Outcome != first.inferences[i].Outcome {
-			t.Errorf("the second run's inference %d = %+v, want the first's %+v, held", i, inf, first.inferences[i])
+		k := keyOf(inf)
+		matches := want[k]
+		if len(matches) == 0 {
+			t.Errorf("the second run's inference %d = %+v, which the first run did not yield", i, inf)
+			continue
+		}
+		prior := matches[0]
+		want[k] = matches[1:]
+		if !inf.Held || inf.Text != prior.Text || inf.Outcome != prior.Outcome {
+			t.Errorf("the second run's inference %d = %+v, want the first's %+v, held", i, inf, prior)
 		}
 	}
 	if len(second.progress) != 0 {
@@ -277,7 +291,31 @@ func checkHeld(t *testing.T, first, second outcome) {
 	if tc := c.Transcription; tc != nil && (tc.Held != tc.Transcribed+tc.Incomplete+tc.Refused || tc.Requests != 0) {
 		t.Errorf("the second run's transcription counts %+v, want every window held, no request", *tc)
 	}
-	if x := c.Extraction; x != nil && (x.Held != x.Extracted+x.Incomplete+x.Refused || x.Requests != 0) {
-		t.Errorf("the second run's extraction counts %+v, want every text held, no request", *x)
+	if x := c.Extraction; x != nil {
+		var made int
+		if f := first.counts.Extraction; f != nil {
+			made = f.Requests + f.Held
+		}
+		if x.Held != made || x.Requests != 0 {
+			t.Errorf("the second run's extraction counts %+v, want the first run's %d calls held, no request", *x, made)
+		}
+	}
+}
+
+type inferenceKey struct {
+	capability    docinfer.Capability
+	scope         docinfer.Scope
+	part          string
+	origin        string
+	contentSHA256 string
+}
+
+func keyOf(inf docinfer.Inference) inferenceKey {
+	return inferenceKey{
+		capability:    inf.Capability,
+		scope:         inf.Scope,
+		part:          inf.Part,
+		origin:        inf.Origin,
+		contentSHA256: strings.Join(inf.ContentSHA256, ","),
 	}
 }
