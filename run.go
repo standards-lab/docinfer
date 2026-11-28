@@ -211,13 +211,36 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // or not, each that isn't empty, in its input's pull order, a transcript at its group's first
 // input, joined by a blank line: output texts, a skipped page image's layer text among them, image
 // descriptions, and transcripts, never a metadata text. Once the inputs end and every input has
-// settled, a document text that isn't empty is extracted once, with Document, as a source text is:
-// keyed by extraction's Identity for Document and the document text's SHA-256, read from the cache,
-// or streamed from the model, its [Progress] carrying that SHA-256, and held, by the same failure
-// table and Final rule. Its one [Inference], Scope document, of the depth-0 part, the first pulled,
-// "/" when none is, its ContentSHA256 the source texts' in order, is the last result before the
-// counts, which count it, and its call, as a source text's extraction. The document text is not
-// chunked.
+// settled, a document text that isn't empty is extracted with Document. A document text of at most
+// Extraction.WindowRunes characters, Unicode code points, is one call, as a source text's
+// extraction is. A longer one is cut into windows by a chunk.Splitter whose Bound and Runes are
+// both WindowRunes, its Count a text's characters, so it cuts along headings, paragraphs, and
+// sentences; each window is one call with Document. Then the windows' replies, the window calls'
+// texts in order, each that isn't empty, are combined: packed greedily into runs of consecutive
+// replies, a run growing while its combine input holds at most WindowRunes characters, and each
+// run of more than one reply, or of one reply over WindowRunes alone, is one combine call, its
+// reply taking the run's place; a run of one reply within WindowRunes keeps its place uncombined.
+// When no run holds more than one reply, the round's replies are instead one run, one call, so
+// each round leaves fewer replies than it began with, and rounds repeat until at most one is left,
+// the document's text. A combine call's instructions are docinfer's own, telling the model its
+// input is partial extractions of consecutive parts of one document, in order, to merge into one
+// reply that follows the schema; its input is each reply as "Part n:" and a line break, then the
+// reply, n counting from 1 within the run, joined by a blank line; its schema is Document's. No
+// combine call is made when fewer than two windows reply with text.
+//
+// Every call, a document text's, a window's, or a combine's, is keyed by an identity and the
+// SHA-256 of that call's own input text, read from the cache, or streamed from the model, its
+// [Progress] carrying that SHA-256, and held, by the same failure table and Final rule as a source
+// text's extraction. A window's identity is extraction's Identity for Document; a combine's is
+// extraction's for Document with a "combine" member, the combine's version, after "request", so a
+// change to the combine instruction misses only combines. The document's one [Inference], Scope
+// document, of the depth-0 part, the first pulled, "/" when none is, its ContentSHA256 the source
+// texts' in order, is the last result before the counts; windows and combines yield none of their
+// own. Its Text is the last reply left, Failed lists each window, from 0, whose call was refused,
+// failed, or incomplete, Usage sums every call's, and Held is true when every call was held. It is
+// outcome extracted when every call was, else failed when one failed, refused when one was
+// refused, and incomplete otherwise, its Reason the first such call's. The counts count it once
+// under its outcome, and each of its calls in Requests and Held. The document text is not chunked.
 //
 // Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
 // from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything

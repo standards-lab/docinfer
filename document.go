@@ -52,12 +52,11 @@ func (r *run) document(texts []documentText, root rootPart) {
 	}
 	text := strings.Join(parts, documentSeparator)
 	sha := sha256Hex([]byte(text))
-	c, ok := r.ask(extractCall{e: *r.opts.Document, id: r.documentID, text: text, sha: sha,
-		what: "the document text " + sha + " of part " + root.id})
+	t, ok := r.extractText(*r.opts.Document, r.documentID, text, "the document text "+sha+" of part "+root.id)
 	if !ok {
 		return
 	}
-	inf := c.inference(root.id, root.origin, shas, start)
+	inf := t.inference(root.id, root.origin, shas, start)
 	inf.Scope = ScopeDocument
-	r.send(extractEvent{inf: inf, requests: c.requests, usage: c.usage, held: c.heldCalls()})
+	r.send(extractEvent{inf: inf, requests: t.requests, usage: t.usage, held: t.held})
 }

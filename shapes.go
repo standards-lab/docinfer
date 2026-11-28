@@ -110,7 +110,8 @@ type Inference struct {
 	// Reason is an image's or extraction's: why it is incomplete, refused, or failed.
 	Reason string `json:"reason,omitzero"`
 	// Failed is a transcript's windows not transcribed, by index: refused, failed, incomplete, or
-	// never cut.
+	// never cut; or a windowed extraction's windows not extracted, by index: refused, failed, or
+	// incomplete.
 	Failed []int `json:"failed,omitempty"`
 	// Held is true when the text was read from the cache or a leader's request, not asked of a
 	// model.
@@ -248,7 +249,8 @@ type TranscriptionCounts struct {
 	SeamsUnmatched int `json:"seams_unmatched"`
 }
 
-// ExtractionCounts counts each source text under its outcome.
+// ExtractionCounts counts each extraction's [Inference] under its outcome, and each call it took,
+// a window's or a combine's among them, in Held or Requests.
 type ExtractionCounts struct {
 	Extracted  int `json:"extracted"`
 	Incomplete int `json:"incomplete"`

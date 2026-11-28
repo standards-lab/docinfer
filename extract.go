@@ -90,8 +90,9 @@ func (r *run) extract(st *inputState, text string) {
 	if !ok {
 		return
 	}
-	inf := c.inference(st.part.ID, st.source.Origin, []string{sha}, start)
-	r.send(extractEvent{st: st, inf: inf, requests: c.requests, usage: c.usage, held: c.heldCalls()})
+	t := c.result()
+	inf := t.inference(st.part.ID, st.source.Origin, []string{sha}, start)
+	r.send(extractEvent{st: st, inf: inf, requests: t.requests, usage: t.usage, held: t.held})
 }
 
 func (r *run) ask(c extractCall) (callReply, bool) {
@@ -226,32 +227,16 @@ func (c callReply) heldCalls() int {
 	return 0
 }
 
-func (c callReply) inference(part, origin string, shas []string, start time.Time) *Inference {
-	inf := &Inference{
-		Capability:    CapabilityExtraction,
-		Part:          part,
-		Origin:        origin,
-		ContentSHA256: shas,
-		Held:          c.held,
-		Usage:         c.usage,
-		TookMS:        time.Since(start).Milliseconds(),
-	}
+func (c callReply) outcome() (Outcome, string) {
 	switch {
 	case c.failed != "":
-		inf.Outcome, inf.Reason = OutcomeFailed, c.failed
-		return inf
+		return OutcomeFailed, c.failed
 	case c.h.Refused != "":
-		inf.Outcome, inf.Reason = OutcomeRefused, c.h.Refused
-		return inf
+		return OutcomeRefused, c.h.Refused
 	case c.h.Incomplete != "":
-		inf.Outcome, inf.Reason = OutcomeIncomplete, c.h.Incomplete
-	default:
-		inf.Outcome = OutcomeExtracted
+		return OutcomeIncomplete, c.h.Incomplete
 	}
-	if c.h.Text != "" {
-		inf.Text, inf.TextSHA256 = c.h.Text, sha256Hex([]byte(c.h.Text))
-	}
-	return inf
+	return OutcomeExtracted, ""
 }
 
 func (r *run) extractDone(e extractEvent, yield func(Result, error) bool) bool {
