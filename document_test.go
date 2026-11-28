@@ -48,7 +48,7 @@ func theDocument(t *testing.T, o outcome) docinfer.Inference {
 		at    int
 	)
 	for i, r := range o.all {
-		if r.Inference != nil && r.Inference.Scope != "" {
+		if r.Inference != nil && r.Inference.Scope == docinfer.ScopeDocument {
 			found, at = append(found, *r.Inference), i
 		}
 	}

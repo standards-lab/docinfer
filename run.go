@@ -21,7 +21,9 @@ type Options struct {
 	// extracts none. The text is the job's source texts that Extract reads, each joined to the
 	// next by a blank line, "\n\n".
 	Document *Extract
-	// Timeline extracts over a video's frames and transcript, in time order; nil extracts none.
+	// Timeline extracts over each video's frames and transcript, in time order, windowed by
+	// Extraction.WindowRunes; nil extracts none. The text is a line per frame description and per
+	// transcript window's words, "[m:ss] seen: ..." and "[m:ss–m:ss] heard: ...", ordered by time.
 	Timeline *Extract
 	// Final marks the job's last delivery: an item a model fails on with the failure table's
 	// failed row (a 500, a failed or undecodable reply, any other error a call returns) is
@@ -117,7 +119,8 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // plan record, its group's transcript inference, that transcript's batches, and its extraction, so
 // neither settles before its group is joined, at the end of the inputs at the latest; and an input
 // that needs no work, a skipped output or a passed-through input, at once, after its echo; a page
-// image that skips vision, once its page's text is read.
+// image that skips vision, once its page's text is read; and, with Options.Timeline set, a video
+// part's own event, once its timeline's inference is out, as well as what the event needs itself.
 // Settlement is not in pull order: a window waits on its group while a later text settles. A job
 // that stops settles nothing more.
 //
@@ -242,6 +245,31 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // refused, and incomplete otherwise, its Reason the first such call's. The counts count it once
 // under its outcome, and each of its calls in Requests and Held. The document text is not chunked.
 //
+// With Options.Timeline set, each video part, a part of the video stage, the stage docproc names
+// "video", of one Origin, has a timeline: its frames, its image outputs, each placed at its
+// dispatch.MetaTime in seconds, and its transcript, the joined group of its windows, cut at the
+// join's seams, each seam's Position, into the words each window gave, placed at that window's
+// dispatch.MetaStart to dispatch.MetaEnd. A frame without a MetaTime of seconds, and a window of
+// such a part without a MetaStart or MetaEnd of seconds, stops the job, [Permanent]. An audio
+// stage's part has no timeline. The timeline text is a line per frame whose description has text,
+// described or incomplete, "[m:ss] seen: " and the description, its runs of whitespace each one
+// space, and a line per window that gave words, "[m:ss–m:ss] heard: " and its words, each one space
+// apart, from its start to its end; a time is whole seconds, rounded down, as h:mm:ss from an hour.
+// The lines are ordered by their whole second, a window's by its start, a heard line before a seen
+// one in the same second, then by the exact time, then windows in plan order and frames in pull
+// order, and joined by a line break. A timeline starts once the part's own event, one with neither
+// Output nor Warning, of the video stage, is admitted, or else once the inputs end, and every one
+// of its frames has its [Inference] and its transcript's is yielded; a frame or window admitted
+// after its timeline starts has no part in it. A timeline text that isn't empty is extracted with
+// Timeline as a document text is, windowed and combined over Extraction.WindowRunes, its calls
+// keyed by extraction's Identity for Timeline and, for a combine, that identity's combine one. Its
+// one [Inference], Scope timeline, of the video part, its ContentSHA256 the SHA-256 of each
+// description and of the transcript, each once, in the order the lines first read them, is yielded
+// after the part's own event, its frames' inferences, and its transcript's, and before that event
+// settles; its Text, Failed, Usage, Held, outcome, Reason, and counts are as the document's. A
+// video part with no description text and no transcript words sends no call and yields no
+// timeline. The timeline text is not chunked.
+//
 // Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
 // from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything
 // derived from it is yielded. A held value that doesn't decode is a miss, which
@@ -315,7 +343,10 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		if opts.Document != nil {
 			r.documentID = p.cfg.Extraction.Identity(*opts.Document)
 		}
-		if opts.Extract != nil || opts.Document != nil {
+		if opts.Timeline != nil {
+			r.timelineID = p.cfg.Extraction.Identity(*opts.Timeline)
+		}
+		if opts.Extract != nil || opts.Document != nil || opts.Timeline != nil {
 			r.counts.Extraction, r.counts.Tokens.Extraction = &ExtractionCounts{}, &Usage{}
 		}
 		defer func() {
@@ -349,6 +380,7 @@ type run struct {
 	chunkID    Identity
 	extractID  Identity
 	documentID Identity
+	timelineID Identity
 	events     chan event
 	slots      chan struct{}
 	wg         sync.WaitGroup
@@ -370,6 +402,11 @@ type run struct {
 	root            rootPart
 	documentTexts   []documentText
 	documentStarted bool
+
+	timelines     map[groupKey]*timeline
+	timelineOrder []*timeline
+	frames        map[int]*frame
+	held          map[int]bool
 }
 
 type event interface{ isEvent() }
@@ -525,6 +562,9 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			if ok, err := r.endGroups(yield); err != nil || !ok {
 				return err
 			}
+			for _, tl := range r.timelineOrder {
+				r.checkTimeline(tl)
+			}
 		case splitEvent:
 			e.st.split, e.st.remaining, e.st.extracting = true, e.st.remaining+e.n, e.extract
 			if e.text != "" {
@@ -566,6 +606,7 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 				r.finish()
 				r.settleInput(e.pos)
 			}
+			r.frameDescribed(e)
 		case progressEvent:
 			if !yield(Result{Progress: e.p}, nil) {
 				return nil
@@ -622,7 +663,13 @@ func (r *run) finish() {
 	<-r.slots
 }
 
-func (r *run) settleInput(pos int) { r.settled = append(r.settled, pos) }
+func (r *run) settleInput(pos int) {
+	if _, ok := r.held[pos]; ok {
+		r.held[pos] = true
+		return
+	}
+	r.settled = append(r.settled, pos)
+}
 
 func (r *run) finishState(st *inputState) {
 	if st.g != nil {
@@ -645,6 +692,9 @@ func (r *run) admit(in Input) error {
 	out := in.Event.Output
 	if out == nil {
 		r.releaseLayers(in)
+		if tl := r.noteOwn(in, pos); tl != nil {
+			defer r.checkTimeline(tl)
+		}
 		if in.Metadata == "" {
 			r.finish()
 			r.settleInput(pos)
@@ -678,6 +728,9 @@ func (r *run) admit(in Input) error {
 		return r.start(st, text)
 	case dispatch.ImageOutput:
 		r.counts.Images++
+		if err := r.admitFrame(in, pos); err != nil {
+			return err
+		}
 		if r.p.cfg.Vision != nil {
 			if out.MediaType == "" {
 				return fmt.Errorf("docinfer: run: image %s of part %s has no media type: %w", out.SHA256, in.Event.Part.ID, errInputDefect)

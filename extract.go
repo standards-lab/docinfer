@@ -19,6 +19,7 @@ type progressEvent struct{ p *Progress }
 
 type extractEvent struct {
 	st       *inputState
+	tl       *timeline
 	inf      *Inference
 	requests int
 	held     int
@@ -259,6 +260,9 @@ func (r *run) extractDone(e extractEvent, yield func(Result, error) bool) bool {
 		return false
 	}
 	if e.st == nil {
+		if e.tl != nil {
+			r.releaseTimeline(e.tl)
+		}
 		r.active--
 		return true
 	}
