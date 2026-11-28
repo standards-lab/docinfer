@@ -7,7 +7,7 @@ require (
 	github.com/standards-lab/docproc v0.10.0
 	github.com/standards-lab/go-ai v0.5.0
 	github.com/standards-lab/go-cli-sdk v0.4.0
-	github.com/standards-lab/go-core v0.12.0
+	github.com/standards-lab/go-core v0.13.0
 )
 
 require golang.org/x/text v0.44.0 // indirect
