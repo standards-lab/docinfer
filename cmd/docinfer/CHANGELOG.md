@@ -10,6 +10,10 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+### Changed
+
+- The module requires go-core v0.13.0.
+
 ## [v0.4.0] - 2026-11-27
 
 This release skips vision for a PDF page whose text layer already holds its words, through

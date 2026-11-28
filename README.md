@@ -96,8 +96,8 @@ for r, err := range p.Run(ctx, d.Content(), inputs, docinfer.Options{Final: true
 }
 ```
 
-A nil `Vision` or `Transcription` skips images or windows, counted; `Extraction` is needed only by
-a run whose `Options.Extract` asks for one.
+A nil `Vision` or `Transcription` skips images or windows, counted; only `Options.Extract`,
+`Document`, and `Timeline` need `Extraction`.
 
 ## Running a job
 
@@ -107,7 +107,7 @@ inference's text into the dispatcher's content store, and yields the job's updat
 an output's event before its inference and batches, and a part's own event after its outputs',
 warnings', and children's. For a store's input it yields a `Checkpoint` at the low watermark,
 every `CheckpointEvery` settled messages; a host keeps the last one's `After` and resumes a
-redelivered job from it.
+redelivered job from it, none with `Options.Document`.
 
 ```go
 // d is a docproc dispatch.Dispatcher and p the Pipeline above; in is the job's dispatch.Input,

@@ -16,7 +16,7 @@
 //   - AI_AUDIO_BASE_URL: a model that reads audio in a chat request. TestTranscription/chat runs
 //     on it in chat mode.
 //   - AI_AGENT_BASE_URL: a model with structured output, the role go-ai's tier asks for a strict
-//     JSON schema. TestExtraction runs on it.
+//     JSON schema. TestExtraction, TestDocumentExtraction, and TestTimelineExtraction run on it.
 //   - AI_TOKENIZE_BASE_URL: the root an embedding endpoint serves tokenize at, such as
 //     http://localhost:8000, as the command's tier reads it. Every scenario counts tokens through
 //     it, or, with it unset, through AI_EMBEDDING_BASE_URL's tokenize route, as a gateway forwards
@@ -53,6 +53,19 @@
 //   - TestExtraction: a text output is extracted by a strict schema of two required string
 //     members: one inference of outcome extracted whose text is JSON valid against the schema, an
 //     object of exactly those members, each a string.
+//   - TestDocumentExtraction: three text outputs, a paragraph each naming a country and its
+//     capital, are extracted as one document by Options.Document under a WindowRunes of 200, so
+//     the document text is cut into a window per paragraph and their replies combined: one
+//     inference of scope document and outcome extracted, no window failed, whose text is JSON
+//     valid against the schema and names each paragraph's capital, of a request per window and at
+//     least one combine.
+//   - TestTimelineExtraction: a video part's frame, shapes.png at 1.5 seconds, and its one window,
+//     phrase.wav from 0 to 6.05 seconds, then the part's own event, are extracted by
+//     Options.Timeline. The frame's description and the window's transcript are put in the cache
+//     before the run, held under vision's and transcription's identities on the agent's client,
+//     so the agent alone is asked: one inference of scope timeline, of the video part, outcome
+//     extracted, one request, whose text is JSON valid against the schema, its code the
+//     transcript's digits and its shapes not empty.
 //
 // In every scenario, every chunk's vector, read by docinfer.DecodeVector, has the configured
 // Dimensions. No variable states them: the tier embeds one probe text first and takes its
@@ -62,7 +75,8 @@
 // docinfer has no default bounds, so the tier sets its own small values: a Bounds of one request in
 // flight per capability, Pending 2, EmbedBatch 8, BatchBytes 64 KiB, a Chunker Bound of 400 tokens,
 // counted by Tokenize as documents, Join's WordsPerSecond 3, vision's MaxTokens 256, and
-// extraction's 1024, room for a reasoning model to reason ahead of its answer. Each Run is bounded
+// extraction's 1024, room for a reasoning model to reason ahead of its answer, its WindowRunes
+// 4000, or 200 where a scenario windows. Each Run is bounded
 // by five minutes.
 //
 // integration/testdata/README.md tells where the media came from: go-ai's integration testdata

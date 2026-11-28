@@ -31,6 +31,12 @@ in. An input's `splitEvent`, its count of chunks, reaches the coordinator before
 extraction, so the input is held open for the extraction. An image's inference reaches the
 coordinator before its chunks, so it is yielded before the batches that hold them.
 
+`settleInput` settles an input at once unless `held` names its position: with `Options.Timeline`
+set, a video part's own event is entered in `held` as it is admitted, so the work the event needs
+itself only marks it ready, and its settlement waits for `releaseTimeline`, which settles each
+ready held position once the part's timeline inference is out, or at once when its timeline
+sends no call.
+
 ## Window groups
 
 A group is one input's part's windows from one stage, keyed by the input's `Origin`, the part's ID,
@@ -70,6 +76,33 @@ channel. The image's goroutine waits on `done`, or on the job's context, then ei
 image or hands the coordinator a `skipEvent`, which counts the image `Skipped` and settles its
 input.
 
+## Document and timeline extraction
+
+Each `splitEvent` carrying an extracted source text adds it to `documentTexts` with its input's
+position in pull order. The coordinator loop runs until the inputs have ended and no work is
+active; only then does `startDocument` start the document, once, sorting the texts by position,
+so the document text waits for every input to settle and is the last work of the job. Its part is
+the first depth-0 part `noteRoot` saw, `/` when none.
+
+A timeline is kept per video-stage part, keyed as a window group is, by `Origin`, part ID, and
+stage. `admitFrame` places each frame at its `MetaTime` and, with vision set, counts it `pending`
+until `frameDescribed` takes its description; a transcript's join hands the timeline its words, cut
+at the join's seams, per window. `checkTimeline` starts the timeline once nothing is pending, its
+group, if it has one, has been joined, and either its part's own event was admitted or the inputs
+have ended; a timeline started is closed, so `timelineOf` gives no timeline to a frame or window
+admitted later. A timeline's text is built once, as it starts.
+
+`extractText` is the one path both texts take; a source text's extraction stays one call. A text of
+at most `WindowRunes` characters is one call. A longer one is cut by a `chunk.Splitter` whose
+count is a text's characters, and its window replies are combined by `combineRuns`, which packs
+consecutive replies greedily under `WindowRunes`; a round with no run of two replies sends all of
+them as one run, so every round shrinks the replies and the rounds end. Each call goes through
+the same `ask` as a source text's extraction, so the claim table, the bounds, the cache, and the
+failure table treat it alike, keyed by its own input text's SHA-256. A combine is keyed by
+`combineIdentity`, the extraction identity with the `combine` member, so a change to
+`combineInstruction` changes `combineRequest` and misses only combines; the golden keys pin
+`combineInstruction`'s SHA-256 per combine version.
+
 ## Batches
 
 The batch builder keeps the length a batch's JSON would marshal to, without marshalling it: an
@@ -86,7 +119,8 @@ Each capability's request has a version, the first member of its settings: it ch
 request's construction changes, so results held under the old construction miss rather than
 replay. Settings are encoded with nothing escaped that JSON doesn't require, so a prompt's `<`,
 `>`, and `&` read as written, and an extraction's prompt and schema are hashed, so a key's settings
-stay small whatever their size. `checkExtract` validates the extraction request's own construction,
+stay small whatever their size. A windowed extraction's combine call adds its own version, `combine`, after
+the request's, and `Profile` reports it with the extraction's settings. `checkExtract` validates the extraction request's own construction,
 with stand-ins for its model and text, so the rules for an Extract's name and schema are go-ai's
 alone.
 
@@ -104,6 +138,13 @@ output's cursor, or zero) and whether it has settled; an input settles after its
 mark is the first input not yet settled. A settlement that moves the low mark past at least
 `CheckpointEvery` messages since the last checkpoint makes one checkpoint, at the last of them;
 an input with no store passes no message, and makes none.
+
+With `Options.Document` set, `Run` sets `in.After` to zero and never checkpoints: the document text
+is every input's text, held only in the run, and a store resumed after a message never pulls the
+messages before it, so their text would be missing. A redelivery dispatches the input from its
+start, its finished work replayed through the dispatcher's index and the pipeline's cache. A
+timeline needs no such rule, since its video part's frames and transcript come before the last
+output of the message that holds the part.
 
 `drop` removes the index entry of the part whose content miss stopped the job. The miss's event
 is the output's event the pipeline was fed, which names its part, the part's SHA-256, and its
