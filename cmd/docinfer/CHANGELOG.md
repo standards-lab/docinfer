@@ -10,9 +10,16 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+## [v0.4.1] - 2026-11-28
+
+This release moves the command to go-core v0.13.0 and docinfer v0.6.0. Its command line, output
+directory, and exit codes are unchanged; it runs no extraction, so docinfer's new document and
+timeline scopes don't reach it.
+
 ### Changed
 
 - The module requires go-core v0.13.0.
+- The module requires docinfer v0.6.0.
 
 ## [v0.4.0] - 2026-11-27
 
@@ -244,7 +251,8 @@ go-cli-sdk-template template/v0.3.1 to the design in `context/command.md`.
   the report's index to be printed. A role whose variable is unset is left out of the run, and
   with `AI_EMBEDDING_BASE_URL` unset the scenario skips.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.4.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.4.1...HEAD
+[v0.4.1]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.4.0...cmd/docinfer/v0.4.1
 [v0.4.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.3.0...cmd/docinfer/v0.4.0
 [v0.3.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.2.0...cmd/docinfer/v0.3.0
 [v0.2.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.1.0...cmd/docinfer/v0.2.0
