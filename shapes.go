@@ -57,7 +57,7 @@ type Profile struct {
 	// none.
 	VisionLayerWords int       `json:"vision_layer_words,omitempty"`
 	Transcription    *Identity `json:"transcription,omitempty"`
-	Extraction       *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
+	Extraction       *Identity `json:"extraction,omitempty"` // its settings, with the combine version, less prompt and schema
 	Embeddings       Identity  `json:"embeddings"`
 	// EmbeddingQuery is the query convention the embeddings' client declares, which a consumer
 	// applies to its search queries so they land in the space the chunks were embedded in; nil

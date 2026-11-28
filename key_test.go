@@ -4,13 +4,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"flag"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/standards-lab/docinfer"
+	"github.com/standards-lab/go-ai/protocol"
 )
 
 // See docs/development.md
@@ -145,6 +148,42 @@ var goldenKeys = []goldenKey{
 		},
 		Content: sha("a window"),
 	},
+	{
+		Identity: docinfer.Identity{
+			Capability: docinfer.CapabilityExtraction, Model: "gpt-4.1",
+			Settings: `{"request":"2","combine":"1","name":"invoice","prompt_sha256":"` + sha("prompt") +
+				`","schema_sha256":"` + sha("schema") + `","max_tokens":4096,"effort":"medium"}`,
+		},
+		Content: sha("the combined replies"),
+	},
+}
+
+var combineInstructions = map[string]string{
+	"1": "6a690323171d7832fe474d83aa0c52c5d0df5d28b062556b8d3f970946388f59",
+}
+
+func TestGoldenCombine(t *testing.T) {
+	id := docinfer.CombineIdentity(
+		docinfer.Extraction{Served: "gpt-4.1", MaxTokens: 4096, Reasoning: protocol.ReasoningEffortMedium},
+		docinfer.Extract{Name: "invoice", Prompt: "prompt", Schema: jsontext.Value("schema")},
+	)
+	if !slices.ContainsFunc(goldenKeys, func(g goldenKey) bool { return g.Identity == id }) {
+		t.Errorf("combine identity %+v has no golden key: a new combine version adds its golden key", id)
+	}
+	var settings struct {
+		Combine string `json:"combine"`
+	}
+	if err := json.Unmarshal([]byte(id.Settings), &settings); err != nil {
+		t.Fatalf("combine settings %s: %v", id.Settings, err)
+	}
+	want, ok := combineInstructions[settings.Combine]
+	if !ok {
+		t.Fatalf("combine version %q pins no instruction: a new combine version adds its instruction's SHA-256", settings.Combine)
+	}
+	if got := sha(docinfer.CombineInstruction); got != want {
+		t.Errorf("combine instruction's SHA-256 %s, combine version %q pins %s: the instruction changed, so change the version",
+			got, settings.Combine, want)
+	}
 }
 
 func TestGoldenKeys(t *testing.T) {

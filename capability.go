@@ -162,6 +162,7 @@ type extractionSettings struct {
 
 type extractionProfile struct {
 	Request   string                   `json:"request"`
+	Combine   string                   `json:"combine"`
 	MaxTokens int                      `json:"max_tokens"`
 	Effort    protocol.ReasoningEffort `json:"effort"`
 	Native    jsontext.Value           `json:"native,omitempty"`
@@ -187,7 +188,7 @@ func (x Extraction) profile() Identity {
 	return Identity{
 		Capability: CapabilityExtraction,
 		Model:      x.Served,
-		Settings:   encodeSettings(extractionProfile{extractionRequest, x.MaxTokens, x.Reasoning, canonical(x.Native)}),
+		Settings:   encodeSettings(extractionProfile{extractionRequest, combineRequest, x.MaxTokens, x.Reasoning, canonical(x.Native)}),
 	}
 }
 

@@ -164,8 +164,9 @@ func New(cfg Config) (*Pipeline, error) {
 // the Chunker's Settings, known before any job runs. Each identity's Model is the capability's
 // Served, the model the deployment serves, not the one its request names, so a consumer recording
 // the embedding space records the model. An unset capability's identity is nil, and the
-// extraction's settings are {"request","max_tokens", "effort","native"}, "native" there only when
-// Native is set, less the name, prompt, and schema each run's [Extract] gives.
+// extraction's settings are {"request","combine","max_tokens","effort","native"}, "combine" the
+// version of a windowed extraction's combine request and "native" there only when Native is set,
+// less the name, prompt, and schema each run's [Extract] gives.
 func (p *Pipeline) Profile() Profile {
 	pr := p.profile
 	for _, id := range []**Identity{&pr.Vision, &pr.Transcription, &pr.Extraction} {

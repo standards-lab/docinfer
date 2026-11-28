@@ -187,7 +187,7 @@ func TestProfile(t *testing.T) {
 		},
 		Extraction: &docinfer.Identity{
 			Capability: docinfer.CapabilityExtraction, Model: "org/extraction-1",
-			Settings: `{"request":"2","max_tokens":2,"effort":"medium"}`,
+			Settings: `{"request":"2","combine":"1","max_tokens":2,"effort":"medium"}`,
 		},
 		Embeddings: docinfer.Identity{Capability: docinfer.CapabilityEmbeddings, Model: "org/embedding-1"},
 		Dimensions: 2,

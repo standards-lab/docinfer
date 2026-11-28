@@ -151,5 +151,14 @@
     },
     "content": "7ad2c3db89cdb606e85c4c67b2973074d1ca26bd8236322ac7b3611b9752e077",
     "key": "transcription/5d0f5eed3d39da59f26a2d563e41961d7b9f693ecd9abd5903eb4d010e7f3bf2"
+  },
+  {
+    "identity": {
+      "capability": "extraction",
+      "model": "gpt-4.1",
+      "settings": "{\"request\":\"2\",\"combine\":\"1\",\"name\":\"invoice\",\"prompt_sha256\":\"cf07194ee232eb531e15f690000d19846dea69cf05504782658afcfacb9228a2\",\"schema_sha256\":\"df0ad6e43880f09c90ebf95f19110178aba6890df0010ebda7485029e2b543b4\",\"max_tokens\":4096,\"effort\":\"medium\"}"
+    },
+    "content": "05efe50198a7336e8804259550c535d1dc1d195963e1ec2ed9079e2eedea25ba",
+    "key": "extraction/e0000e84b7e84b1762975eabe2460c3850064ea8ff06f958a58d806c6f658692"
   }
 ]
