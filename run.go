@@ -196,8 +196,7 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // With Options.Extract, Document, or Timeline set, Run refuses, matching [ErrRequest], an Extract
 // whose prompt is empty or isn't UTF-8, or whose name or schema go-ai's json_schema format
 // refuses, and stops, [Permanent], when the pipeline has no Config.Extraction, each before it
-// reads an input. A metadata text, an
-// input's or a record's, is never extracted. Every other source text, an output's text, an image's
+// reads an input. A metadata text, an input's or a record's, is never extracted. Every other source text, an output's text, an image's
 // description, or a transcript, is then extracted once, unless it is empty: keyed by extraction's
 // Identity for the Extract and the text's SHA-256, read from the cache, or streamed from the model
 // by GenerateStream with the prompt as instructions and the text as the user message, the Extract's
@@ -406,7 +405,7 @@ type run struct {
 	timelines     map[groupKey]*timeline
 	timelineOrder []*timeline
 	frames        map[int]*frame
-	held          map[int]bool
+	holds         map[int]bool
 }
 
 type event interface{ isEvent() }
@@ -664,8 +663,8 @@ func (r *run) finish() {
 }
 
 func (r *run) settleInput(pos int) {
-	if _, ok := r.held[pos]; ok {
-		r.held[pos] = true
+	if _, ok := r.holds[pos]; ok {
+		r.holds[pos] = true
 		return
 	}
 	r.settled = append(r.settled, pos)

@@ -102,8 +102,8 @@
 //   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity,
 //     the embeddings' query convention among it
 //   - [Pipeline.Run], one job's run, over [Input]s, with [Options], its Extract, Document, and
-//     Timeline among them, yielding [Result]s, among
-//     them [Result.Input], each input's echo, and [Result.Settled], each input's settlement;
+//     Timeline among them, yielding [Result]s, among them [Result.Input], each input's echo, and
+//     [Result.Settled], each input's settlement;
 //     [MetadataText], the one builder of an input's metadata text; [MissingError], a content
 //     miss, with its [MissingError.Error] and [MissingError.Unwrap]; and [Permanent], which tells
 //     an error no redelivery changes

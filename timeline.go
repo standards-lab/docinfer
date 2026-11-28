@@ -128,10 +128,10 @@ func (r *run) noteOwn(in Input, pos int) *timeline {
 	}
 	tl.own = true
 	tl.holds = append(tl.holds, pos)
-	if r.held == nil {
-		r.held = map[int]bool{}
+	if r.holds == nil {
+		r.holds = map[int]bool{}
 	}
-	r.held[pos] = false
+	r.holds[pos] = false
 	return tl
 }
 
@@ -173,8 +173,8 @@ func (r *run) checkTimeline(tl *timeline) {
 
 func (r *run) releaseTimeline(tl *timeline) {
 	for _, pos := range tl.holds {
-		settle := r.held[pos]
-		delete(r.held, pos)
+		settle := r.holds[pos]
+		delete(r.holds, pos)
 		if settle {
 			r.settled = append(r.settled, pos)
 		}

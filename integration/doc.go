@@ -76,8 +76,7 @@
 // flight per capability, Pending 2, EmbedBatch 8, BatchBytes 64 KiB, a Chunker Bound of 400 tokens,
 // counted by Tokenize as documents, Join's WordsPerSecond 3, vision's MaxTokens 256, and
 // extraction's 1024, room for a reasoning model to reason ahead of its answer, its WindowRunes
-// 4000, or 200 where a scenario windows. Each Run is bounded
-// by five minutes.
+// 4000, or 200 where a scenario windows. Each Run is bounded by five minutes.
 //
 // integration/testdata/README.md tells where the media came from: go-ai's integration testdata
 // at v0.4.0.
