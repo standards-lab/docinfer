@@ -1,19 +1,13 @@
 package app
 
 import (
-	"context"
-	"encoding/json"
 	"encoding/json/jsontext"
-	jsonv2 "encoding/json/v2"
 
 	"github.com/standards-lab/go-cli-sdk"
 	"github.com/standards-lab/go-core/graph"
 
-	"github.com/standards-lab/go-ai"
-
 	"github.com/standards-lab/docinfer"
-	"github.com/standards-lab/docinfer/chunk"
-	"github.com/standards-lab/docinfer/join"
+	"github.com/standards-lab/docinfer/profile"
 
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/report"
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/run"
@@ -24,66 +18,72 @@ func defineDomain(g *graph.Graph, n *Nodes) {
 		cfg := s.Use(n.Config)
 		e := cfg.Embeddings
 		rc := run.Config{
-			Embeddings:  docinfer.Embeddings{Client: s.Use(n.EmbeddingsClient), Model: e.Model, Served: e.ServedModel},
+			Settings: profile.Settings{
+				Embeddings: profile.Embeddings{
+					Capability: capability(e.Capability),
+					Dimensions: e.Dimensions,
+					Tokenizer:  e.Tokenizer,
+					Batch:      e.Batch,
+					ChunkSize:  e.ChunkSize,
+					ChunkRunes: e.ChunkRunes,
+				},
+				Pending:        cfg.Run.Pending,
+				BatchBytes:     cfg.Run.BatchBytes,
+				WordsPerSecond: new(startWordsPerSecond),
+			},
+			Clients: profile.Clients{
+				Vision:        s.Use(n.VisionClient),
+				Transcription: s.Use(n.TranscriptionClient),
+				Extraction:    s.Use(n.ExtractionClient),
+				Embeddings:    s.Use(n.EmbeddingsClient),
+				Tokenizer:     s.Use(n.TokenizerClient),
+			},
 			Endpoints:   map[docinfer.Capability]run.Endpoint{docinfer.CapabilityEmbeddings: endpoint(cfg, e.Endpoint)},
 			Concurrency: map[docinfer.Capability]int{docinfer.CapabilityEmbeddings: *e.Concurrency},
-			Chunker:     chunk.Splitter{Bound: *e.ChunkSize, Runes: e.chunkRunes(), Count: counter(s.Use(n.TokenizerClient), e.Model)},
-			Dimensions:  *e.Dimensions,
-			EmbedBatch:  *e.Batch,
-			Pending:     *cfg.Run.Pending,
-			BatchBytes:  *cfg.Run.BatchBytes,
-			Join:        join.Request{WordsPerSecond: startWordsPerSecond},
 		}
 		rc.Build.Command, rc.Build.Library = versions()
 		if v := cfg.Vision; v != nil {
-			rc.Vision = &docinfer.Vision{
-				Client:     s.Use(n.VisionClient),
-				Model:      v.Model,
-				Served:     v.ServedModel,
+			rc.Settings.Vision = &profile.Vision{
+				Capability: capability(v.Capability),
 				Prompt:     v.Prompt,
-				MaxTokens:  *v.MaxTokens,
+				MaxTokens:  v.MaxTokens,
 				Reasoning:  v.Reasoning,
-				MaxPixels:  *v.MaxPixels,
-				LayerWords: *v.LayerWords,
-				Native:     native(v.Native),
+				Native:     jsontext.Value(v.Native),
+				MaxPixels:  v.MaxPixels,
+				LayerWords: v.LayerWords,
 			}
 			rc.Endpoints[docinfer.CapabilityVision] = endpoint(cfg, v.Endpoint)
 			rc.Concurrency[docinfer.CapabilityVision] = *v.Concurrency
 		}
 		if t := cfg.Transcription; t != nil {
-			rc.Transcription = &docinfer.Transcription{
-				Client:    s.Use(n.TranscriptionClient),
-				Model:     t.Model,
-				Served:    t.ServedModel,
-				Prompt:    t.Prompt,
-				Language:  t.Language,
-				MaxTokens: *t.MaxTokens,
-				Native:    native(t.Native),
+			rc.Settings.Transcription = &profile.Transcription{
+				Capability: capability(t.Capability),
+				Prompt:     t.Prompt,
+				Language:   t.Language,
+				MaxTokens:  t.MaxTokens,
+				Native:     jsontext.Value(t.Native),
 			}
+			rc.Settings.WordsPerSecond = t.WordsPerSecond
 			rc.Endpoints[docinfer.CapabilityTranscription] = endpoint(cfg, t.Endpoint)
 			rc.Concurrency[docinfer.CapabilityTranscription] = *t.Concurrency
-			rc.Join.WordsPerSecond = *t.WordsPerSecond
+		}
+		if x := cfg.Extraction; x != nil {
+			rc.Settings.Extraction = &profile.Extraction{
+				Capability:  capability(x.Capability),
+				MaxTokens:   x.MaxTokens,
+				Reasoning:   x.Reasoning,
+				Native:      jsontext.Value(x.Native),
+				WindowRunes: x.WindowRunes,
+			}
+			rc.Endpoints[docinfer.CapabilityExtraction] = endpoint(cfg, x.Endpoint)
+			rc.Concurrency[docinfer.CapabilityExtraction] = *x.Concurrency
 		}
 		return rc, nil
 	})
 }
 
-func native(v json.RawMessage) jsontext.Value {
-	var members map[string]jsontext.Value
-	if jsonv2.Unmarshal(v, &members) == nil && len(members) == 0 {
-		return nil
-	}
-	return jsontext.Value(v)
-}
-
-func counter(client *ai.Client, model string) chunk.Counter {
-	return func(ctx context.Context, text string) (int, error) {
-		tokens, err := client.Tokenize(ctx, &ai.TokenizeRequest{Model: model, Text: text, InputType: ai.InputDocument})
-		if err != nil {
-			return 0, err
-		}
-		return tokens.Count, nil
-	}
+func capability(c Capability) profile.Capability {
+	return profile.Capability{Endpoint: c.Endpoint, Model: c.Model, ServedModel: c.ServedModel}
 }
 
 func endpoint(cfg Config, name string) run.Endpoint {

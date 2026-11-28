@@ -50,8 +50,13 @@ func TestCLI_RunAndReport(t *testing.T) {
 	root := t.TempDir()
 	docproc, out := filepath.Join(root, "docproc"), filepath.Join(root, "out")
 	writeDocprocRun(t, docproc, caps)
+	args := []string{"run", docproc, "--out", out, "--report", "--config", configDir}
+	extracts := slices.ContainsFunc(caps, func(c capability) bool { return c.name == "extraction" })
+	if extracts {
+		args = append(args, "--extract", writeExtract(t))
+	}
 
-	res := integration.Run(t, "run", docproc, "--out", out, "--report", "--config", configDir)
+	res := integration.Run(t, args...)
 
 	if res.Code != process.ExitOK {
 		t.Fatalf("run: code = %d, want %d; stderr = %q", res.Code, process.ExitOK, res.Stderr)
@@ -72,6 +77,9 @@ func TestCLI_RunAndReport(t *testing.T) {
 	if slices.ContainsFunc(caps, func(c capability) bool { return c.name == "vision" }) && !strings.Contains(res.Stdout, ", skipped 1, ") {
 		t.Errorf("run: stdout = %q, want vision's line to count the scanned page's image skipped", res.Stdout)
 	}
+	if extracts && !strings.Contains(res.Stdout, "\nextraction: extracted ") {
+		t.Errorf("run: stdout = %q, want extraction's line", res.Stdout)
+	}
 	index := filepath.Join(out, "runs", id, "report", "index.html")
 	if !strings.HasSuffix(res.Stdout, "\n"+index+"\n") {
 		t.Errorf("run: stdout = %q, want it to end with the index's path, %s", res.Stdout, index)
@@ -91,7 +99,7 @@ func TestCLI_RunAndReport(t *testing.T) {
 func liveEndpoints(t *testing.T) map[role]endpoint {
 	t.Helper()
 	eps := map[role]endpoint{}
-	for _, r := range []role{embedding, vision, transcription, audio} {
+	for _, r := range []role{embedding, vision, transcription, audio, agent} {
 		ep, ok, err := endpointOf(r, os.Getenv)
 		switch {
 		case err != nil:
@@ -175,6 +183,18 @@ func dimensions(t *testing.T, ep endpoint) int {
 		t.Fatalf("Embed of the probe gave %d vectors, want one of at least one dimension", len(probe.Vectors))
 	}
 	return len(probe.Vectors[0])
+}
+
+const extract = `{"name":"note","prompt":"State the note's access code as digits.",
+	"schema":{"type":"object","properties":{"code":{"type":"string"}},"required":["code"],"additionalProperties":false}}`
+
+func writeExtract(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "extract.json")
+	if err := os.WriteFile(path, []byte(extract), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func writeConfig(t *testing.T, files configFiles) string {

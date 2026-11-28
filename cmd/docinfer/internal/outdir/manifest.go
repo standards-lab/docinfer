@@ -19,8 +19,8 @@ import (
 //     and present once its records are whole
 //   - "docproc": the docproc run it read, [Docproc]
 //   - "inputs": the docproc run's inputs, [Input], in the order their record closed each
-//   - "capabilities": each capability the run ran, [Capability], vision, transcription, then
-//     embeddings
+//   - "capabilities": each capability the run ran, [Capability], vision, transcription,
+//     extraction, then embeddings
 //   - "skipped": each capability it didn't run, [Skipped]; absent when none
 //   - "embedding_space": the embedding space of the vectors it made or read, [Space]; absent
 //     until it ends

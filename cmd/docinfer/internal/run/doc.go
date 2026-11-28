@@ -1,11 +1,20 @@
 // Package run is docinfer's run command:
-// docinfer run <docproc-dir> --out <dir> [--run <id>] [--report].
-// Before it reads anything, it checks each capability's model through that capability's own
-// client, as its [Config] holds it: one (*ai.Client).Models call per client, all at once and
-// bounded at 30 seconds together, so each lists through the same query, token, headers, and
-// retry policy the run's requests carry. It prints the table of their states, CAPABILITY,
-// ENDPOINT, MODEL, and STATE, a capability per row, vision, transcription, then embeddings, and
-// then each warning on a line of its own:
+// docinfer run <docproc-dir> --out <dir> [--run <id>] [--extract <file>] [--report].
+// It builds through package profile: [Config] holds the configuration as profile.Settings and
+// the composition root's clients as profile.Clients.
+//
+// With --extract, it first reads the file the flag names, a JSON object of an extract's name,
+// prompt, and schema, decoded as docinfer.Extract with no other member, and refuses it, before
+// any request, when the configuration sets no extraction. The extract is passed to the run as
+// docinfer.Options.Extract, so each source text is extracted; docinfer checks its prompt and
+// schema.
+//
+// Before it reads anything, it checks each capability's model through profile.Resolve, which
+// lists each set capability's models through that capability's own client, all at once, bounded
+// here at 30 seconds together, so each lists through the same query, token, headers, and retry
+// policy the run's requests carry. It prints the table of their states, CAPABILITY, ENDPOINT,
+// MODEL, and STATE, a capability per row, vision, transcription, extraction when the
+// configuration sets it, then embeddings, and then each warning on a line of its own:
 //
 //   - loaded, or the status the listing gives the model, its entry's status.value, as llama.cpp's
 //     router gives one; a status other than loaded, such as unloaded, is a warning
@@ -13,23 +22,22 @@
 //   - unlisted: the listing doesn't name the model, which stops the run
 //   - unchecked: the endpoint answered with an *ai.APIError, so it gives no listing, a warning
 //   - unreachable: the listing failed any other way, which stops the run
-//   - skipped: the configuration leaves the capability unset
+//   - skipped: the configuration leaves vision or transcription unset
 //
-// The check resolves each capability's served model, the docinfer Served its results are keyed
-// under, from the listing's entry for its model: the entry's root, as vLLM lists it, or else the
-// capability's served_model in the configuration. A served_model the root disagrees with stops
-// the run, and so does a capability with neither, each error naming the capability, the values,
-// and the served_model to set. The embeddings' served model is the chunker's Model too.
-//
-// A stopped check returns its error once the table is printed.
+// profile.Resolve resolves each capability's served model, the docinfer Served its results are
+// keyed under: the listing entry's root, as vLLM lists it, or else the capability's served_model
+// in the configuration. A served_model the root disagrees with stops the run, and so does a
+// capability with neither, each error naming the capability, the values, and the served_model to
+// set. A stopped check returns its error once the table is printed.
 //
 // The run then reads docproc's run directory through docproc's rundir: the latest run that ended,
 // Dir.Latest's, or the run --run names, which rundir refuses when it isn't one of the directory's
 // runs; a --run naming a run that hasn't ended is refused too, matching rundir.ErrNotEnded. It
 // opens docinfer's directory at --out with outdir.Create and begins a run there, its manifest
 // recording the build, the docproc run and its directory relative to --out, each capability's
-// identity, its model as its requests name it, endpoint, and bounds, vision's layer_words, and the
-// capabilities skipped.
+// identity, its model as its requests name it, endpoint, and bounds, vision's layer_words, and
+// vision and transcription when skipped. Its pipeline is profile.New's, over the resolved served
+// models and the directory's held results.
 // It feeds every line of docproc's record to docinfer.Pipeline.Run, each input's depth-0 part line
 // with its metadata text, as the job's last delivery, docinfer.Options.Final, so an image, window,
 // or chunk a model fails on is recorded failed and the run goes on. Each inference's text goes into
@@ -44,7 +52,8 @@
 // Its lines come from the pipeline's results alone: a first line naming the run and docproc's,
 // a line per docproc input once everything derived from it is out, its path, images, windows,
 // chunks, and failures (images refused or failed, windows not transcribed, and chunks refused or
-// failed), and, once the run ends, a line per capability with its counts and a last line,
+// failed), and, once the run ends, a line per capability with its counts, extraction's only when
+// an extract ran, and a last line,
 // counting the inputs, the outputs read, the chunks, and the failures. A run that stops, for an
 // error or a cancellation, writes its manifest with its end and its error, keeps the records it
 // wrote, prints no last line, and returns its error, so the command exits 1.
@@ -60,5 +69,5 @@
 // or a report that rendered nothing; 2 for a usage error.
 //
 // The run builds its docinfer.Bounds from each capability's concurrency, 1 for a capability the
-// configuration leaves unset, and 1 for extraction, which the command never runs.
+// configuration leaves unset.
 package run

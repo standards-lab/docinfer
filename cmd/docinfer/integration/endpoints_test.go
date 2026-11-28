@@ -16,6 +16,7 @@ const (
 	vision        role = "AI_VISION"
 	transcription role = "AI_TRANSCRIPTION"
 	audio         role = "AI_AUDIO"
+	agent         role = "AI_AGENT"
 	tokenize      role = "AI_TOKENIZE"
 )
 
@@ -107,6 +108,8 @@ func compose(eps map[role]endpoint, caps []capability, dims int) configFiles {
 			section["max_tokens"] = visionTokens
 		case "transcription":
 			section["mode"] = c.mode
+		case "extraction":
+			section["max_tokens"] = extractionTokens
 		case "embeddings":
 			section["dimensions"] = dims
 			section["input_types"] = map[string]any{}
@@ -120,7 +123,10 @@ func compose(eps map[role]endpoint, caps []capability, dims int) configFiles {
 	return configFiles{config: config, secrets: map[string]any{"endpoints": secrets}}
 }
 
-const visionTokens = 256
+const (
+	visionTokens     = 256
+	extractionTokens = 1024
+)
 
 func capabilities(eps map[role]endpoint) []capability {
 	caps := []capability{{name: "embeddings", role: embedding}}
@@ -131,6 +137,9 @@ func capabilities(eps map[role]endpoint) []capability {
 		caps = append(caps, capability{name: "transcription", role: transcription, mode: "route"})
 	} else if _, ok := eps[audio]; ok {
 		caps = append(caps, capability{name: "transcription", role: audio, mode: "chat"})
+	}
+	if _, ok := eps[agent]; ok {
+		caps = append(caps, capability{name: "extraction", role: agent})
 	}
 	return caps
 }
@@ -241,6 +250,27 @@ func TestCompose_TokenizerAtTheServersRoot(t *testing.T) {
 	}
 	if want := `{"endpoints":{"tokenize":{"token":"` + secret + `"}}}`; string(secrets) != want {
 		t.Errorf("secrets.json = %s, want %s", secrets, want)
+	}
+}
+
+func TestCompose_ExtractionOnTheAgent(t *testing.T) {
+	eps := map[role]endpoint{
+		embedding: {baseURL: "http://gb10:8080/v1", model: "embed"},
+		agent:     {baseURL: "http://gb10:8082/v1", model: "qwen"},
+	}
+
+	files := compose(eps, capabilities(eps), 768)
+
+	config, err := json.Marshal(files.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"embeddings":{"dimensions":768,"endpoint":"embedding","input_types":{},"model":"embed","tokenizer":"embedding"},` +
+		`"endpoints":{"agent":{"base_url":"http://gb10:8082/v1","format":"completions"},` +
+		`"embedding":{"base_url":"http://gb10:8080/v1","format":"completions"}},` +
+		`"extraction":{"endpoint":"agent","max_tokens":1024,"model":"qwen"}}`
+	if string(config) != want {
+		t.Errorf("config.json = %s, want %s", config, want)
 	}
 }
 

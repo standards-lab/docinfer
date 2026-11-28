@@ -82,6 +82,7 @@ type Nodes struct {
 	HTTPClients         *graph.Node[map[string]*http.Client]
 	VisionClient        *graph.Node[*ai.Client]
 	TranscriptionClient *graph.Node[*ai.Client]
+	ExtractionClient    *graph.Node[*ai.Client]
 	EmbeddingsClient    *graph.Node[*ai.Client]
 	TokenizerClient     *graph.Node[*ai.Client]
 	RunConfig           *graph.Node[run.Config]

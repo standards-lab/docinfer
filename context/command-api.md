@@ -26,9 +26,9 @@ cmd/docinfer     (module) main.go at the module's root, so go install installs t
 composition root is a graph (C1): a node for the configuration, read from the directory `--config`
 or `DOCINFER_CONFIG` names in the node's constructor; a node per capability's `*ai.Client`, built
 as `ai.New(baseURL, httpClient, wireFormat, ai.Options{…})` and reporting its error named for its
-endpoint (C7); and a node for `run.Config`, holding `docinfer.Vision`, `Transcription`, and
-`Embeddings`, which `run.Commands(n.RunConfig)` takes. A configuration error fails the Build,
-labelled with its node, before the docproc run is read.
+endpoint (C7); and a node for `run.Config`, `profile.Settings` and `profile.Clients`, which
+`run.Commands(n.RunConfig)` takes into `profile.Resolve` and `profile.New`. A configuration error
+fails the Build, labelled with its node, before the docproc run is read.
 
 The configuration ships the operator's starting values, which the library leaves none
 (`docs/no-defaults.md`):
@@ -39,8 +39,7 @@ endpoints.<name>     base_url; format: completions, messages, or responses; prof
                        {max_attempts 3, base_delay 500ms, max_delay 30s} (C6);
                        response_header_timeout 180s, and 600s on the endpoint vision names,
                        shared or not, since a non-streaming reply's header waits for the whole
-                       reply, up to vision's max_tokens, and no stream timeout, the command
-                       running no extraction (C9);
+                       reply, up to vision's max_tokens, and no stream timeout (C9);
                        token and headers in the secrets file (C6)
 vision               endpoint, model, served_model, prompt, max_tokens 2048, reasoning none (a
                        protocol.ReasoningEffort, refused by its UnmarshalText, C7), native
@@ -60,6 +59,8 @@ transcription        endpoint, model, served_model, prompt, language, mode route
                        native {"temperature":0} in chat mode and none in route mode, replaced
                        whole when set, {} sending none, a non-empty one refused in route
                        mode, words_per_second 8, concurrency 4
+extraction           endpoint, model, served_model, max_tokens 4096, window_runes 16384,
+                       concurrency 4
 embeddings           endpoint, model, served_model, dimensions, input_types (required, no
                        starting value), tokenizer (required, no starting value; it must front
                        the embeddings' deployment, which no listing checks, since the chunker's
@@ -81,18 +82,19 @@ The commands, each with a footer stating that recorded refusals exit 0, what exi
 last line counts (C20):
 
 ```text
-docinfer run <docproc-dir> --out <dir> [--run <id>] [--report]
+docinfer run <docproc-dir> --out <dir> [--run <id>] [--extract <file>] [--report]
     infers over docproc's run, Dir.Latest's, the latest that ended, or --run's, validated as
-    docproc's is (C4); --report renders the run's report after it, never after a cancellation,
-    a failed render exiting 1 with the run intact (C19); a cancelled run exits 1 (C23)
+    docproc's is (C4); --extract's file is Options.Extract; --report renders the run's
+    report after it, never after a cancellation, a failed render exiting 1 with the run intact
+    (C19); a cancelled run exits 1 (C23)
 docinfer report <dir> [--run <id>]
     renders a run's report, the latest that ended or --run's; Make prints the index's absolute
     path (C19)
 ```
 
-Before it reads docproc's run, `run` checks each capability's model: `(*ai.Client).Models`, once per
-capability's client, so it lists through the same query, token, headers, and retry the run calls
-with, reading `status.value` from `ai.Model.Native`; an `*ai.APIError` is "no listing", any other
+Before it reads docproc's run, `run` checks each capability's model with `profile.Resolve`, one
+`(*ai.Client).Models` per client, listing through the run's query, token, headers, and retry,
+reading `status.value` from `ai.Model.Native`; an `*ai.APIError` is "no listing", any other
 error "unreachable". The states, the table, and the 30 s bound stay (C5).
 
 `run` opens docproc's directory with `rundir.Open` and feeds `Pipeline.Run` from `Dir.Record` and
