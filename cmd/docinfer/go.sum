@@ -1,3 +1,5 @@
+github.com/standards-lab/docinfer v0.7.0 h1:/VOOtiPOij0SXgjprEqbwAMwP2wYRRF4XyleM/IDbIM=
+github.com/standards-lab/docinfer v0.7.0/go.mod h1:YDrqRLHDUge/Jq2ko3pVUW0iN7On/pksKhHnRpHMz6k=
 github.com/standards-lab/docproc v0.10.0 h1:4neT6syfThhNA9YmfHKMRt6OXt1MXSI9uJbFGOUE19k=
 github.com/standards-lab/docproc v0.10.0/go.mod h1:ZA8JYQPooA6YA84b00Lpu5AiSL2VSj/u7QnenltqVBA=
 github.com/standards-lab/go-ai v0.6.0 h1:Ir2bffFzvmmZ+hY/aNXRzOyNVjdp4zQ2pBYbPQfeJTc=
