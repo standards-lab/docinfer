@@ -26,8 +26,8 @@ cmd/docinfer     (module) main.go at the module's root, so go install installs t
 composition root is a graph (C1): a node for the configuration, read from the directory `--config`
 or `DOCINFER_CONFIG` names in the node's constructor; a node per capability's `*ai.Client`, built
 as `ai.New(baseURL, httpClient, wireFormat, ai.Options{…})` and reporting its error named for its
-endpoint (C7); and a node for `run.Config`, `profile.Settings` and `profile.Clients`, which
-`run.Commands(n.RunConfig)` takes into `profile.Resolve` and `profile.New`. A configuration error
+endpoint (C7); and a node for `run.Config`, holding `profile.Settings` and `profile.Clients`, which
+`run.Commands(n.RunConfig)` passes to `profile.Resolve` and `profile.New`. A configuration error
 fails the Build, labelled with its node, before the docproc run is read.
 
 The configuration ships the operator's starting values, which the library leaves none

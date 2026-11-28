@@ -15,7 +15,7 @@ the postgres module keep their own.
 - `extraction`, the extraction capability's configuration block, each key overridden by
   `DOCINFER_EXTRACTION_<KEY>`: `endpoint`, `model`, and `served_model`, as the other capabilities
   have; `concurrency`, starting at 4; `max_tokens`, starting at 4096; `reasoning`, a go-ai
-  `protocol.ReasoningEffort`, none sent when empty, its starting value; `native`, a JSON object
+  `protocol.ReasoningEffort`, empty at the start, which sends none; `native`, a JSON object
   sent in every request, none at the start, `{}` sending none; and `window_runes`, the characters
   of a document or timeline extraction's window, starting at 16384. Left unset, no extraction
   client is built and the model table, the manifest, and the run's lines are as before. A

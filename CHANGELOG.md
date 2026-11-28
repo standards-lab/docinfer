@@ -12,16 +12,17 @@ each nested module keeps its own.
 ### Added
 
 - Package `profile`, which builds a `docinfer.Pipeline` from a profile's settings as JSON, for any
-  host. `Settings` holds vision's, transcription's, extraction's, with its `window_runes`, and the
-  embeddings' with their chunker's, under cmd/docinfer's configuration keys, and `pending`,
-  `batch_bytes`, and `words_per_second`; `Settings.Validate` refuses each required value unset or
-  out of range by its key, and `Decode` decodes and validates them, refusing an unknown member,
-  each matching `ErrRequest`. `Resolve` resolves each capability's served model from its client's
-  model listing, the entry's root, else its `served_model`, refusing a root that disagrees and a
-  model with neither, and returns each capability's `Model` and its listing's `State`. `New`
-  builds the pipeline from a `Config` of the settings, the host's `Clients`, the resolved
-  `Model`s, a `Bounds`, and a cache, its chunker counting through the tokenizer client. The
-  package builds no client, reads no environment, and writes no file.
+  host. `Settings` holds the settings of vision, transcription, extraction (with its
+  `window_runes`), and embeddings (with its chunker's), under cmd/docinfer's configuration keys,
+  and `pending`, `batch_bytes`, and `words_per_second`. `Settings.Validate` refuses, by its key,
+  each required value that is unset or out of range, and `Decode` decodes and validates the
+  settings, refusing an unknown member; each refusal matches `ErrRequest`. `Resolve` resolves each
+  capability's served model from its client's model listing, the entry's root, else its
+  `served_model`. It refuses a root that disagrees and a model with neither, and returns each
+  capability's `Model` and its listing's `State`. `New` builds the pipeline from a `Config` of the
+  settings, the host's `Clients`, the resolved `Model`s, a `Bounds`, and a cache; its chunker
+  counts tokens through the tokenizer client. The package builds no client, reads no environment,
+  and writes no file.
 
 ## [v0.6.0] - 2026-11-28
 
