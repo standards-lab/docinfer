@@ -31,6 +31,14 @@
 // threads the record outputs with docproc's email.Threader, so no threader state joins the
 // checkpoint.
 //
+// A run with docinfer.Options.Document set yields no Checkpoint and ignores dispatch.Input.After,
+// dispatching the input from its start: a store resumed after a message never pulls the messages
+// before it again, so their text would be missing from the document text. Its redelivery replays
+// the job from the start, through the dispatcher's index and the pipeline's cache. A timeline
+// changes nothing: a video part's frames and transcript come before the last output of the message
+// that holds it, and its timeline before the part's own event settles, so no checkpoint falls
+// inside one.
+//
 // A content miss is transient: a *docinfer.MissingError stops the job, but first drops the index
 // entry of the output's part, under the part's SHA-256 and the event's stage, so a redelivery
 // prepares the part again and puts its content back rather than replay the entry and miss again.

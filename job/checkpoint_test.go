@@ -245,3 +245,75 @@ func TestRunResume(t *testing.T) {
 		})
 	}
 }
+
+func documentOf(t *testing.T, r run) docinfer.Inference {
+	t.Helper()
+	var docs []docinfer.Inference
+	for _, u := range r.updates {
+		if u.Inference != nil && u.Inference.Scope == docinfer.ScopeDocument {
+			docs = append(docs, *u.Inference)
+		}
+	}
+	if len(docs) != 1 {
+		t.Fatalf("%d document inferences, want one", len(docs))
+	}
+	return docs[0]
+}
+
+func TestRunDocumentNoCheckpoint(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts docinfer.Options
+	}{
+		{"without Document", docinfer.Options{}},
+		{"with Document", docinfer.Options{Document: &theExtract}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, nil, serve(t))
+			r := collect(f.runner.Run(t.Context(), input(t, "store.txt", messages(3)), tc.opts), nil)
+			r.done(t)
+			got := r.checkpoints()
+			if tc.opts.Document == nil {
+				if len(got) == 0 || got[len(got)-1] != 3 {
+					t.Errorf("checkpoints after %v, want some, the last after message 3", got)
+				}
+				return
+			}
+			if len(got) != 0 {
+				t.Errorf("checkpoints after %v, want none", got)
+			}
+			documentOf(t, r)
+		})
+	}
+}
+
+func TestRunDocumentIgnoresAfter(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		opts docinfer.Options
+		want []uint64
+	}{
+		{"without Document", docinfer.Options{}, []uint64{3, 4}},
+		{"with Document", docinfer.Options{Document: &theExtract}, []uint64{1, 2, 3, 4}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newFixture(t, nil, serve(t))
+			in := input(t, "store.txt", messages(4))
+			in.After = 2
+			r := collect(f.runner.Run(t.Context(), in, tc.opts), nil)
+			r.done(t)
+			if got := messagesOf(r.updates); !slices.Equal(got, tc.want) {
+				t.Errorf("messages %v, want %v", got, tc.want)
+			}
+			if tc.opts.Document == nil {
+				return
+			}
+			if got := r.checkpoints(); len(got) != 0 {
+				t.Errorf("checkpoints after %v, want none", got)
+			}
+			if text := documentOf(t, r).Text; !strings.Contains(text, "message 1") || !strings.Contains(text, "message 4") {
+				t.Errorf("the document's text %q, want every message's", text)
+			}
+		})
+	}
+}
