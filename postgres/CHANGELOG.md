@@ -10,6 +10,16 @@ keeps its own.
 
 ## [Unreleased]
 
+## [v0.1.4] - 2026-11-28
+
+This release requires docinfer v0.6.0, which adds document and timeline extraction, with nothing
+to adapt.
+
+### Changed
+
+- The module requires docinfer v0.6.0; its `Cache` passes docinfertest's suite unchanged, since
+  window and combine calls hold their replies under ordinary keys.
+
 ## [v0.1.3] - 2026-11-27
 
 This release requires docinfer v0.5.0, which skips vision for a page whose text layer holds its
@@ -67,7 +77,8 @@ The first release. The module is new: the spike has no PostgreSQL cache to copy.
   value are refused, matching `docinfer.ErrRequest`, and an ended context with its own error,
   before any query.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.3...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.4...HEAD
+[v0.1.4]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.3...postgres/v0.1.4
 [v0.1.3]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.2...postgres/v0.1.3
 [v0.1.2]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.1...postgres/v0.1.2
 [v0.1.1]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.0...postgres/v0.1.1
