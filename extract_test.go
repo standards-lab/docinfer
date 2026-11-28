@@ -30,6 +30,7 @@ const (
 	extractModel  = "extraction-model"
 	extractServed = "org/extraction-1"
 	extractTokens = 200
+	extractWindow = 4000
 	extractPrompt = "Extract the total."
 	extractName   = "invoice_total"
 	extractRefuse = "I can't extract from this."
@@ -48,7 +49,7 @@ func extractConfig(t *testing.T, e *aitest.Endpoint, edit func(*docinfer.Config)
 	return runConfig(t, e, func(c *docinfer.Config) {
 		c.Extraction = &docinfer.Extraction{
 			Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: extractModel, Served: extractServed, MaxTokens: extractTokens,
-			Reasoning: protocol.ReasoningEffortLow,
+			Reasoning: protocol.ReasoningEffortLow, WindowRunes: extractWindow,
 		}
 		if edit != nil {
 			edit(c)
@@ -121,18 +122,7 @@ func checkExtractRequest(t *testing.T, req aitest.ChatRequest, text string) {
 
 func heldExtraction(t *testing.T, cache docinfer.Cache, text string) *docinfer.Held {
 	t.Helper()
-	values, err := cache.Get(t.Context(), docinfer.Key(extractID, sha(text)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if values[0] == nil {
-		return nil
-	}
-	var h docinfer.Held
-	if err := json.Unmarshal(values[0], &h); err != nil {
-		t.Fatalf("the held extraction: %v", err)
-	}
-	return &h
+	return heldUnder(t, cache, extractID, text)
 }
 
 func extractions(o outcome) []docinfer.Inference {
@@ -658,17 +648,19 @@ func TestRunRefusesExtract(t *testing.T) {
 			Schema: jsontext.Value(`{"type":"object","type":"string"}`)}},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			e := aitest.Serve(t, aitest.Routes{})
-			p := newPipeline(t, extractConfig(t, e, nil))
-			o := collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), unpulled(t), docinfer.Options{Extract: &tc.extract}))
-			if !errors.Is(o.err, docinfer.ErrRequest) || !docinfer.Permanent(o.err) {
-				t.Errorf("Run: %v, want a permanent error matching ErrRequest", o.err)
-			}
-			if o.results != 1 || len(e.Requests()) != 0 {
-				t.Errorf("%d results, %d requests; want the error alone, nothing asked", o.results, len(e.Requests()))
-			}
-		})
+		for scope, opts := range scopedOptions(&tc.extract) {
+			t.Run(scope+"/"+tc.name, func(t *testing.T) {
+				e := aitest.Serve(t, aitest.Routes{})
+				p := newPipeline(t, extractConfig(t, e, nil))
+				o := collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), unpulled(t), opts))
+				if !errors.Is(o.err, docinfer.ErrRequest) || !docinfer.Permanent(o.err) || !strings.Contains(o.err.Error(), scope) {
+					t.Errorf("Run: %v, want a permanent error matching ErrRequest naming %s", o.err, scope)
+				}
+				if o.results != 1 || len(e.Requests()) != 0 {
+					t.Errorf("%d results, %d requests; want the error alone, nothing asked", o.results, len(e.Requests()))
+				}
+			})
+		}
 	}
 	for _, name := range []string{"n", strings.Repeat("n-_9", 16)} {
 		x := docinfer.Extract{Name: name, Prompt: extractPrompt, Schema: extractSchema}
@@ -681,13 +673,34 @@ func TestRunRefusesExtract(t *testing.T) {
 }
 
 func TestRunExtractionNotConfigured(t *testing.T) {
-	e := aitest.Serve(t, aitest.Routes{})
-	p := newPipeline(t, runConfig(t, e, nil))
-	o := collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), unpulled(t), extracting(false)))
-	if o.err == nil || !docinfer.Permanent(o.err) || !strings.Contains(o.err.Error(), "Config.Extraction") {
-		t.Errorf("Run: %v, want a permanent error naming Config.Extraction", o.err)
+	for scope, opts := range scopedOptions(new(theExtract)) {
+		t.Run(scope, func(t *testing.T) {
+			e := aitest.Serve(t, aitest.Routes{})
+			p := newPipeline(t, runConfig(t, e, nil))
+			o := collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), unpulled(t), opts))
+			if o.err == nil || !docinfer.Permanent(o.err) || !strings.Contains(o.err.Error(), "Config.Extraction") {
+				t.Errorf("Run: %v, want a permanent error naming Config.Extraction", o.err)
+			}
+			if o.results != 1 || len(e.Requests()) != 0 {
+				t.Errorf("%d results, %d requests; want the error alone, nothing asked", o.results, len(e.Requests()))
+			}
+		})
 	}
-	if o.results != 1 || len(e.Requests()) != 0 {
-		t.Errorf("%d results, %d requests; want the error alone, nothing asked", o.results, len(e.Requests()))
+}
+
+func TestRunAcceptsDocumentAndTimeline(t *testing.T) {
+	e := aitest.Serve(t, aitest.Routes{Embeddings: embedAll})
+	p := newPipeline(t, extractConfig(t, e, nil))
+	opts := docinfer.Options{Document: new(theExtract), Timeline: new(theExtract)}
+	if o := collect(t, p.Run(t.Context(), dispatch.NewMemoryContent(), seq(metadataInput()), opts)); o.err != nil {
+		t.Errorf("Run with Document and Timeline: %v", o.err)
+	}
+}
+
+func scopedOptions(e *docinfer.Extract) map[string]docinfer.Options {
+	return map[string]docinfer.Options{
+		"Extract":  {Extract: e},
+		"Document": {Document: e},
+		"Timeline": {Timeline: e},
 	}
 }

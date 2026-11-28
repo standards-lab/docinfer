@@ -6,7 +6,7 @@ github.com/standards-lab/go-ai v0.5.0 h1:Ao7Ov78dpqVYSacCrJ9ewHuUf6dp7JQlmUfqIra
 github.com/standards-lab/go-ai v0.5.0/go.mod h1:UHiE2lCeAnZ6SmnbfyYSyT5UsKPvDRdil6GozyHPu9A=
 github.com/standards-lab/go-cli-sdk v0.4.0 h1:232dyKPD5kqshp0BMEVEZaedwJfvnDVqWLv7m1NQWmI=
 github.com/standards-lab/go-cli-sdk v0.4.0/go.mod h1:7Y1BCcHtuu8Unxc+Hryjlln+0fbiMYa5xY75aueJ/rY=
-github.com/standards-lab/go-core v0.12.0 h1:sqrzK6QSppEYpwvVAyiWgzNuOsjfK0Kwe86GPuZpHsU=
-github.com/standards-lab/go-core v0.12.0/go.mod h1:Yl/R+gM9YWczsePBCKXdPGh3FSdZ/5i8SapLIh3BDHU=
+github.com/standards-lab/go-core v0.13.0 h1:jYiUiE63Z4/3q+8e+ATE+MuqI40RrI4BZrlD/sdm/Zg=
+github.com/standards-lab/go-core v0.13.0/go.mod h1:Yl/R+gM9YWczsePBCKXdPGh3FSdZ/5i8SapLIh3BDHU=
 golang.org/x/text v0.44.0 h1:YItdp/mQNGnsmrgpcdA5yQ3bnRxCfo/Tj/iByGW9GGo=
 golang.org/x/text v0.44.0/go.mod h1:S4FR1waQ9LbjQTls97SyRjDaUUVkaM+cXwwuG/G+MwY=

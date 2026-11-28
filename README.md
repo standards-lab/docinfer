@@ -96,8 +96,8 @@ for r, err := range p.Run(ctx, d.Content(), inputs, docinfer.Options{Final: true
 }
 ```
 
-A nil `Vision` or `Transcription` skips images or windows, counted; `Extraction` is needed only by
-a run whose `Options.Extract` asks for one.
+A nil `Vision` or `Transcription` skips images or windows, counted; only `Options.Extract`,
+`Document`, and `Timeline` need `Extraction`.
 
 ## Running a job
 
@@ -107,7 +107,8 @@ inference's text into the dispatcher's content store, and yields the job's updat
 an output's event before its inference and batches, and a part's own event after its outputs',
 warnings', and children's. For a store's input it yields a `Checkpoint` at the low watermark,
 every `CheckpointEvery` settled messages; a host keeps the last one's `After` and resumes a
-redelivered job from it.
+redelivered job from it. With `Options.Document` set it yields none, and a redelivery starts
+over.
 
 ```go
 // d is a docproc dispatch.Dispatcher and p the Pipeline above; in is the job's dispatch.Input,
@@ -163,10 +164,11 @@ suite.
 
 No bound, cap, or setting has a library default. `New` refuses, matching `ErrRequest`, a value
 below 1: the chunker's `Bound` and `Runes`, the dimensions, `Pending`, `EmbedBatch`, `BatchBytes`,
-`Join.WordsPerSecond`, and each `MaxTokens` but transcription's, which 0 leaves unsent. It refuses
-an empty model or served model and a nil `Chunker.Count`; `NewBounds` refuses any of its four
-bounds below 1. A request's time is the host's too: its transport's `ResponseHeaderTimeout`,
-and go-ai's `Options.StreamIdleTimeout` for extraction's stream. docinfer adds no deadline.
+`Join.WordsPerSecond`, `Extraction.WindowRunes`, and each `MaxTokens` but transcription's, which 0
+leaves unsent. It refuses an empty model or served model and a nil `Chunker.Count`; `NewBounds`
+refuses any of its four bounds below 1. A request's time is the host's too: its transport's
+`ResponseHeaderTimeout`, and go-ai's `Options.StreamIdleTimeout` for extraction's stream. docinfer
+adds no deadline.
 [`docs/no-defaults.md`](docs/no-defaults.md) holds the reasoning.
 
 ## The consumer's contract
@@ -200,10 +202,8 @@ it. The check builds the tiers but never runs them, nor does CI, because the mod
 organization's own machines.
 
 `integration` runs every provider's live tier, continuing past a failure; `integration:postgres`
-is the one provider tier. `integration:postgres` starts the compose harness's PostgreSQL alone,
-runs the postgres module's integration tests, `docinfertest`'s `Cache` suite among them, and stops
-the service whether they pass or fail, printing its log on a failure. CI's integration job runs
-`integration` on a push to main and on demand, never on a pull request.
+is the one provider tier. CI's integration job runs `integration` on a push to main and on demand,
+never on a pull request.
 
 The compose harness, [`compose.yml`](compose.yml), is test-only: an empty PostgreSQL on port 5437,
 which `DOCINFER_POSTGRES_PORT` moves.

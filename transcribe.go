@@ -50,6 +50,8 @@ type group struct {
 
 	members []int
 	settled bool
+
+	tl *timeline
 }
 
 type window struct {
@@ -57,6 +59,7 @@ type window struct {
 	ev                  dispatch.Event
 	before, after       float64
 	hasBefore, hasAfter bool
+	start, end          float64
 
 	outcome Outcome
 	text    string
@@ -132,6 +135,17 @@ func (r *run) admitWindow(in Input, pos int) error {
 	}
 
 	g := r.groupOf(in)
+	if tl := r.timelineOf(in); tl != nil {
+		if w.start, err = metaSeconds(ev, "window", dispatch.MetaStart); err != nil {
+			return err
+		}
+		if w.end, err = metaSeconds(ev, "window", dispatch.MetaEnd); err != nil {
+			return err
+		}
+		if g.tl == nil && tl.group == nil {
+			g.tl, tl.group = tl, g
+		}
+	}
 	r.addMember(g, pos)
 	if g.closed || g.windows[index] != nil || index >= g.bound() {
 		r.counts.Transcription.Unplaced++
@@ -487,6 +501,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	}
 	if n == 0 {
 		r.finishState(&inputState{g: g, slotless: slotless})
+		r.heardOf(g, "", nil, nil)
 		return true, nil
 	}
 	texts := make([]string, n)
@@ -576,11 +591,17 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	if !yield(Result{Inference: inf}, nil) {
 		return false, nil
 	}
+	positions := make([]int, len(t.Seams))
+	for i, s := range t.Seams {
+		positions[i] = s.Position
+	}
+	r.heardOf(g, textSHA, t.Words, positions)
 
 	stage := g.stage
 	st := &inputState{
 		part:     g.part,
 		source:   Source{Kind: sourceTranscript, Origin: g.origin, SHA256: textSHA, Stage: &stage, Output: first},
+		pos:      g.members[0],
 		g:        g,
 		slotless: slotless,
 	}

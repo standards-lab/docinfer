@@ -73,6 +73,11 @@ func New(cfg Config) (*Runner, error) {
 // the highest After seen, and never one ahead of an unsettled earlier input. An input with no
 // store yields none, and the job's end adds none: a finished job needs no cursor. A dispatch
 // resumed with dispatch.Input.After set to a checkpoint's After yields only the messages after it.
+//
+// With opts.Document set, Run yields no Checkpoint and ignores in.After, dispatching the input from
+// its start: the document text is every input's, and a store resumed after a message never pulls
+// the messages before it again, so their text would be missing from it. A redelivered job replays
+// from the start instead, through the dispatcher's index and the pipeline's cache.
 func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Options) iter.Seq2[Update, error] {
 	return func(yield func(Update, error) bool) {
 		caller := ctx
@@ -81,6 +86,9 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 		content := r.cfg.Dispatcher.Content()
 		parts := map[string]dispatch.Event{}
 		mark := watermark{every: r.cfg.CheckpointEvery}
+		if opts.Document != nil {
+			in.After = 0
+		}
 		var counts *docinfer.Counts
 		var stop error
 	results:
@@ -113,7 +121,7 @@ func (r *Runner) Run(ctx context.Context, in dispatch.Input, opts docinfer.Optio
 				continue
 			default:
 				after, ok := mark.settle(*res.Settled)
-				if !ok {
+				if !ok || opts.Document != nil {
 					continue
 				}
 				u.Checkpoint = &Checkpoint{After: after}
@@ -238,7 +246,8 @@ type Update struct {
 }
 
 // Checkpoint is a store's cursor, a low watermark: a host resumes a redelivered job from the last
-// one by setting dispatch.Input.After to its After.
+// one by setting dispatch.Input.After to its After. A run with docinfer.Options.Document set
+// yields none.
 type Checkpoint struct {
 	// After is the last message whose inputs, and every earlier input, have settled.
 	After uint64 `json:"after"`

@@ -57,6 +57,24 @@
 // apart for the host; and a failed call stops it too, but on the job's last delivery
 // ([Options].Final) its items are recorded failed, never held, and the job goes on.
 //
+// Two options extract over more than one source text. With [Options].Document set, the job's
+// document text is every source text Extract would read, each that isn't empty, in its input's
+// pull order, joined by a blank line, never a metadata text; it is extracted once the inputs end
+// and every input has settled, and its one [Inference], of Scope [ScopeDocument], is the last
+// result before the counts. With [Options].Timeline set, each part of the video stage has a
+// timeline text, a line per frame description, "[m:ss] seen: ...", and per transcript window's
+// words, "[m:ss–m:ss] heard: ...", in time order; an audio stage's part has none. A timeline's
+// [Inference], of Scope [ScopeTimeline], follows its frames' and transcript's, and the video
+// part's own event doesn't settle until it is out. A text longer than [Extraction].WindowRunes
+// characters is cut into windows along headings, paragraphs, and sentences, a call each, and the
+// windows' replies are combined, in rounds of calls under docinfer's own combine instruction,
+// until one reply is left. Each call is keyed by the SHA-256 of its own input text and an
+// identity: extraction's for the Extract, and for a combine that identity with a "combine"
+// member, the combine instruction's version, which [Profile].Extraction reports as well. A
+// scope's inference is outcome extracted when every call was, else failed when one failed, refused
+// when one was refused, and incomplete otherwise; its Failed lists the windows whose calls weren't
+// extracted. Neither text is chunked, and [Pipeline.Run] gives each rule in full.
+//
 // A held refusal stays until its key changes, by [Version], a request's version, or the served
 // model, or until the host removes it from its own store. A part is identified by its input's
 // [Input].Origin and its ID, since docproc gives each input's own part the ID "/": a job of several
@@ -83,8 +101,9 @@
 //
 //   - [Config] and [New], which builds a [Pipeline]; [Pipeline.Profile], its resolved identity,
 //     the embeddings' query convention among it
-//   - [Pipeline.Run], one job's run, over [Input]s, with [Options], yielding [Result]s, among
-//     them [Result.Input], each input's echo, and [Result.Settled], each input's settlement;
+//   - [Pipeline.Run], one job's run, over [Input]s, with [Options], its Extract, Document, and
+//     Timeline among them, yielding [Result]s, among them [Result.Input], each input's echo, and
+//     [Result.Settled], each input's settlement;
 //     [MetadataText], the one builder of an input's metadata text; [MissingError], a content
 //     miss, with its [MissingError.Error] and [MissingError.Unwrap]; and [Permanent], which tells
 //     an error no redelivery changes
@@ -106,8 +125,9 @@
 //     with the query convention a consumer applies to its search queries
 //   - [Inference], one text a model made, its [Outcome], and its [Usage]; the six Outcome
 //     constants, [OutcomeDescribed], [OutcomeTranscribed], [OutcomeExtracted],
-//     [OutcomeIncomplete], [OutcomeRefused], and [OutcomeFailed]; [Progress], an extraction's text
-//     as it streams
+//     [OutcomeIncomplete], [OutcomeRefused], and [OutcomeFailed]; [Scope], a document or
+//     timeline extraction's, and its constants [ScopeDocument] and [ScopeTimeline]; [Progress], an
+//     extraction's text as it streams
 //   - [Batch], its parts, [Source]s, and [Chunk]s, and its derived [Batch.Digest]; [DecodeVector],
 //     the one reader of a chunk's or a held value's vector
 //   - [Counts], one job's, with [VisionCounts], [TranscriptionCounts], [ExtractionCounts], and
@@ -158,6 +178,13 @@
 //     Permanent too, and failed stops the job on the last delivery as well, since no chunk holds
 //     either outcome.
 //   - A cancelled context is ctx.Err(), yielded alone and last.
+//
+// The rows apply to each call of a document or timeline extraction, a window's or a combine's,
+// as to a source text's extraction: a call refused or incomplete is held, and one failed on the
+// last delivery is recorded, never held, each as that call's outcome alone, folded into the
+// scope's one inference by the precedence above, and a call's empty text takes no part in the
+// combine; a permanent or transient failure, or a failed call before the last delivery, stops
+// the job.
 //
 // docinfer refuses only the statuses that judge the content. A status that judges the caller or
 // the route, or a request the format can't send, fails the same way on every delivery, so it ends

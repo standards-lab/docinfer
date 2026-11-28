@@ -19,24 +19,26 @@ type progressEvent struct{ p *Progress }
 
 type extractEvent struct {
 	st       *inputState
+	tl       *timeline
 	inf      *Inference
 	requests int
+	held     int
 	usage    Usage
 }
 
 func (progressEvent) isEvent() {}
 func (extractEvent) isEvent()  {}
 
-func (p *Pipeline) checkExtract(e Extract) error {
+func (p *Pipeline) checkExtract(field string, e Extract) error {
 	switch {
 	case e.Prompt == "":
-		return fmt.Errorf("docinfer: run: %w: Extract has no prompt", ErrRequest)
+		return fmt.Errorf("docinfer: run: %w: %s has no prompt", ErrRequest, field)
 	case !utf8.ValidString(e.Prompt):
-		return fmt.Errorf("docinfer: run: %w: Extract's prompt isn't UTF-8", ErrRequest)
+		return fmt.Errorf("docinfer: run: %w: %s's prompt isn't UTF-8", ErrRequest, field)
 	}
 	probe := extractRequest(&Extraction{Model: "probe"}, e, "probe")
 	if err := probe.Validate(); err != nil {
-		return fmt.Errorf("docinfer: run: %w: Extract: %w", ErrRequest, err)
+		return fmt.Errorf("docinfer: run: %w: %s: %w", ErrRequest, field, err)
 	}
 	if p.cfg.Extraction == nil {
 		return fmt.Errorf("docinfer: run: %w", errNoExtraction)
@@ -65,48 +67,71 @@ func (st *inputState) textSHA() string {
 	return st.source.Output.SHA256
 }
 
+type extractCall struct {
+	e    Extract
+	id   Identity
+	text string
+	sha  string
+	what string
+}
+
+type callReply struct {
+	h        Held
+	held     bool
+	failed   string
+	requests int
+	usage    Usage
+}
+
 func (r *run) extract(st *inputState, text string) {
 	start := time.Now()
-	key := Key(r.extractID, st.textSHA())
+	sha := st.textSHA()
+	c, ok := r.ask(extractCall{e: *r.opts.Extract, id: r.extractID, text: text, sha: sha,
+		what: fmt.Sprintf("text %s of part %s", sha, st.part.ID)})
+	if !ok {
+		return
+	}
+	t := c.result()
+	inf := t.inference(st.part.ID, st.source.Origin, []string{sha}, start)
+	r.send(extractEvent{st: st, inf: inf, requests: t.requests, usage: t.usage, held: t.held})
+}
+
+func (r *run) ask(c extractCall) (callReply, bool) {
+	key := Key(c.id, c.sha)
 	for {
 		l, own, waits := r.p.claims.claim([]string{key})
 		if len(own) == 1 {
-			r.extractLead(st, text, start, key, l)
-			return
+			return r.askLead(c, key, l)
 		}
 		a, err := r.p.claims.wait(r.ctx, waits[0].c)
 		if err != nil {
-			return
+			return callReply{}, false
 		}
 		switch {
 		case a.err != nil:
-			r.fail(fmt.Errorf("docinfer: run: extract text %s of part %s, as another call asked: %w",
-				st.textSHA(), st.part.ID, a.err))
-			return
+			r.fail(fmt.Errorf("docinfer: run: extract %s, as another call asked: %w", c.what, a.err))
+			return callReply{}, false
 		case a.held != nil:
-			r.extracted(st, start, *a.held, true, 0, Usage{})
-			return
+			return callReply{h: *a.held, held: true}, true
 		}
 	}
 }
 
-func (r *run) extractLead(st *inputState, text string, start time.Time, key string, l *lease) {
+func (r *run) askLead(c extractCall, key string, l *lease) (callReply, bool) {
 	defer l.release()
-	sha := st.textSHA()
 	values, err := r.p.cfg.Cache.Get(r.ctx, key)
 	if err != nil {
 		l.release()
-		r.fail(fmt.Errorf("docinfer: run: cache get for the extraction of text %s of part %s: %w", sha, st.part.ID, err))
-		return
+		r.fail(fmt.Errorf("docinfer: run: cache get for the extraction of %s: %w", c.what, err))
+		return callReply{}, false
 	}
 	if h, ok := decodeHeld(values[0]); ok && h.Vector == "" {
 		l.answer(key, answer{held: &h})
-		r.extracted(st, start, h, true, 0, Usage{})
-		return
+		return callReply{h: h, held: true}, true
 	}
 
 	x := r.p.cfg.Extraction
-	req := extractRequest(x, *r.opts.Extract, text)
+	req := extractRequest(x, c.e, c.text)
 	var (
 		resp *protocol.Response
 		sent bool
@@ -114,7 +139,7 @@ func (r *run) extractLead(st *inputState, text string, start time.Time, key stri
 	err = r.p.cfg.Bounds.do(r.ctx, CapabilityExtraction, func(ctx context.Context) error {
 		sent = true
 		var acc protocol.Accumulator
-		c := coalescer{now: r.p.now}
+		co := coalescer{now: r.p.now}
 		for e, err := range x.Client.GenerateStream(ctx, req) {
 			if err != nil {
 				return err
@@ -126,7 +151,7 @@ func (r *run) extractLead(st *inputState, text string, start time.Time, key stri
 			if !ok {
 				continue
 			}
-			if delta, ok := c.add(d.Delta); ok && !r.send(progressEvent{&Progress{ContentSHA256: sha, Delta: delta}}) {
+			if delta, ok := co.add(d.Delta); ok && !r.send(progressEvent{&Progress{ContentSHA256: c.sha, Delta: delta}}) {
 				return r.ctx.Err()
 			}
 		}
@@ -134,53 +159,44 @@ func (r *run) extractLead(st *inputState, text string, start time.Time, key stri
 		return nil
 	})
 	if r.ctx.Err() != nil {
-		return
+		return callReply{}, false
 	}
-	requests := 0
+	reply := callReply{}
 	if sent {
-		requests = 1
+		reply.requests = 1
 	}
-	var usage Usage
 	if resp != nil {
-		usage = Usage{Input: resp.Usage.InputTokens, Output: resp.Usage.OutputTokens}
+		reply.usage = Usage{Input: resp.Usage.InputTokens, Output: resp.Usage.OutputTokens}
 		if resp.Status != protocol.StatusCompleted && resp.Status != protocol.StatusIncomplete {
 			err = &failedReplyError{status: resp.Status, reply: resp.Error}
 		}
 	}
-	what := "the extraction of text " + sha
+	what := "the extraction of " + c.what
 	if err == nil {
-		h := heldReply(resp)
-		if !r.hold(l, key, what, h) {
-			return
-		}
-		r.extracted(st, start, h, false, requests, usage)
-		return
+		reply.h = heldReply(resp)
+		return reply, r.hold(l, key, what, reply.h)
 	}
 
-	wrapped := fmt.Errorf("docinfer: run: extract text %s of part %s: %w", sha, st.part.ID, err)
+	wrapped := fmt.Errorf("docinfer: run: extract %s: %w", c.what, err)
 	switch classify(err) {
 	case rowRefused:
-		h := Held{Refused: failureText(err)}
-		if !r.hold(l, key, "the refusal of "+what, h) {
-			return
-		}
-		r.extracted(st, start, h, false, requests, usage)
+		reply.h = Held{Refused: failureText(err)}
+		return reply, r.hold(l, key, "the refusal of "+what, reply.h)
 	case rowPermanent:
 		l.answer(key, answer{err: err})
 		r.fail(wrapped)
 	case rowFailed:
 		l.release()
-		if !r.opts.Final {
-			r.fail(wrapped)
-			return
+		if r.opts.Final {
+			reply.failed = failureText(err)
+			return reply, true
 		}
-		inf := r.extraction(st, start, OutcomeFailed, usage)
-		inf.Reason = failureText(err)
-		r.send(extractEvent{st: st, inf: inf, requests: requests, usage: usage})
+		r.fail(wrapped)
 	default:
 		l.release()
 		r.fail(wrapped)
 	}
+	return callReply{}, false
 }
 
 type coalescer struct {
@@ -205,35 +221,23 @@ func (c *coalescer) add(delta string) (string, bool) {
 	return s, true
 }
 
-func (r *run) extracted(st *inputState, start time.Time, h Held, held bool, requests int, usage Usage) {
-	var inf *Inference
-	switch {
-	case h.Refused != "":
-		inf = r.extraction(st, start, OutcomeRefused, usage)
-		inf.Reason = h.Refused
-	case h.Incomplete != "":
-		inf = r.extraction(st, start, OutcomeIncomplete, usage)
-		inf.Reason = h.Incomplete
-	default:
-		inf = r.extraction(st, start, OutcomeExtracted, usage)
+func (c callReply) heldCalls() int {
+	if c.held {
+		return 1
 	}
-	inf.Held = held
-	if inf.Outcome != OutcomeRefused && h.Text != "" {
-		inf.Text, inf.TextSHA256 = h.Text, sha256Hex([]byte(h.Text))
-	}
-	r.send(extractEvent{st: st, inf: inf, requests: requests, usage: usage})
+	return 0
 }
 
-func (r *run) extraction(st *inputState, start time.Time, outcome Outcome, usage Usage) *Inference {
-	return &Inference{
-		Capability:    CapabilityExtraction,
-		Part:          st.part.ID,
-		Origin:        st.source.Origin,
-		ContentSHA256: []string{st.textSHA()},
-		Outcome:       outcome,
-		Usage:         usage,
-		TookMS:        time.Since(start).Milliseconds(),
+func (c callReply) outcome() (Outcome, string) {
+	switch {
+	case c.failed != "":
+		return OutcomeFailed, c.failed
+	case c.h.Refused != "":
+		return OutcomeRefused, c.h.Refused
+	case c.h.Incomplete != "":
+		return OutcomeIncomplete, c.h.Incomplete
 	}
+	return OutcomeExtracted, ""
 }
 
 func (r *run) extractDone(e extractEvent, yield func(Result, error) bool) bool {
@@ -248,14 +252,19 @@ func (r *run) extractDone(e extractEvent, yield func(Result, error) bool) bool {
 	case OutcomeFailed:
 		xc.Failed++
 	}
-	if e.inf.Held {
-		xc.Held++
-	}
+	xc.Held += e.held
 	xc.Requests += e.requests
 	r.counts.Tokens.Extraction.Input += e.usage.Input
 	r.counts.Tokens.Extraction.Output += e.usage.Output
 	if !yield(Result{Inference: e.inf}, nil) {
 		return false
+	}
+	if e.st == nil {
+		if e.tl != nil {
+			r.releaseTimeline(e.tl)
+		}
+		r.active--
+		return true
 	}
 	e.st.extracting = false
 	if e.st.split && e.st.remaining == 0 {

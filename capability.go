@@ -138,6 +138,9 @@ type Extraction struct {
 	// whose members the endpoint defines, such as temperature. Empty sends none; [New] refuses
 	// one that isn't a JSON object with unique member names.
 	Native jsontext.Value
+	// WindowRunes is at least 1: the runes of a document or timeline extraction's window. It isn't
+	// part of [Extraction.Identity].
+	WindowRunes int
 }
 
 // Extract is a caller's extraction: a prompt and the JSON schema its reply follows.
@@ -159,6 +162,7 @@ type extractionSettings struct {
 
 type extractionProfile struct {
 	Request   string                   `json:"request"`
+	Combine   string                   `json:"combine"`
 	MaxTokens int                      `json:"max_tokens"`
 	Effort    protocol.ReasoningEffort `json:"effort"`
 	Native    jsontext.Value           `json:"native,omitempty"`
@@ -184,7 +188,7 @@ func (x Extraction) profile() Identity {
 	return Identity{
 		Capability: CapabilityExtraction,
 		Model:      x.Served,
-		Settings:   encodeSettings(extractionProfile{extractionRequest, x.MaxTokens, x.Reasoning, canonical(x.Native)}),
+		Settings:   encodeSettings(extractionProfile{extractionRequest, combineRequest, x.MaxTokens, x.Reasoning, canonical(x.Native)}),
 	}
 }
 

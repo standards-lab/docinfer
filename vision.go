@@ -216,7 +216,7 @@ func (r *run) described(in Input, pos int, start time.Time, h Held, held bool, r
 		return
 	}
 	st.partJSON = b
-	if !r.send(inferenceEvent{inf: inf, requests: requests, usage: usage}) {
+	if !r.send(inferenceEvent{inf: inf, requests: requests, usage: usage, pos: pos}) {
 		return
 	}
 	r.embed(st, h.Text)

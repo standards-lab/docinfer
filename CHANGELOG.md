@@ -9,6 +9,60 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.6.0] - 2026-11-28
+
+This release extracts over more than one source text: over a job's whole text with
+`Options.Document`, and over each video's frames and transcript, in time order, with
+`Options.Timeline`. A text longer than `Extraction.WindowRunes` characters is cut into windows and
+their replies combined into one. A host that sets `Extraction` must now set `WindowRunes`. It
+requires docproc v0.10.0 and go-ai v0.5.0.
+
+### Added
+
+- `Document` on `Options`, an `Extract` over the job's document text: every source text `Extract`
+  would read, each that isn't empty, in its input's pull order, a transcript at its group's first
+  input, joined by a blank line, never a metadata text. It is extracted once the inputs end and
+  every input has settled, and its one `Inference`, of the first depth-0 part pulled, is the last
+  result before the counts. Its `ContentSHA256` is the source texts' in order. The document text
+  is not chunked.
+- `Timeline` on `Options`, an `Extract` over each video part's timeline text, a part of the video
+  stage: a line per frame description, `[m:ss] seen: ...`, at the frame's `dispatch.MetaTime`, and
+  per transcript window's words, `[m:ss–m:ss] heard: ...`, from the window's `dispatch.MetaStart`
+  to its `dispatch.MetaEnd`, ordered by time. A frame or window of such a part without those
+  times stops the job, `Permanent`. Its one `Inference`, of the video part, follows the part's own
+  event, its frames' inferences, and its transcript's, and the part's own event settles only once
+  it is out. An audio stage's part has no timeline, and a video part with no description text and
+  no transcript words sends no call. The timeline text is not chunked.
+- `WindowRunes` on `Extraction`, the characters, Unicode code points, of a document or timeline
+  extraction's window. A text of at most `WindowRunes` characters is one call. A longer one is cut
+  by a `chunk.Splitter` along headings, paragraphs, and sentences, a call per window, and the
+  windows' replies are combined, in rounds of calls under docinfer's own combine instruction with
+  the `Extract`'s schema, until one reply is left. Each call is keyed by the SHA-256 of its own
+  input text; a window's identity is the `Extract`'s, and a combine's adds a `combine` member, the
+  combine instruction's version, after `request`. `WindowRunes` isn't part of the identity.
+- `Scope` on `Inference`, JSON `scope`, omitted when empty, with its constants `ScopeDocument`,
+  `"document"`, and `ScopeTimeline`, `"timeline"`: the span of an extraction wider than one source
+  text. A scope's inference is outcome extracted when every call was, else failed when one failed,
+  refused when one was refused, and incomplete otherwise, its `Reason` the first such call's. Its
+  `Failed` lists the windows whose calls weren't extracted, `Usage` sums every call's, and `Held`
+  is true when every call was held. The counts count it once under its outcome, and each of its
+  calls in `Requests` and `Held`.
+
+### Changed
+
+- Breaking: `New` refuses an `Extraction` whose `WindowRunes` is below 1, matching `ErrRequest`.
+  A host that sets `Extraction` sets `WindowRunes` as well, even if it sets neither `Document` nor
+  `Timeline`.
+- `Pipeline.Run` refuses a `Document` or `Timeline` as it does an `Extract`, matching
+  `ErrRequest`, and stops, `Permanent`, when one is set with no `Config.Extraction`, each before it
+  reads an input.
+- `Profile.Extraction`'s settings gain `combine`, the combine instruction's version, after
+  `request`.
+- `job.Runner.Run` yields no `Checkpoint` and ignores `dispatch.Input.After` while
+  `Options.Document` is set, dispatching the input from its start: the document text is every
+  message's text. A redelivered job replays from the start through the dispatcher's index and the
+  pipeline's cache.
+
 ## [v0.5.0] - 2026-11-27
 
 This release skips vision for a PDF page whose text layer already holds its words. When the
@@ -315,7 +369,8 @@ extraction, and the integration tier are new.
   release workflow, which makes a GitHub release from `CHANGELOG.md` for a `v*` tag and from
   `<module>/CHANGELOG.md` for a `<module>/v*` tag.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.6.0...HEAD
+[v0.6.0]: https://github.com/standards-lab/docinfer/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/standards-lab/docinfer/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/standards-lab/docinfer/compare/v0.3.0...v0.4.0
 [v0.3.0]: https://github.com/standards-lab/docinfer/compare/v0.2.0...v0.3.0

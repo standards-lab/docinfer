@@ -57,7 +57,7 @@ type Profile struct {
 	// none.
 	VisionLayerWords int       `json:"vision_layer_words,omitempty"`
 	Transcription    *Identity `json:"transcription,omitempty"`
-	Extraction       *Identity `json:"extraction,omitempty"` // its settings less prompt and schema
+	Extraction       *Identity `json:"extraction,omitempty"` // its settings, with the combine version, less prompt and schema
 	Embeddings       Identity  `json:"embeddings"`
 	// EmbeddingQuery is the query convention the embeddings' client declares, which a consumer
 	// applies to its search queries so they land in the space the chunks were embedded in; nil
@@ -86,12 +86,23 @@ const (
 	OutcomeFailed      Outcome = "failed"
 )
 
+// Scope is an extraction's span when it is wider than one source text.
+type Scope string
+
+// The scopes an [Inference] carries.
+const (
+	ScopeDocument Scope = "document" // over the job's whole text
+	ScopeTimeline Scope = "timeline" // over a video's frames and transcript
+)
+
 // Inference is one text a model made, or the cache held: an image's description, a part's joined
-// transcript, or a source text's extraction.
+// transcript, or an extraction: a source text's, or, by its Scope, the job's or a video's.
 type Inference struct {
 	Capability Capability `json:"capability"` // vision, transcription, or extraction
-	Part       string     `json:"part"`       // its part's ID
-	Origin     string     `json:"-"`          // local: its input's [Input].Origin
+	// Scope is a document or timeline extraction's; "" for one of a single part or source text.
+	Scope  Scope  `json:"scope,omitempty"`
+	Part   string `json:"part"` // its part's ID
+	Origin string `json:"-"`    // local: its input's [Input].Origin
 	// ContentSHA256 is the image's, the windows' in order, "" for one never cut, or the source
 	// text's.
 	ContentSHA256 []string `json:"content_sha256"`
@@ -99,7 +110,8 @@ type Inference struct {
 	// Reason is an image's or extraction's: why it is incomplete, refused, or failed.
 	Reason string `json:"reason,omitzero"`
 	// Failed is a transcript's windows not transcribed, by index: refused, failed, incomplete, or
-	// never cut.
+	// never cut; or a windowed extraction's windows not extracted, by index: refused, failed, or
+	// incomplete.
 	Failed []int `json:"failed,omitempty"`
 	// Held is true when the text was read from the cache or a leader's request, not asked of a
 	// model.
@@ -113,7 +125,7 @@ type Inference struct {
 
 // Progress is an extraction's text since its last progress.
 type Progress struct {
-	ContentSHA256 string `json:"content_sha256"` // the source text's
+	ContentSHA256 string `json:"content_sha256"` // the extraction call's input text's
 	Delta         string `json:"delta"`
 }
 
@@ -237,7 +249,8 @@ type TranscriptionCounts struct {
 	SeamsUnmatched int `json:"seams_unmatched"`
 }
 
-// ExtractionCounts counts each source text under its outcome.
+// ExtractionCounts counts each extraction's [Inference] under its outcome, and each call it took,
+// a window's or a combine's among them, in Held or Requests.
 type ExtractionCounts struct {
 	Extracted  int `json:"extracted"`
 	Incomplete int `json:"incomplete"`

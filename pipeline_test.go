@@ -44,6 +44,7 @@ func validConfig(t *testing.T) docinfer.Config {
 		Transcription: &docinfer.Transcription{Client: c, Model: "audio", Served: "org/transcription-1", Language: "en"},
 		Extraction: &docinfer.Extraction{
 			Client: c, Model: "agent", Served: "org/extraction-1", MaxTokens: 2, Reasoning: protocol.ReasoningEffortMedium,
+			WindowRunes: 2,
 		},
 		Embeddings: docinfer.Embeddings{Client: c, Model: "embedding", Served: "org/embedding-1"},
 		Chunker:    chunk.Splitter{Bound: 2, Runes: 2, Count: runes, Model: "org/embedding-1"},
@@ -59,7 +60,7 @@ func validConfig(t *testing.T) docinfer.Config {
 
 func TestNewAcceptsLeastValues(t *testing.T) {
 	cfg := validConfig(t)
-	cfg.Vision.MaxTokens, cfg.Extraction.MaxTokens = 1, 1
+	cfg.Vision.MaxTokens, cfg.Extraction.MaxTokens, cfg.Extraction.WindowRunes = 1, 1, 1
 	cfg.Chunker.Bound, cfg.Chunker.Runes, cfg.Dimensions, cfg.Pending, cfg.EmbedBatch, cfg.BatchBytes = 1, 1, 1, 1, 1, 1
 	cfg.Join.WordsPerSecond = 1
 	if _, err := docinfer.New(cfg); err != nil {
@@ -115,6 +116,7 @@ func TestNewRefusesNamingTheField(t *testing.T) {
 		{"Join.WordsPerSecond", func(c *docinfer.Config, n int) { c.Join.WordsPerSecond = n }},
 		{"Vision.MaxTokens", func(c *docinfer.Config, n int) { c.Vision.MaxTokens = n }},
 		{"Extraction.MaxTokens", func(c *docinfer.Config, n int) { c.Extraction.MaxTokens = n }},
+		{"Extraction.WindowRunes", func(c *docinfer.Config, n int) { c.Extraction.WindowRunes = n }},
 	}
 	for _, tc := range counts {
 		for _, n := range []int{0, -1} {

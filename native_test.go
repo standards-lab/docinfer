@@ -225,7 +225,7 @@ func TestProfileHoldsNative(t *testing.T) {
 	if want := `{"request":"3","mode":"route","prompt":"","language":"en","max_tokens":0,"native":{"temperature":0}}`; pr.Transcription.Settings != want {
 		t.Errorf("Profile.Transcription's settings %s, want %s", pr.Transcription.Settings, want)
 	}
-	if want := `{"request":"2","max_tokens":2,"effort":"medium","native":{"temperature":0}}`; pr.Extraction.Settings != want {
+	if want := `{"request":"2","combine":"1","max_tokens":2,"effort":"medium","native":{"temperature":0}}`; pr.Extraction.Settings != want {
 		t.Errorf("Profile.Extraction's settings %s, want %s", pr.Extraction.Settings, want)
 	}
 }
