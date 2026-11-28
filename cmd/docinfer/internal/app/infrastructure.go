@@ -412,9 +412,9 @@ func mergeMap(dst, src map[string]string) map[string]string {
 // format, transcription's max_tokens not below zero and 0 in route mode, vision's max_pixels and
 // layer_words not below zero, the embeddings' input_types set and their tokenizer among endpoints,
 // vision's, transcription's, and extraction's native a JSON object with unique member names,
-// transcription's none or {} in route mode, and no two endpoint names composing the same overrides. What ai.New
-// refuses, such as a base URL or a retry policy, the client nodes report, named for their
-// endpoint. An empty prefix reads no override.
+// transcription's none or {} in route mode, and no two endpoint names composing the same
+// overrides. What ai.New refuses, such as a base URL or a retry policy, the client nodes report,
+// named for their endpoint. An empty prefix reads no override.
 func (c *Config) Finalize(prefix string) error {
 	overrides, err := c.overrides(prefix)
 	c.Merge(overrides)

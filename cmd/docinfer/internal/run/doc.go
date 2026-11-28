@@ -53,10 +53,10 @@
 // a line per docproc input once everything derived from it is out, its path, images, windows,
 // chunks, and failures (images refused or failed, windows not transcribed, and chunks refused or
 // failed), and, once the run ends, a line per capability with its counts, extraction's only when
-// an extract ran, and a last line,
-// counting the inputs, the outputs read, the chunks, and the failures. A run that stops, for an
-// error or a cancellation, writes its manifest with its end and its error, keeps the records it
-// wrote, prints no last line, and returns its error, so the command exits 1.
+// an extract ran, and a last line, counting the inputs, the outputs read, the chunks, and the
+// failures. A run that stops, for an error or a cancellation, writes its manifest with its end
+// and its error, keeps the records it wrote, prints no last line, and returns its error, so the
+// command exits 1.
 //
 // With --report, a run that ended renders its report once its last line is printed, through
 // report.Make, which prints the index's absolute path, as docinfer report does. A run that stops

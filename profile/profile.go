@@ -30,9 +30,10 @@ type Config struct {
 // It panics, naming the field, on a nil Bounds, Cache, Clients.Embeddings, or Clients.Tokenizer,
 // or a nil client of a capability the settings set. It refuses, matching docinfer.ErrRequest,
 // settings [Settings.Validate] refuses, a set capability cfg.Models resolves no served model for,
-// a chunk_runes that leaves no character beside the document prefix, and, when Clients.Transcription
-// transcribes in route mode, which sends no JSON body, a transcription max_tokens above 0 or a
-// native with members; and whatever docinfer.New refuses. A native of {} sends none.
+// a chunk_runes that leaves no character beside the document prefix, and, when
+// Clients.Transcription transcribes in route mode, which sends no JSON body, a transcription
+// max_tokens above 0 or a native with members; and whatever docinfer.New refuses. A native of {}
+// sends none.
 func New(cfg Config) (*docinfer.Pipeline, error) {
 	if cfg.Bounds == nil {
 		panic("profile: New: nil Bounds")
