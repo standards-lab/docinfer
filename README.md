@@ -143,6 +143,7 @@ the part again rather than miss again.
 | --- | --- |
 | `docinfer` (the root) | The pipeline over go-ai's client: `Config`, `New`, and `Pipeline.Run`; `Bounds`; the `Cache`, its `Key` and `Held`, and `FileCache` and `MemoryCache`; the go-ai failure table and `Permanent`; and the shapes of its results. |
 | `job` | One job's dispatch and inference: `Config`, `New`, and `Runner.Run`, yielding `Update`s, `Checkpoint`s, and the `Done` that ends them. |
+| `profile` | A profile's settings as JSON, its served models resolved, and the `Pipeline` they build over the host's clients. |
 | `docinfertest` | The `Cache` conformance suite every implementation runs, the module's and a provider's. |
 | `chunk` | The token-measured chunker: `Splitter`, its `Counter`, `Chunk`, `Span`, and `Version`. |
 | `join` | A part's window transcripts joined at their seams. |
