@@ -31,11 +31,11 @@ in. An input's `splitEvent`, its count of chunks, reaches the coordinator before
 extraction, so the input is held open for the extraction. An image's inference reaches the
 coordinator before its chunks, so it is yielded before the batches that hold them.
 
-`settleInput` settles an input at once unless `held` names its position: with `Options.Timeline`
-set, a video part's own event is entered in `held` as it is admitted, so the work the event needs
-itself only marks it ready, and its settlement waits for `releaseTimeline`, which settles each
-ready held position once the part's timeline inference is out, or at once when its timeline
-sends no call.
+With `Options.Timeline` set, a video part's own event settles only after its timeline is out.
+`noteOwn` enters the event's position in `holds` as the event is admitted. When the event's own
+work finishes, it frees its `Pending` slot as any input does, but `settleInput` only marks the
+position ready. `releaseTimeline` settles each ready position once the part's timeline inference
+is out, or at once when the timeline has no text and sends no call.
 
 ## Window groups
 
@@ -119,10 +119,10 @@ Each capability's request has a version, the first member of its settings: it ch
 request's construction changes, so results held under the old construction miss rather than
 replay. Settings are encoded with nothing escaped that JSON doesn't require, so a prompt's `<`,
 `>`, and `&` read as written, and an extraction's prompt and schema are hashed, so a key's settings
-stay small whatever their size. A windowed extraction's combine call adds its own version, `combine`, after
-the request's, and `Profile` reports it with the extraction's settings. `checkExtract` validates the extraction request's own construction,
-with stand-ins for its model and text, so the rules for an Extract's name and schema are go-ai's
-alone.
+stay small whatever their size. A windowed extraction's combine call adds its own version,
+`combine`, after the request's, and `Profile` reports it with the extraction's settings.
+`checkExtract` validates the extraction request's own construction, with stand-ins for its model
+and text, so the rules for an Extract's name and schema are go-ai's alone.
 
 ## The job
 
