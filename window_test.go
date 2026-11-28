@@ -26,9 +26,15 @@ var (
 		"The third window of the document holds the total three.",
 	}
 	windowText = strings.Join(windowParas, "\n\n")
-	combineID  = docinfer.CombineIdentity(docinfer.Extraction{Model: extractModel, Served: extractServed, MaxTokens: extractTokens,
-		Reasoning: protocol.ReasoningEffortLow}, theExtract)
+	combineID  = combineIdentity(extractID)
 )
+
+const combineVersion = "1"
+
+func combineIdentity(id docinfer.Identity) docinfer.Identity {
+	id.Settings = strings.Replace(id.Settings, `{"request":"2",`, `{"request":"2","combine":"`+combineVersion+`",`, 1)
+	return id
+}
 
 func padded(tag string, n int) string {
 	return tag + strings.Repeat("x", n-utf8.RuneCountInString(tag))
@@ -43,23 +49,26 @@ func parts(replies ...string) string {
 }
 
 type windowServer struct {
-	t        *testing.T
-	window   func(i int) aitest.Reply
-	combine  func(k int, input string) aitest.Reply
-	mu       sync.Mutex
-	windows  []string
-	combines []string
+	t            *testing.T
+	window       func(i int) aitest.Reply
+	combine      func(k int, input string) aitest.Reply
+	mu           sync.Mutex
+	windows      []string
+	combines     []string
+	instructions []string
 }
 
 func (s *windowServer) route(_ context.Context, req aitest.ChatRequest) aitest.Reply {
 	text := req.Messages[len(req.Messages)-1].Text
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if req.Messages[0].Text == docinfer.CombineInstruction {
-		if !req.Stream || req.Model != extractModel || req.SchemaName != extractName || len(req.Messages) != 2 {
-			s.t.Errorf("combine request: stream %t, model %q, schema %q, %d messages; want streamed, %q, %q, 2",
-				req.Stream, req.Model, req.SchemaName, len(req.Messages), extractModel, extractName)
+	if instruction := req.Messages[0].Text; instruction != extractPrompt {
+		if !req.Stream || req.Model != extractModel || req.SchemaName != extractName || len(req.Messages) != 2 || instruction == "" {
+			s.t.Errorf("combine request: stream %t, model %q, schema %q, %d messages, instruction %q; "+
+				"want streamed, %q, %q, 2, docinfer's own", req.Stream, req.Model, req.SchemaName, len(req.Messages), instruction,
+				extractModel, extractName)
 		}
+		s.instructions = append(s.instructions, instruction)
 		s.combines = append(s.combines, text)
 		return s.combine(len(s.combines)-1, text)
 	}

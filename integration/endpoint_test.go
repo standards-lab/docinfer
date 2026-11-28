@@ -36,6 +36,7 @@ const (
 const (
 	visionTokens     = 256
 	extractionTokens = 1024
+	extractionWindow = 4000
 	chunkBound       = 400
 	chunkRunes       = 8000
 	pending          = 2

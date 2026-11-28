@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/standards-lab/docinfer"
 	"github.com/standards-lab/docproc/dispatch"
@@ -32,7 +33,7 @@ func TestExtraction(t *testing.T) {
 	client, model, served := endpoint(t, agent, ai.Options{})
 	emb, dims := embeddings(t)
 	p := newPipeline(t, emb, dims, func(c *docinfer.Config) {
-		c.Extraction = &docinfer.Extraction{Client: client, Model: model, Served: served, MaxTokens: extractionTokens, WindowRunes: 4000}
+		c.Extraction = &docinfer.Extraction{Client: client, Model: model, Served: served, MaxTokens: extractionTokens, WindowRunes: extractionWindow}
 	})
 	content := dispatch.NewMemoryContent()
 	in := textInput(t, content, dispatch.TextOutput,
@@ -117,7 +118,7 @@ func TestDocumentExtraction(t *testing.T) {
 	for _, para := range paragraphs {
 		inputs = append(inputs, textInput(t, content, dispatch.TextOutput, para))
 	}
-	if n := len(strings.Join(paragraphs, "\n\n")); n <= 2*documentWindowRunes {
+	if n := utf8.RuneCountInString(strings.Join(paragraphs, "\n\n")); n <= 2*documentWindowRunes {
 		t.Fatalf("the document text is %d characters, want more than two windows of %d", n, documentWindowRunes)
 	}
 	opts := docinfer.Options{Document: &capitals}
@@ -180,7 +181,7 @@ func TestTimelineExtraction(t *testing.T) {
 		c.Cache = cache
 		c.Vision, c.Transcription = &vis, &tr
 		c.Extraction = &docinfer.Extraction{Client: client, Model: model, Served: served, MaxTokens: extractionTokens,
-			WindowRunes: 4000}
+			WindowRunes: extractionWindow}
 	})
 	content := dispatch.NewMemoryContent()
 	frame := put(t, content, readTestdata(t, "shapes.png"))

@@ -4,16 +4,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/json/jsontext"
 	"flag"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/standards-lab/docinfer"
-	"github.com/standards-lab/go-ai/protocol"
 )
 
 // See docs/development.md
@@ -163,24 +162,34 @@ var combineInstructions = map[string]string{
 }
 
 func TestGoldenCombine(t *testing.T) {
-	id := docinfer.CombineIdentity(
-		docinfer.Extraction{Served: "gpt-4.1", MaxTokens: 4096, Reasoning: protocol.ReasoningEffortMedium},
-		docinfer.Extract{Name: "invoice", Prompt: "prompt", Schema: jsontext.Value("schema")},
-	)
-	if !slices.ContainsFunc(goldenKeys, func(g goldenKey) bool { return g.Identity == id }) {
-		t.Errorf("combine identity %+v has no golden key: a new combine version adds its golden key", id)
-	}
+	replies := []string{`{"total":1}`, `{"total":2}`, `{"total":3}`}
+	s := &windowServer{window: windowReplies(replies...), combine: combineReplies(11)}
+	_, _, cfg := runWindows(t, s, windowBound, false)
 	var settings struct {
 		Combine string `json:"combine"`
 	}
-	if err := json.Unmarshal([]byte(id.Settings), &settings); err != nil {
-		t.Fatalf("combine settings %s: %v", id.Settings, err)
+	profile := newPipeline(t, cfg).Profile().Extraction.Settings
+	if err := json.Unmarshal([]byte(profile), &settings); err != nil {
+		t.Fatalf("Profile.Extraction's settings %s: %v", profile, err)
+	}
+	if settings.Combine != combineVersion {
+		t.Fatalf("Profile reports combine version %q, the tests key combines by %q", settings.Combine, combineVersion)
+	}
+	if h := heldUnder(t, cfg.Cache, combineID, parts(replies...)); h == nil {
+		t.Errorf("no combine held under %+v", combineID)
+	}
+	member := `"combine":"` + settings.Combine + `"`
+	if !slices.ContainsFunc(goldenKeys, func(g goldenKey) bool { return strings.Contains(g.Identity.Settings, member) }) {
+		t.Errorf("combine version %q has no golden key: a new combine version adds its golden key", settings.Combine)
 	}
 	want, ok := combineInstructions[settings.Combine]
 	if !ok {
 		t.Fatalf("combine version %q pins no instruction: a new combine version adds its instruction's SHA-256", settings.Combine)
 	}
-	if got := sha(docinfer.CombineInstruction); got != want {
+	if len(s.instructions) != 1 {
+		t.Fatalf("%d combine requests, want 1", len(s.instructions))
+	}
+	if got := sha(s.instructions[0]); got != want {
 		t.Errorf("combine instruction's SHA-256 %s, combine version %q pins %s: the instruction changed, so change the version",
 			got, settings.Combine, want)
 	}

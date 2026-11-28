@@ -347,11 +347,14 @@ func TestRunTimelineBesideDocument(t *testing.T) {
 	if !slices.Contains(s.asked(), videoTimeline) || len(timelines(o)) != 1 {
 		t.Errorf("extracted %q, %d timelines; want the timeline among them", s.asked(), len(timelines(o)))
 	}
+	const sources = 4
 	inf := theDocument(t, o)
-	if len(inf.ContentSHA256) != 4 {
+	if len(inf.ContentSHA256) != sources {
 		t.Errorf("document of %v, want the three descriptions and the transcript", inf.ContentSHA256)
 	}
-	sources := len(extractions(o)) - 2
+	if n := len(extractions(o)); n != sources+2 {
+		t.Errorf("%d extractions, want each source's, the timeline's, and the document's, %d", n, sources+2)
+	}
 	checkExtractionCounts(t, o, docinfer.ExtractionCounts{Extracted: sources + 2, Requests: sources + 2},
 		docinfer.Usage{Input: 11 * (sources + 2), Output: 3 * (sources + 2)})
 }

@@ -14,9 +14,3 @@ func OnSlotWait(b *Bounds, f func(Capability)) { b.onWait = f }
 // SetClock sets the clock p coalesces an extraction's progress by, so a test steps it per text
 // delta rather than sleep. It is set before p runs a job.
 func SetClock(p *Pipeline, now func() time.Time) { p.now = now }
-
-// CombineInstruction is the instructions of a windowed extraction's combine call.
-const CombineInstruction = combineInstruction
-
-// CombineIdentity returns the identity x keys e's combine calls by.
-func CombineIdentity(x Extraction, e Extract) Identity { return x.combineIdentity(e) }

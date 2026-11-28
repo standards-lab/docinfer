@@ -122,18 +122,7 @@ func checkExtractRequest(t *testing.T, req aitest.ChatRequest, text string) {
 
 func heldExtraction(t *testing.T, cache docinfer.Cache, text string) *docinfer.Held {
 	t.Helper()
-	values, err := cache.Get(t.Context(), docinfer.Key(extractID, sha(text)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if values[0] == nil {
-		return nil
-	}
-	var h docinfer.Held
-	if err := json.Unmarshal(values[0], &h); err != nil {
-		t.Fatalf("the held extraction: %v", err)
-	}
-	return &h
+	return heldUnder(t, cache, extractID, text)
 }
 
 func extractions(o outcome) []docinfer.Inference {
