@@ -124,7 +124,7 @@ type Inference struct {
 
 // Progress is an extraction's text since its last progress.
 type Progress struct {
-	ContentSHA256 string `json:"content_sha256"` // the source text's
+	ContentSHA256 string `json:"content_sha256"` // the extraction call's input text's
 	Delta         string `json:"delta"`
 }
 

@@ -581,6 +581,7 @@ func (r *run) joinGroup(g *group, slotless bool, yield func(Result, error) bool)
 	st := &inputState{
 		part:     g.part,
 		source:   Source{Kind: sourceTranscript, Origin: g.origin, SHA256: textSHA, Stage: &stage, Output: first},
+		pos:      g.members[0],
 		g:        g,
 		slotless: slotless,
 	}

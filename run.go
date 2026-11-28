@@ -18,7 +18,8 @@ import (
 type Options struct {
 	Extract *Extract // extracts each source text; nil extracts none
 	// Document extracts over the job's whole text, windowed by Extraction.WindowRunes; nil
-	// extracts none.
+	// extracts none. The text is the job's source texts that Extract reads, each joined to the
+	// next by a blank line, "\n\n".
 	Document *Extract
 	// Timeline extracts over a video's frames and transcript, in time order; nil extracts none.
 	Timeline *Extract
@@ -206,6 +207,18 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // stream that breaks part way holds nothing and stops the job, transient, the progress it yielded
 // standing. An input finishes once its chunks are complete and its extraction is in.
 //
+// With Options.Document set, the job's document text is every source text Extract would read, set
+// or not, each that isn't empty, in its input's pull order, a transcript at its group's first
+// input, joined by a blank line: output texts, a skipped page image's layer text among them, image
+// descriptions, and transcripts, never a metadata text. Once the inputs end and every input has
+// settled, a document text that isn't empty is extracted once, with Document, as a source text is:
+// keyed by extraction's Identity for Document and the document text's SHA-256, read from the cache,
+// or streamed from the model, its [Progress] carrying that SHA-256, and held, by the same failure
+// table and Final rule. Its one [Inference], Scope document, of the depth-0 part, the first pulled,
+// "/" when none is, its ContentSHA256 the source texts' in order, is the last result before the
+// counts, which count it, and its call, as a source text's extraction. The document text is not
+// chunked.
+//
 // Each chunk's embedding is keyed by the embeddings model and the chunk's SHA-256 alone, read
 // from the cache, or asked of the model Config.EmbedBatch texts per call and held before anything
 // derived from it is yielded. A held value that doesn't decode is a miss, which
@@ -275,6 +288,11 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 		}
 		if opts.Extract != nil {
 			r.extractID = p.cfg.Extraction.Identity(*opts.Extract)
+		}
+		if opts.Document != nil {
+			r.documentID = p.cfg.Extraction.Identity(*opts.Document)
+		}
+		if opts.Extract != nil || opts.Document != nil {
 			r.counts.Extraction, r.counts.Tokens.Extraction = &ExtractionCounts{}, &Usage{}
 		}
 		defer func() {
@@ -299,17 +317,18 @@ func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs ite
 
 // See docs/internals.md
 type run struct {
-	p         *Pipeline
-	ctx       context.Context
-	cancel    context.CancelFunc
-	content   dispatch.Content
-	opts      Options
-	embedID   Identity
-	chunkID   Identity
-	extractID Identity
-	events    chan event
-	slots     chan struct{}
-	wg        sync.WaitGroup
+	p          *Pipeline
+	ctx        context.Context
+	cancel     context.CancelFunc
+	content    dispatch.Content
+	opts       Options
+	embedID    Identity
+	chunkID    Identity
+	extractID  Identity
+	documentID Identity
+	events     chan event
+	slots      chan struct{}
+	wg         sync.WaitGroup
 
 	panicMu    sync.Mutex
 	panicked   bool
@@ -324,6 +343,10 @@ type run struct {
 	pulled      int
 	settled     []int
 	layers      map[partKey]map[pageKey]*layer
+
+	root            rootPart
+	documentTexts   []documentText
+	documentStarted bool
 }
 
 type event interface{ isEvent() }
@@ -336,6 +359,7 @@ type splitEvent struct {
 	st      *inputState
 	n       int
 	extract bool
+	text    string
 }
 
 type doneEvent struct {
@@ -450,7 +474,7 @@ func (r *run) feed(inputs iter.Seq2[Input, error]) {
 
 func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) error {
 	ended := false
-	for !ended || r.active > 0 {
+	for !ended || r.active > 0 || r.startDocument() {
 		var e event
 		select {
 		case e = <-r.events:
@@ -480,6 +504,9 @@ func (r *run) coordinate(ctx context.Context, yield func(Result, error) bool) er
 			}
 		case splitEvent:
 			e.st.split, e.st.remaining, e.st.extracting = true, e.st.remaining+e.n, e.extract
+			if e.text != "" {
+				r.documentTexts = append(r.documentTexts, documentText{pos: e.st.pos, sha: e.st.textSHA(), text: e.text})
+			}
 			r.countSource(e.st)
 			if e.st.remaining == 0 && !e.st.extracting {
 				r.finishState(e.st)
@@ -591,6 +618,7 @@ func (r *run) admit(in Input) error {
 	r.active++
 	pos := r.pulled
 	r.pulled++
+	r.noteRoot(in)
 	out := in.Event.Output
 	if out == nil {
 		r.releaseLayers(in)

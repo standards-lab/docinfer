@@ -22,8 +22,13 @@ func (r *run) embed(st *inputState, text string) {
 	for i, c := range pieces {
 		items[i] = item{st: st, chunk: Chunk{Digest: sha256Hex([]byte(c.Text)), Chunk: c, Index: i}}
 	}
-	extract := r.opts.Extract != nil && st.source.Kind != sourceMetadata && text != ""
-	if !r.send(splitEvent{st: st, n: len(items), extract: extract}) {
+	read := st.source.Kind != sourceMetadata && text != ""
+	extract := r.opts.Extract != nil && read
+	split := splitEvent{st: st, n: len(items), extract: extract}
+	if r.opts.Document != nil && read {
+		split.text = text
+	}
+	if !r.send(split) {
 		return
 	}
 	if len(items) > 0 {

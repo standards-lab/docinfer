@@ -164,16 +164,24 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 			t.Errorf("%s after the settlement of every input it may derive from, %v", what, positions)
 		}
 	}
+	allSettled := func() bool {
+		return len(o.inputs) > 0 && len(settled) == len(o.inputs)
+	}
 	for r, err := range results {
 		o.results++
 		if o.counts != nil || o.err != nil {
 			o.after = true
 		}
+		scoped := r.Inference != nil && r.Inference.Scope != ""
+		documentPhase := scoped || (r.Progress != nil && allSettled())
+		if scoped && !allSettled() {
+			t.Errorf("the %s inference before every input settled", r.Inference.Scope)
+		}
 		if err == nil {
 			o.all = append(o.all, r)
 			if r.Input != nil {
 				from.echo(len(o.inputs), *r.Input)
-			} else if what, positions := from.derived(r); positions != nil {
+			} else if what, positions := from.derived(r); positions != nil && !documentPhase {
 				settledFrom(what, positions)
 			}
 		}
@@ -186,6 +194,10 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 		case r.Input != nil:
 			o.inputs = append(o.inputs, *r.Input)
 		case r.Inference != nil:
+			if scoped {
+				o.inferences = append(o.inferences, *r.Inference)
+				break
+			}
 			if r.Inference.Capability == docinfer.CapabilityExtraction {
 				unechoed("extraction of", r.Inference.ContentSHA256[0])
 			} else {
@@ -196,6 +208,11 @@ func collect(t *testing.T, results iter.Seq2[docinfer.Result, error]) outcome {
 				}
 			}
 			o.inferences = append(o.inferences, *r.Inference)
+		case r.Progress != nil && documentPhase:
+			if slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool { return inf.Scope != "" }) {
+				t.Errorf("progress of text %s after the document's inference", r.Progress.ContentSHA256)
+			}
+			o.progress = append(o.progress, *r.Progress)
 		case r.Progress != nil:
 			unechoed("progress of", r.Progress.ContentSHA256)
 			if slices.ContainsFunc(o.inferences, func(inf docinfer.Inference) bool {
