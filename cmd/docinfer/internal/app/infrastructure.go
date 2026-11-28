@@ -68,6 +68,13 @@ func defineInfrastructure(g *graph.Graph, n *Nodes, configDir *string) {
 		}
 		return newClient(s, n, t.Endpoint, ai.Options{TranscriptionMode: *t.Mode})
 	})
+	n.ExtractionClient = g.Define("extraction client", func(s *graph.Scope) (*ai.Client, error) {
+		x := s.Use(n.Config).Extraction
+		if x == nil {
+			return nil, nil
+		}
+		return newClient(s, n, x.Endpoint, ai.Options{})
+	})
 	n.EmbeddingsClient = g.Define("embeddings client", func(s *graph.Scope) (*ai.Client, error) {
 		e := s.Use(n.Config).Embeddings
 		return newClient(s, n, e.Endpoint, ai.Options{Embedding: ai.EmbeddingProfile{InputTypes: e.InputTypes}})
@@ -101,8 +108,8 @@ func newClient(s *graph.Scope, n *Nodes, endpoint string, capability ai.Options)
 }
 
 // Config is docinfer's configuration: its endpoints, by name, and the capabilities that send to
-// them. Vision and Transcription are optional, and a capability left unset is skipped;
-// Embeddings is required. Each setting is its JSON key's path, such as
+// them. Vision, Transcription, and Extraction are optional, and a capability left unset is
+// skipped; Embeddings is required. Each setting is its JSON key's path, such as
 // endpoints.<name>.response_header_timeout, and DOCINFER_ followed by that path, such as
 // DOCINFER_ENDPOINTS_<NAME>_RESPONSE_HEADER_TIMEOUT, overrides it: a map's override is a JSON
 // object, and an endpoint's only when a file names the endpoint. [Config.Finalize] gives each
@@ -111,6 +118,7 @@ type Config struct {
 	Endpoints     map[string]*Endpoint `json:"endpoints"`
 	Vision        *Vision              `json:"vision"`
 	Transcription *Transcription       `json:"transcription"`
+	Extraction    *Extraction          `json:"extraction"`
 	Embeddings    Embeddings           `json:"embeddings"`
 	Run           Run                  `json:"run"`
 }
@@ -199,6 +207,20 @@ type Transcription struct {
 	WordsPerSecond *int                  `json:"words_per_second"`
 }
 
+// Extraction is the extraction capability, which extracts what the run's --extract names from
+// each source text: the cap on its reply, max_tokens, starting at 4096, room for a reasoning model
+// to reason ahead of its answer; the reasoning effort, any go-ai's protocol.ReasoningEffort
+// accepts, empty sending none, its starting value; native, a JSON object of members the endpoint
+// defines, sent in every request, starting at none, {} sending none; and window_runes, the
+// characters of a document or timeline extraction's window, starting at 16384.
+type Extraction struct {
+	Capability
+	MaxTokens   *int                     `json:"max_tokens"`
+	Reasoning   protocol.ReasoningEffort `json:"reasoning"`
+	Native      json.RawMessage          `json:"native"`
+	WindowRunes *int                     `json:"window_runes"`
+}
+
 // Embeddings is the embeddings capability: the embedding space's dimensions, which have no
 // starting value; input_types, the model's input-type conventions, go-ai's EmbeddingProfile's
 // input_types, such as multilingual-e5's {"document":{"prefix":"passage: "},"query":{"prefix":
@@ -247,6 +269,8 @@ const (
 	startTranscriptionTokens   = 512
 	startTranscriptionNative   = `{"temperature":0}`
 	startWordsPerSecond        = 8
+	startExtractionMaxTokens   = 4096
+	startExtractionWindowRunes = 16384
 	startEmbeddingsBatch       = 16
 	startChunkSize             = 480
 	startChunkRunes            = 8192
@@ -280,6 +304,12 @@ func (c *Config) Merge(src *Config) {
 			c.Transcription = &Transcription{}
 		}
 		c.Transcription.merge(src.Transcription)
+	}
+	if src.Extraction != nil {
+		if c.Extraction == nil {
+			c.Extraction = &Extraction{}
+		}
+		c.Extraction.merge(src.Extraction)
 	}
 	c.Embeddings.merge(&src.Embeddings)
 	set(&c.Run.Pending, src.Run.Pending)
@@ -332,6 +362,16 @@ func (t *Transcription) merge(src *Transcription) {
 	set(&t.WordsPerSecond, src.WordsPerSecond)
 }
 
+func (x *Extraction) merge(src *Extraction) {
+	x.Capability.merge(&src.Capability)
+	set(&x.MaxTokens, src.MaxTokens)
+	set(&x.Reasoning, src.Reasoning)
+	if src.Native != nil {
+		x.Native = src.Native
+	}
+	set(&x.WindowRunes, src.WindowRunes)
+}
+
 func (e *Embeddings) merge(src *Embeddings) {
 	e.Capability.merge(&src.Capability)
 	set(&e.Dimensions, src.Dimensions)
@@ -371,10 +411,10 @@ func mergeMap(dst, src map[string]string) map[string]string {
 // least 1, chunk_runes over the document prefix's characters, chat transcription on the completions
 // format, transcription's max_tokens not below zero and 0 in route mode, vision's max_pixels and
 // layer_words not below zero, the embeddings' input_types set and their tokenizer among endpoints,
-// vision's and transcription's native a JSON object with unique member names, transcription's none
-// or {} in route mode, and no two endpoint names composing the same overrides. What ai.New
-// refuses, such as a base URL or a retry policy, the client nodes report, named for their
-// endpoint. An empty prefix reads no override.
+// vision's, transcription's, and extraction's native a JSON object with unique member names,
+// transcription's none or {} in route mode, and no two endpoint names composing the same
+// overrides. What ai.New refuses, such as a base URL or a retry policy, the client nodes report,
+// named for their endpoint. An empty prefix reads no override.
 func (c *Config) Finalize(prefix string) error {
 	overrides, err := c.overrides(prefix)
 	c.Merge(overrides)
@@ -437,6 +477,17 @@ func (c *Config) overrides(prefix string) (*Config, error) {
 	)
 	if !reflect.ValueOf(t).IsZero() {
 		o.Transcription = &t
+	}
+
+	var x Extraction
+	errs = append(errs, capabilityOverrides(prefix, "extraction", &x.Capability),
+		config.SetFromEnv(&x.MaxTokens, config.EnvName(prefix, "extraction", "max_tokens"), parseCount),
+		setFromEnv(&x.Reasoning, config.EnvName(prefix, "extraction", "reasoning"), parseEffort),
+		setFromEnv(&x.Native, config.EnvName(prefix, "extraction", "native"), parseRaw),
+		config.SetFromEnv(&x.WindowRunes, config.EnvName(prefix, "extraction", "window_runes"), parseCount),
+	)
+	if !reflect.ValueOf(x).IsZero() {
+		o.Extraction = &x
 	}
 
 	errs = append(errs, capabilityOverrides(prefix, "embeddings", &o.Embeddings.Capability),
@@ -552,6 +603,11 @@ func (c *Config) start() {
 		startAt(&t.MaxTokens, 0)
 		startAt(&t.WordsPerSecond, startWordsPerSecond)
 	}
+	if x := c.Extraction; x != nil {
+		startAt(&x.Concurrency, startConcurrency)
+		startAt(&x.MaxTokens, startExtractionMaxTokens)
+		startAt(&x.WindowRunes, startExtractionWindowRunes)
+	}
 	startAt(&c.Embeddings.Concurrency, startConcurrency)
 	startAt(&c.Embeddings.Batch, startEmbeddingsBatch)
 	startAt(&c.Embeddings.ChunkSize, startChunkSize)
@@ -604,10 +660,16 @@ func (c *Config) validate() error {
 		}
 		if err := checkNative("transcription", t.Native); err != nil {
 			errs = append(errs, err)
-		} else if *t.Mode == ai.TranscribeRoute && len(native(t.Native)) > 0 {
+		} else if *t.Mode == ai.TranscribeRoute && hasMembers(t.Native) {
 			errs = append(errs, fmt.Errorf("transcription: native %s is sent in a chat-mode request, and mode is route, "+
 				"which sends no JSON body: set native to {}, or mode to chat", t.Native))
 		}
+	}
+	if x := c.Extraction; x != nil {
+		errs = append(errs, c.checkCapability("extraction", x.Capability),
+			atLeastOne("extraction", "max_tokens", x.MaxTokens),
+			atLeastOne("extraction", "window_runes", x.WindowRunes),
+			checkNative("extraction", x.Native))
 	}
 	errs = append(errs, c.checkCapability("embeddings", c.Embeddings.Capability),
 		atLeastOne("embeddings", "dimensions", c.Embeddings.Dimensions),
@@ -660,8 +722,6 @@ func (e *Embeddings) prefixRunes() int {
 	return utf8.RuneCountInString(e.InputTypes[ai.InputDocument].Prefix)
 }
 
-func (e *Embeddings) chunkRunes() int { return *e.ChunkRunes - e.prefixRunes() }
-
 func checkNative(section string, native json.RawMessage) error {
 	if native == nil {
 		return nil
@@ -671,6 +731,11 @@ func checkNative(section string, native json.RawMessage) error {
 		return fmt.Errorf("%s: native %s is not a JSON object with unique member names", section, native)
 	}
 	return nil
+}
+
+func hasMembers(native json.RawMessage) bool {
+	var members map[string]jsontext.Value
+	return jsonv2.Unmarshal(native, &members) == nil && len(members) > 0
 }
 
 func atLeastOne(section, key string, v *int) error {

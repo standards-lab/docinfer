@@ -17,6 +17,7 @@ docs and, for `cmd/docinfer`, its command notes settle its boundaries.
 - **Cache** (built): [doc.go](../doc.go), [docinfertest/doc.go](../docinfertest/doc.go).
 - **Chunk and join** (built): [chunk/doc.go](../chunk/doc.go), [join/doc.go](../join/doc.go).
 - **Job** (built): [job/doc.go](../job/doc.go).
+- **Profile** (built): [profile/doc.go](../profile/doc.go).
 - **postgres** (built): [postgres/doc.go](../postgres/doc.go).
 - **cmd/docinfer** (built): [command.md](command.md), [command-api.md](command-api.md),
   [command-report.md](command-report.md).

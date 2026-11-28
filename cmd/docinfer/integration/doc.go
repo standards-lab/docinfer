@@ -15,7 +15,9 @@
 // read from go-ai's tier's variables as the base module's integration tier reads them:
 // AI_EMBEDDING_BASE_URL, which the run needs and without which the scenario skips, naming it;
 // AI_VISION_BASE_URL; and AI_TRANSCRIPTION_BASE_URL, transcribed in route mode, or else
-// AI_AUDIO_BASE_URL, in chat mode. A capability whose variable is unset is left out of the run.
+// AI_AUDIO_BASE_URL, in chat mode; and AI_AGENT_BASE_URL, for extraction, with max_tokens 1024,
+// the run then given --extract, a file naming an extract of the text input's access code. A
+// capability whose variable is unset is left out of the run.
 // Each role's AI_<ROLE>_MODEL names its model, or its endpoint's one listed model is taken, and
 // AI_<ROLE>_TOKEN and AI_<ROLE>_HEADER, "Name: value" lines, its credentials. The suite writes
 // them, with the embedding space's dimensions, which it measures by embedding one probe text, into
@@ -32,7 +34,7 @@
 // layer of over 100 words and its page image, and an audio window, its phrase.wav, for
 // transcription. The suite wants run to exit 0 with its run's manifest ended with no error and
 // naming each capability configured, vision's line counting the page image skipped at
-// layer_words' starting value, and the report's index, whose path the run prints last; then report
-// over the same directory to exit 0 and print the same path. Each run is bounded by processtest's
-// Failsafe.
+// layer_words' starting value, extraction's line when it runs, and the report's index, whose
+// path the run prints last; then report over the same directory to exit 0 and print the same
+// path. Each run is bounded by processtest's Failsafe.
 package integration

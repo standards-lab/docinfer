@@ -142,11 +142,11 @@ func TestRun_ServedModel(t *testing.T) {
 		{name: "served_model with no listing", served: "org/configured", want: "org/configured"},
 		{
 			name: "the listing's root and served_model disagree", listing: rooted, served: "org/other",
-			stop: `docinfer run: embeddings: endpoint "gb10" lists model "embed-model" with root "org/embed", and served_model is "org/other": set embeddings.served_model to "org/embed", or leave it unset to take the listing's`,
+			stop: `docinfer run: profile: docinfer: invalid request: embeddings: endpoint "gb10" lists model "embed-model" with root "org/embed", and served_model is "org/other": set embeddings.served_model to "org/embed", or leave it unset to take the listing's`,
 		},
 		{
 			name: "neither", listing: unrooted,
-			stop: `docinfer run: embeddings: endpoint "gb10" lists no root for model "embed-model", and served_model is unset: set embeddings.served_model to the model the deployment serves under "embed-model"`,
+			stop: `docinfer run: profile: docinfer: invalid request: embeddings: endpoint "gb10" lists no root for model "embed-model", and served_model is unset: set embeddings.served_model to the model the deployment serves under "embed-model"`,
 		},
 	}
 	for _, tt := range tests {

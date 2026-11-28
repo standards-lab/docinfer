@@ -9,6 +9,30 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.7.0] - 2026-11-28
+
+This release lets any host build docinfer's pipelines from a profile's settings, as cmd/docinfer
+does.
+
+### Added
+
+- Package `profile`, which builds a `docinfer.Pipeline` from a profile's settings as JSON, for any
+  host. `Settings` holds the settings of vision, transcription, extraction (with its
+  `window_runes`), and embeddings (with its chunker's), under cmd/docinfer's configuration keys,
+  and `pending`, `batch_bytes`, and `words_per_second`. `Settings.Validate` refuses, by its key,
+  each required value that is unset or out of range, and `Decode` decodes and validates the
+  settings, refusing an unknown member; each refusal matches `ErrRequest`. `Resolve` resolves each
+  capability's served model from its client's model listing, the entry's root, else its
+  `served_model`. It refuses a root that disagrees and a model with neither, and returns each
+  capability's `Model` and its listing's `State`. `New` builds the pipeline from a `Config` of the
+  settings, the host's `Clients`, the resolved `Model`s, a `Bounds`, and a cache; its chunker
+  counts tokens through the tokenizer client. The package builds no client, reads no environment,
+  and writes no file.
+
+### Changed
+
+- Requires go-ai v0.6.0.
+
 ## [v0.6.0] - 2026-11-28
 
 This release extracts over more than one source text: over a job's whole text with
@@ -369,7 +393,8 @@ extraction, and the integration tier are new.
   release workflow, which makes a GitHub release from `CHANGELOG.md` for a `v*` tag and from
   `<module>/CHANGELOG.md` for a `<module>/v*` tag.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.7.0...HEAD
+[v0.7.0]: https://github.com/standards-lab/docinfer/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/standards-lab/docinfer/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/standards-lab/docinfer/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/standards-lab/docinfer/compare/v0.3.0...v0.4.0

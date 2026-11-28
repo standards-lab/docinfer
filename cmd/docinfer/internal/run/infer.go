@@ -15,21 +15,21 @@ import (
 	"github.com/standards-lab/docproc/rundir/schema"
 
 	"github.com/standards-lab/docinfer"
+	"github.com/standards-lab/docinfer/profile"
 
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/outdir"
 )
 
 const notConfigured = "not configured"
 
-const extractionBound = 1
-
 type target struct {
 	docproc string
 	out     string
 	run     string
+	extract *docinfer.Extract
 }
 
-func infer(ctx context.Context, w io.Writer, cfg Config, t target) (string, error) {
+func infer(ctx context.Context, w io.Writer, cfg Config, models []profile.Model, t target) (string, error) {
 	src, err := rundir.Open(t.docproc)
 	if err != nil {
 		return "", err
@@ -55,7 +55,7 @@ func infer(ctx context.Context, w io.Writer, cfg Config, t target) (string, erro
 	if err != nil {
 		return "", err
 	}
-	p, err := pipeline(cfg, out.Cache())
+	p, err := pipeline(cfg, models, out.Cache())
 	if err != nil {
 		return "", err
 	}
@@ -73,7 +73,7 @@ func infer(ctx context.Context, w io.Writer, cfg Config, t target) (string, erro
 	sp := newSpace(cfg, p.Profile())
 	var counts *docinfer.Counts
 	var stop error
-	for res, err := range p.Run(ctx, src.Content(), f.inputs(src.Record(id)), docinfer.Options{Final: true}) {
+	for res, err := range p.Run(ctx, src.Content(), f.inputs(src.Record(id)), docinfer.Options{Extract: t.extract, Final: true}) {
 		if err == nil {
 			err = take(ctx, res, out, r, pr, sp)
 		}
@@ -147,7 +147,7 @@ func relative(out, docproc string) (string, error) {
 	return filepath.ToSlash(rel), nil
 }
 
-func pipeline(cfg Config, cache docinfer.Cache) (*docinfer.Pipeline, error) {
+func pipeline(cfg Config, models []profile.Model, cache docinfer.Cache) (*docinfer.Pipeline, error) {
 	bound := func(c docinfer.Capability) int {
 		if n, ok := cfg.Concurrency[c]; ok {
 			return n
@@ -157,35 +157,33 @@ func pipeline(cfg Config, cache docinfer.Cache) (*docinfer.Pipeline, error) {
 	bounds, err := docinfer.NewBounds(
 		bound(docinfer.CapabilityVision),
 		bound(docinfer.CapabilityTranscription),
-		extractionBound,
+		bound(docinfer.CapabilityExtraction),
 		bound(docinfer.CapabilityEmbeddings),
 	)
 	if err != nil {
 		return nil, err
 	}
-	return docinfer.New(docinfer.Config{
-		Vision:        cfg.Vision,
-		Transcription: cfg.Transcription,
-		Embeddings:    cfg.Embeddings,
-		Chunker:       cfg.Chunker,
-		Dimensions:    cfg.Dimensions,
-		Cache:         cache,
-		Bounds:        bounds,
-		Pending:       cfg.Pending,
-		EmbedBatch:    cfg.EmbedBatch,
-		BatchBytes:    cfg.BatchBytes,
-		Join:          cfg.Join,
+	return profile.New(profile.Config{
+		Settings: cfg.Settings,
+		Clients:  cfg.Clients,
+		Models:   models,
+		Bounds:   bounds,
+		Cache:    cache,
 	})
 }
 
 func manifest(cfg Config, pr docinfer.Profile, d outdir.Docproc) outdir.Manifest {
 	m := outdir.Manifest{Docinfer: cfg.Build, Docproc: d, Inputs: []outdir.Input{}}
-	requested := map[docinfer.Capability]string{docinfer.CapabilityEmbeddings: cfg.Embeddings.Model}
-	if v := cfg.Vision; v != nil {
+	s := cfg.Settings
+	requested := map[docinfer.Capability]string{docinfer.CapabilityEmbeddings: s.Embeddings.Model}
+	if v := s.Vision; v != nil {
 		requested[docinfer.CapabilityVision] = v.Model
 	}
-	if t := cfg.Transcription; t != nil {
+	if t := s.Transcription; t != nil {
 		requested[docinfer.CapabilityTranscription] = t.Model
+	}
+	if x := s.Extraction; x != nil {
+		requested[docinfer.CapabilityExtraction] = x.Model
 	}
 	capability := func(id docinfer.Identity) outdir.Capability {
 		e := cfg.Endpoints[id.Capability]
@@ -215,8 +213,11 @@ func manifest(cfg Config, pr docinfer.Profile, d outdir.Docproc) outdir.Manifest
 		}
 		m.Capabilities = append(m.Capabilities, mc)
 	}
+	if pr.Extraction != nil {
+		m.Capabilities = append(m.Capabilities, capability(*pr.Extraction))
+	}
 	embeddings := capability(pr.Embeddings)
-	embeddings.Batch, embeddings.ChunkSize = cfg.EmbedBatch, cfg.Chunker.Bound
+	embeddings.Batch, embeddings.ChunkSize = *s.Embeddings.Batch, *s.Embeddings.ChunkSize
 	m.Capabilities = append(m.Capabilities, embeddings)
 	return m
 }

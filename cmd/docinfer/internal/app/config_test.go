@@ -14,6 +14,9 @@ import (
 
 	"github.com/standards-lab/go-ai"
 	"github.com/standards-lab/go-ai/aitest"
+	"github.com/standards-lab/go-ai/protocol"
+
+	"github.com/standards-lab/docinfer"
 
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/app"
 	"github.com/standards-lab/docinfer/cmd/docinfer/internal/run"
@@ -42,6 +45,7 @@ type probed struct {
 	httpClients   map[string]*http.Client
 	vision        *ai.Client
 	transcription *ai.Client
+	extraction    *ai.Client
 	embeddings    *ai.Client
 	tokenizer     *ai.Client
 	run           run.Config
@@ -59,6 +63,7 @@ func probeConfig(t *testing.T, configJSON string) probed {
 			httpClients:   inv.Get(n.HTTPClients),
 			vision:        inv.Get(n.VisionClient),
 			transcription: inv.Get(n.TranscriptionClient),
+			extraction:    inv.Get(n.ExtractionClient),
 			embeddings:    inv.Get(n.EmbeddingsClient),
 			tokenizer:     inv.Get(n.TokenizerClient),
 			run:           inv.Get(n.RunConfig),
@@ -102,7 +107,7 @@ func TestConfig_StartingValues(t *testing.T) {
 		"vision max_tokens":              {*v.MaxTokens, 2048},
 		"vision max_pixels":              {*v.MaxPixels, 2580480},
 		"vision layer_words":             {*v.LayerWords, 100},
-		"run config vision LayerWords":   {p.run.Vision.LayerWords, 100},
+		"run config vision LayerWords":   {*p.run.Settings.Vision.LayerWords, 100},
 		"vision concurrency":             {*v.Concurrency, 4},
 		"transcription words_per_second": {*tr.WordsPerSecond, 8},
 		"transcription max_tokens":       {*tr.MaxTokens, 0},
@@ -189,6 +194,14 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 		"DOCINFER_VISION_NATIVE":                     `{"temperature":0}`,
 		"DOCINFER_VISION_MAX_PIXELS":                 "1000",
 		"DOCINFER_VISION_LAYER_WORDS":                "0",
+		"DOCINFER_EXTRACTION_ENDPOINT":               "gb10",
+		"DOCINFER_EXTRACTION_MODEL":                  "agent-model",
+		"DOCINFER_EXTRACTION_SERVED_MODEL":           "org/agent",
+		"DOCINFER_EXTRACTION_CONCURRENCY":            "2",
+		"DOCINFER_EXTRACTION_MAX_TOKENS":             "512",
+		"DOCINFER_EXTRACTION_REASONING":              "low",
+		"DOCINFER_EXTRACTION_NATIVE":                 `{"temperature":0}`,
+		"DOCINFER_EXTRACTION_WINDOW_RUNES":           "2000",
 		"DOCINFER_EMBEDDINGS_BATCH":                  "32",
 		"DOCINFER_EMBEDDINGS_CHUNK_RUNES":            "4096",
 		"DOCINFER_EMBEDDINGS_INPUT_TYPES":            `{"query":{"prefix":"query: "}}`,
@@ -224,7 +237,7 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	if v := p.cfg.Vision; v == nil || v.ServedModel != "org/vision" || string(v.Native) != `{"temperature":0}` || *v.MaxPixels != 1000 {
 		t.Errorf("vision = %+v, want the overrides' served_model, native, and max_pixels", v)
 	}
-	if v := p.run.Vision; v == nil || v.LayerWords != 0 {
+	if v := p.run.Settings.Vision; v == nil || *v.LayerWords != 0 {
 		t.Errorf("run config vision = %+v, want the override's layer_words 0", v)
 	}
 	if got := p.embeddings.EmbeddingProfile().InputTypes[ai.InputQuery].Prefix; got != "query: " {
@@ -232,6 +245,58 @@ func TestConfig_OverridesSetEverySection(t *testing.T) {
 	}
 	if got := *p.cfg.Run.Pending; got != 2 {
 		t.Errorf("run pending = %d, want 2", got)
+	}
+	x := p.run.Settings.Extraction
+	if p.extraction == nil || x == nil || x.Endpoint != "gb10" || x.Model != "agent-model" || x.ServedModel != "org/agent" {
+		t.Fatalf("extraction client %v, run config extraction %+v, want the overrides' capability", p.extraction, x)
+	}
+	if got := [4]any{*x.MaxTokens, x.Reasoning, string(x.Native), *x.WindowRunes}; got != [4]any{512, protocol.ReasoningEffortLow, `{"temperature":0}`, 2000} {
+		t.Errorf("run config extraction = %v, want the overrides' max_tokens, reasoning, native, and window_runes", got)
+	}
+	if got := *p.cfg.Extraction.Concurrency; got != 2 {
+		t.Errorf("extraction concurrency = %d, want the override's 2", got)
+	}
+}
+
+func TestConfig_ExtractionStartingValues(t *testing.T) {
+	p := probeConfig(t, `{"endpoints":{"gb10":{"base_url":"`+unusedURL+`","format":"completions"},
+			"agent":{"base_url":"`+unusedURL+`","format":"responses"}},
+		"extraction":{"endpoint":"agent","model":"agent-model"},
+		"embeddings":{"endpoint":"gb10","model":"embed-model","dimensions":768,"input_types":{},"tokenizer":"gb10"}}`)
+
+	if p.extraction == nil {
+		t.Fatal("no extraction client, want one on the endpoint extraction names")
+	}
+	if got := responseHeaderTimeout(t, p, "agent"); got != 180*time.Second {
+		t.Errorf("extraction's transport ResponseHeaderTimeout = %v, want 180s", got)
+	}
+	x := p.cfg.Extraction
+	for name, got := range map[string][2]int{
+		"extraction concurrency": {*x.Concurrency, 4},
+		"extraction max_tokens":  {*x.MaxTokens, 4096},
+		"window_runes":           {*x.WindowRunes, 16384},
+	} {
+		if got[0] != got[1] {
+			t.Errorf("%s = %d, want %d", name, got[0], got[1])
+		}
+	}
+	if x.Reasoning != "" || x.Native != nil {
+		t.Errorf("extraction reasoning %q, native %s, want none", x.Reasoning, x.Native)
+	}
+	rx := p.run.Settings.Extraction
+	if rx == nil || rx.Endpoint != "agent" || rx.Model != "agent-model" || *rx.MaxTokens != 4096 || *rx.WindowRunes != 16384 {
+		t.Errorf("run config extraction = %+v, want the configuration's", rx)
+	}
+	if got := p.run.Concurrency[docinfer.CapabilityExtraction]; got != 4 {
+		t.Errorf("run config extraction concurrency = %d, want 4", got)
+	}
+}
+
+func TestConfig_NoExtractionLeavesItUnset(t *testing.T) {
+	p := probeConfig(t, embeddingsJSON(unusedURL))
+
+	if p.extraction != nil || p.cfg.Extraction != nil || p.run.Settings.Extraction != nil {
+		t.Errorf("extraction client %v, configuration %+v, run config %+v, want none", p.extraction, p.cfg.Extraction, p.run.Settings.Extraction)
 	}
 }
 
@@ -333,7 +398,7 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 	}{
 		{name: "no directory", want: "no configuration directory: set --config or DOCINFER_CONFIG"},
 		{name: "not a directory", dir: file, want: "is no directory"},
-		{name: "unknown key", config: withEndpoint(completions, embeddings+`,"extraction":{}`), want: "extraction"},
+		{name: "unknown key", config: withEndpoint(completions, embeddings+`,"summary":{}`), want: "summary"},
 		{name: "no embeddings endpoint", config: withEndpoint(completions, `"embeddings":{"model":"m","dimensions":768,"input_types":{},"tokenizer":"gb10"}`), want: "embeddings: no endpoint"},
 		{name: "unknown endpoint", config: withEndpoint(completions, `"embeddings":{"endpoint":"other","model":"m","dimensions":768,"input_types":{},"tokenizer":"gb10"}`), want: `embeddings: endpoint "other" is not one of endpoints`},
 		{name: "no dimensions", config: withEndpoint(completions, `"embeddings":{"endpoint":"gb10","model":"m","input_types":{},"tokenizer":"gb10"}`), want: "embeddings: no dimensions"},
@@ -354,6 +419,13 @@ func TestConfig_ErrorsFailTheBuild(t *testing.T) {
 		{name: "negative layer_words", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","layer_words":-1}`), want: "vision: layer_words -1 is below zero"},
 		{name: "negative layer_words override", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v"}`), env: map[string]string{"DOCINFER_VISION_LAYER_WORDS": "-5"}, want: "vision: layer_words -5 is below zero"},
 		{name: "count below 1", config: withEndpoint(completions, embeddings+`,"vision":{"endpoint":"gb10","model":"v","concurrency":0}`), want: "vision: concurrency 0 is below 1"},
+		{name: "extraction without an endpoint", config: withEndpoint(completions, embeddings+`,"extraction":{"model":"x"}`), want: "extraction: no endpoint"},
+		{name: "extraction on an unknown endpoint", config: withEndpoint(completions, embeddings+`,"extraction":{"endpoint":"agent","model":"x"}`), want: `extraction: endpoint "agent" is not one of endpoints`},
+		{name: "extraction max_tokens below 1", config: withEndpoint(completions, embeddings+`,"extraction":{"endpoint":"gb10","model":"x","max_tokens":0}`), want: "extraction: max_tokens 0 is below 1"},
+		{name: "extraction window_runes below 1", config: withEndpoint(completions, embeddings+`,"extraction":{"endpoint":"gb10","model":"x","window_runes":0}`), want: "extraction: window_runes 0 is below 1"},
+		{name: "extraction window_runes override below 1", config: withEndpoint(completions, embeddings+`,"extraction":{"endpoint":"gb10","model":"x"}`), env: map[string]string{"DOCINFER_EXTRACTION_WINDOW_RUNES": "-3"}, want: "extraction: window_runes -3 is below 1"},
+		{name: "extraction native not an object", config: withEndpoint(completions, embeddings+`,"extraction":{"endpoint":"gb10","model":"x","native":[1]}`), want: "extraction: native [1] is not a JSON object with unique member names"},
+		{name: "extraction unknown reasoning", config: withEndpoint(completions, embeddings+`,"extraction":{"endpoint":"gb10","model":"x","reasoning":"extreme"}`), want: "extreme"},
 		{name: "unknown format", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"grpc"}`, embeddings), want: `endpoints "gb10": format "grpc" is not completions, messages, or responses`},
 		{name: "unknown profile member", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"completions","profile":{"completions":{"bogus":true}}}`, embeddings), want: `endpoints "gb10": profile: `},
 		{name: "chat without completions", config: withEndpoint(`{"base_url":"`+unusedURL+`","format":"messages"}`, embeddings+`,"transcription":{"endpoint":"gb10","model":"a","mode":"chat"}`), want: `transcription: mode chat needs the completions format, and endpoint "gb10"'s is "messages"`},

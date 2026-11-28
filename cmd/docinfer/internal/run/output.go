@@ -144,6 +144,11 @@ func writeEnd(w io.Writer, id string, m outdir.Manifest) error {
 	} else {
 		lines = append(lines, fmt.Sprintf("transcription: skipped, %s; windows %d", notConfigured, c.Windows))
 	}
+	if x := c.Extraction; x != nil {
+		failures += x.Refused + x.Failed
+		lines = append(lines, fmt.Sprintf("extraction: extracted %d, incomplete %d, refused %d, failed %d, held %d; requests %d",
+			x.Extracted, x.Incomplete, x.Refused, x.Failed, x.Held, x.Requests))
+	}
 	lines = append(lines,
 		fmt.Sprintf("embeddings: texts %d, metadata %d: embedded %d, rejected %d, held %d; requests %d",
 			c.Texts, c.Metadata, c.Embedded, c.Rejected, c.Held, c.Requests),

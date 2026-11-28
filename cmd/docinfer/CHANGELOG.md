@@ -10,6 +10,33 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+### Added
+
+- `extraction`, the extraction capability's configuration block, each key overridden by
+  `DOCINFER_EXTRACTION_<KEY>`: `endpoint`, `model`, and `served_model`, as the other capabilities
+  have; `concurrency`, starting at 4; `max_tokens`, starting at 4096; `reasoning`, a go-ai
+  `protocol.ReasoningEffort`, empty at the start, which sends none; `native`, a JSON object
+  sent in every request, none at the start, `{}` sending none; and `window_runes`, the characters
+  of a document or timeline extraction's window, starting at 16384. Left unset, no extraction
+  client is built and the model table, the manifest, and the run's lines are as before. A
+  configured extraction gets a row in the model table, between transcription and embeddings, and
+  an entry in the manifest's `capabilities`, between transcription and embeddings.
+- `docinfer run --extract <file>`: the file is a JSON object of an extract's `name`, `prompt`, and
+  `schema`, passed to the run as `docinfer.Options.Extract`, so each source text is extracted. A
+  file that can't be read or decoded, or that is given with no extraction configured, exits 1
+  before any request; an `--extract` naming no file is a usage error. A run that extracts prints
+  an `extraction:` line of its counts before the last line, which counts its refused and failed
+  extractions among the failures.
+
+### Changed
+
+- The command builds its pipeline through the base module's `profile` package: it maps its
+  configuration onto `profile.Settings`, resolves each capability's served model with
+  `profile.Resolve`, and builds the pipeline with `profile.New`. Its configuration keys,
+  environment, manifests, model table, warnings, and reports are unchanged. The error a model
+  check stops the run with is now `profile.Resolve`'s, prefixed `profile:` and, for an unlisted
+  model or a served model that can't be resolved, matching `docinfer.ErrRequest`.
+
 ## [v0.4.1] - 2026-11-28
 
 This release moves the command to go-core v0.13.0 and docinfer v0.6.0. Its command line, output

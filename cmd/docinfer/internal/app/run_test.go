@@ -102,7 +102,7 @@ func TestRun_ModelTable(t *testing.T) {
 	}
 	log := built.Log()
 	slices.Sort(log)
-	wantBuilt := []string{"config", "embeddings client", "http clients", "lifecycle config", "run config", "tokenizer client", "transcription client", "vision client"}
+	wantBuilt := []string{"config", "embeddings client", "extraction client", "http clients", "lifecycle config", "run config", "tokenizer client", "transcription client", "vision client"}
 	if !slices.Equal(log, wantBuilt) {
 		t.Errorf("nodes built = %q, want %q", log, wantBuilt)
 	}
@@ -139,7 +139,7 @@ func TestRun_UnlistedModelStopsTheRun(t *testing.T) {
 	if !strings.Contains(stdout.String(), "embeddings     gb10      embed-model  unlisted\n") {
 		t.Errorf("stdout = %q, want the embeddings row unlisted", stdout)
 	}
-	if want := `docinfer run: embeddings: endpoint "gb10" doesn't list model "embed-model"`; !strings.HasPrefix(stderr.String(), want) {
+	if want := `docinfer run: profile: docinfer: invalid request: embeddings: endpoint "gb10" doesn't list model "embed-model"`; !strings.HasPrefix(stderr.String(), want) {
 		t.Errorf("stderr = %q, want it to start with %q", stderr, want)
 	}
 }
@@ -186,7 +186,7 @@ func TestRun_UnreachableEndpointStopsTheRun(t *testing.T) {
 	if !strings.Contains(stdout.String(), "embeddings     gb10      embed-model  unreachable\n") {
 		t.Errorf("stdout = %q, want the embeddings row unreachable", stdout)
 	}
-	if want := `docinfer run: embeddings: endpoint "gb10" is unreachable: `; !strings.HasPrefix(stderr.String(), want) {
+	if want := `docinfer run: profile: embeddings: endpoint "gb10" is unreachable: `; !strings.HasPrefix(stderr.String(), want) {
 		t.Errorf("stderr = %q, want it to start with %q", stderr, want)
 	}
 }
@@ -266,5 +266,5 @@ func probeNodes(a *app.App, read func(inv *cli.Invocation)) {
 			read(inv)
 			return nil
 		},
-	}).Use(n.Config, n.HTTPClients, n.VisionClient, n.TranscriptionClient, n.EmbeddingsClient, n.TokenizerClient, n.RunConfig))
+	}).Use(n.Config, n.HTTPClients, n.VisionClient, n.TranscriptionClient, n.ExtractionClient, n.EmbeddingsClient, n.TokenizerClient, n.RunConfig))
 }
