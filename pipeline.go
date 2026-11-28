@@ -41,8 +41,8 @@ type Pipeline struct {
 // New returns a Pipeline of cfg. It panics, naming the field, on a nil Cache, Bounds, or
 // Embeddings.Client, or a set Vision, Transcription, or Extraction whose Client is nil: each is a
 // wiring defect. It refuses, matching [ErrRequest], a count or bound below 1 (Chunker.Bound,
-// Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond, and each
-// MaxTokens but Transcription's), a negative Transcription.MaxTokens, Vision.MaxPixels, or
+// Chunker.Runes, Dimensions, Pending, EmbedBatch, BatchBytes, Join.WordsPerSecond,
+// Extraction.WindowRunes, and each MaxTokens but Transcription's), a negative Transcription.MaxTokens, Vision.MaxPixels, or
 // Vision.LayerWords, a nil Chunker.Count, an empty Model, Served, or Chunker.Model, and a Vision,
 // Transcription, or Extraction Native that isn't a JSON object with unique member names. It copies
 // the capabilities cfg points to, so a later change to them changes nothing.
@@ -96,7 +96,7 @@ func New(cfg Config) (*Pipeline, error) {
 		cfg.Transcription.Native = t.Native.Clone()
 	}
 	if x := cfg.Extraction; x != nil {
-		counts = append(counts, count{"Extraction.MaxTokens", x.MaxTokens})
+		counts = append(counts, count{"Extraction.MaxTokens", x.MaxTokens}, count{"Extraction.WindowRunes", x.WindowRunes})
 		models = append(models, model{"Extraction.Model", x.Model}, model{"Extraction.Served", x.Served})
 		cfg.Extraction = new(*x)
 		cfg.Extraction.Native = x.Native.Clone()

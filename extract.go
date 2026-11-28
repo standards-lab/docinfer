@@ -27,16 +27,16 @@ type extractEvent struct {
 func (progressEvent) isEvent() {}
 func (extractEvent) isEvent()  {}
 
-func (p *Pipeline) checkExtract(e Extract) error {
+func (p *Pipeline) checkExtract(field string, e Extract) error {
 	switch {
 	case e.Prompt == "":
-		return fmt.Errorf("docinfer: run: %w: Extract has no prompt", ErrRequest)
+		return fmt.Errorf("docinfer: run: %w: %s has no prompt", ErrRequest, field)
 	case !utf8.ValidString(e.Prompt):
-		return fmt.Errorf("docinfer: run: %w: Extract's prompt isn't UTF-8", ErrRequest)
+		return fmt.Errorf("docinfer: run: %w: %s's prompt isn't UTF-8", ErrRequest, field)
 	}
 	probe := extractRequest(&Extraction{Model: "probe"}, e, "probe")
 	if err := probe.Validate(); err != nil {
-		return fmt.Errorf("docinfer: run: %w: Extract: %w", ErrRequest, err)
+		return fmt.Errorf("docinfer: run: %w: %s: %w", ErrRequest, field, err)
 	}
 	if p.cfg.Extraction == nil {
 		return fmt.Errorf("docinfer: run: %w", errNoExtraction)

@@ -31,7 +31,7 @@ func TestExtraction(t *testing.T) {
 	client, model, served := endpoint(t, agent, ai.Options{})
 	emb, dims := embeddings(t)
 	p := newPipeline(t, emb, dims, func(c *docinfer.Config) {
-		c.Extraction = &docinfer.Extraction{Client: client, Model: model, Served: served, MaxTokens: extractionTokens}
+		c.Extraction = &docinfer.Extraction{Client: client, Model: model, Served: served, MaxTokens: extractionTokens, WindowRunes: 4000}
 	})
 	content := dispatch.NewMemoryContent()
 	in := textInput(t, content, dispatch.TextOutput,

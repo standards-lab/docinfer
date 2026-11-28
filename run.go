@@ -13,9 +13,15 @@ import (
 	"github.com/standards-lab/docproc/dispatch"
 )
 
-// Options are one run's.
+// Options are one run's. Extract, Document, and Timeline are each a caller's prompt and schema,
+// checked alike before Run reads an input, and each needs Config.Extraction.
 type Options struct {
-	Extract *Extract // a caller's prompt and schema; nil extracts nothing
+	Extract *Extract // extracts each source text; nil extracts none
+	// Document extracts over the job's whole text, windowed by Extraction.WindowRunes; nil
+	// extracts none.
+	Document *Extract
+	// Timeline extracts over a video's frames and transcript, in time order; nil extracts none.
+	Timeline *Extract
 	// Final marks the job's last delivery: an item a model fails on with the failure table's
 	// failed row (a 500, a failed or undecodable reply, any other error a call returns) is
 	// recorded failed, never held, and the job goes on, rather than the job stopping for a
@@ -183,9 +189,10 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // refused, and incomplete otherwise. A window holds its input's slot only until its own transcript
 // is in, so a group of more windows than Config.Pending never waits on inputs it can't pull.
 //
-// With Options.Extract set, Run refuses, matching [ErrRequest], an Extract whose prompt is empty or
-// isn't UTF-8, or whose name or schema go-ai's json_schema format refuses, and stops, [Permanent],
-// when the pipeline has no Config.Extraction, each before it reads an input. A metadata text, an
+// With Options.Extract, Document, or Timeline set, Run refuses, matching [ErrRequest], an Extract
+// whose prompt is empty or isn't UTF-8, or whose name or schema go-ai's json_schema format
+// refuses, and stops, [Permanent], when the pipeline has no Config.Extraction, each before it
+// reads an input. A metadata text, an
 // input's or a record's, is never extracted. Every other source text, an output's text, an image's
 // description, or a transcript, is then extracted once, unless it is empty: keyed by extraction's
 // Identity for the Extract and the text's SHA-256, read from the cache, or streamed from the model
@@ -236,8 +243,14 @@ var errInputDefect = errors.New("docinfer: the input's defect")
 // its value on the goroutine ranging over it once the job's other goroutines have ended.
 func (p *Pipeline) Run(ctx context.Context, content dispatch.Content, inputs iter.Seq2[Input, error], opts Options) iter.Seq2[Result, error] {
 	return func(yield func(Result, error) bool) {
-		if opts.Extract != nil {
-			if err := p.checkExtract(*opts.Extract); err != nil {
+		for _, x := range []struct {
+			field string
+			e     *Extract
+		}{{"Extract", opts.Extract}, {"Document", opts.Document}, {"Timeline", opts.Timeline}} {
+			if x.e == nil {
+				continue
+			}
+			if err := p.checkExtract(x.field, *x.e); err != nil {
 				yield(Result{}, err)
 				return
 			}

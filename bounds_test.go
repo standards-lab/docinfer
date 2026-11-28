@@ -90,7 +90,7 @@ func boundConfig(t *testing.T, e *aitest.Endpoint, bounds *docinfer.Bounds) doci
 	return runConfig(t, e, func(c *docinfer.Config) {
 		c.Vision = &docinfer.Vision{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: visionModel, Served: visionServed, Prompt: visionPrompt, MaxTokens: visionTokens}
 		c.Transcription = &docinfer.Transcription{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: transcriptionModel, Served: transcriptionServed, Language: transcriptionLang}
-		c.Extraction = &docinfer.Extraction{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: extractModel, Served: extractServed, MaxTokens: extractTokens}
+		c.Extraction = &docinfer.Extraction{Client: newClient(t, e.URL(), ai.TranscribeRoute), Model: extractModel, Served: extractServed, MaxTokens: extractTokens, WindowRunes: extractWindow}
 		c.Bounds = bounds
 		c.Pending = 64
 		c.EmbedBatch = 1

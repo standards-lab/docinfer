@@ -138,6 +138,9 @@ type Extraction struct {
 	// whose members the endpoint defines, such as temperature. Empty sends none; [New] refuses
 	// one that isn't a JSON object with unique member names.
 	Native jsontext.Value
+	// WindowRunes is at least 1: the runes of a document or timeline extraction's window. It isn't
+	// part of [Extraction.Identity].
+	WindowRunes int
 }
 
 // Extract is a caller's extraction: a prompt and the JSON schema its reply follows.

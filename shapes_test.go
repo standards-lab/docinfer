@@ -125,3 +125,26 @@ func TestCountsJSON(t *testing.T) {
 		t.Errorf("Counts encodes as\n%s, want\n%s", b, want)
 	}
 }
+
+func TestInferenceScopeJSON(t *testing.T) {
+	inf := docinfer.Inference{Capability: docinfer.CapabilityExtraction, Part: "/", Outcome: docinfer.OutcomeExtracted}
+	b, err := json.Marshal(inf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"capability":"extraction","part":"/","content_sha256":null,"outcome":"extracted","took_ms":0}`
+	if string(b) != want {
+		t.Errorf("a per-source Inference encodes as %s, want %s", b, want)
+	}
+	for _, scope := range []docinfer.Scope{docinfer.ScopeDocument, docinfer.ScopeTimeline} {
+		inf.Scope = scope
+		b, err := json.Marshal(inf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := `{"capability":"extraction","scope":"` + string(scope) + `","part":"/","content_sha256":null,"outcome":"extracted","took_ms":0}`
+		if string(b) != want {
+			t.Errorf("a %s Inference encodes as %s, want %s", scope, b, want)
+		}
+	}
+}

@@ -86,12 +86,23 @@ const (
 	OutcomeFailed      Outcome = "failed"
 )
 
+// Scope is an extraction's span when it is wider than one source text.
+type Scope string
+
+// The scopes an [Inference] carries.
+const (
+	ScopeDocument Scope = "document" // over the job's whole text
+	ScopeTimeline Scope = "timeline" // over a video's frames and transcript
+)
+
 // Inference is one text a model made, or the cache held: an image's description, a part's joined
-// transcript, or a source text's extraction.
+// transcript, or an extraction: a source text's, or, by its Scope, the job's or a video's.
 type Inference struct {
 	Capability Capability `json:"capability"` // vision, transcription, or extraction
-	Part       string     `json:"part"`       // its part's ID
-	Origin     string     `json:"-"`          // local: its input's [Input].Origin
+	// Scope is a document or timeline extraction's; "" for one of a single part or source text.
+	Scope  Scope  `json:"scope,omitempty"`
+	Part   string `json:"part"` // its part's ID
+	Origin string `json:"-"`    // local: its input's [Input].Origin
 	// ContentSHA256 is the image's, the windows' in order, "" for one never cut, or the source
 	// text's.
 	ContentSHA256 []string `json:"content_sha256"`
