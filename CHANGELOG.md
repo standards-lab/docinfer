@@ -9,6 +9,11 @@ each nested module keeps its own.
 
 ## [Unreleased]
 
+## [v0.7.0] - 2026-11-28
+
+This release lets any host build docinfer's pipelines from a profile's settings, as cmd/docinfer
+does.
+
 ### Added
 
 - Package `profile`, which builds a `docinfer.Pipeline` from a profile's settings as JSON, for any
@@ -23,6 +28,10 @@ each nested module keeps its own.
   settings, the host's `Clients`, the resolved `Model`s, a `Bounds`, and a cache; its chunker
   counts tokens through the tokenizer client. The package builds no client, reads no environment,
   and writes no file.
+
+### Changed
+
+- Requires go-ai v0.6.0.
 
 ## [v0.6.0] - 2026-11-28
 
@@ -384,7 +393,8 @@ extraction, and the integration tier are new.
   release workflow, which makes a GitHub release from `CHANGELOG.md` for a `v*` tag and from
   `<module>/CHANGELOG.md` for a `<module>/v*` tag.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/v0.7.0...HEAD
+[v0.7.0]: https://github.com/standards-lab/docinfer/compare/v0.6.0...v0.7.0
 [v0.6.0]: https://github.com/standards-lab/docinfer/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/standards-lab/docinfer/compare/v0.4.0...v0.5.0
 [v0.4.0]: https://github.com/standards-lab/docinfer/compare/v0.3.0...v0.4.0
