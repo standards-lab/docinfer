@@ -10,6 +10,10 @@ the postgres module keep their own.
 
 ## [Unreleased]
 
+## [v0.5.0] - 2026-11-28
+
+This release builds through docinfer v0.7.0's `profile` package and extracts with `--extract`.
+
 ### Added
 
 - `extraction`, the extraction capability's configuration block, each key overridden by
@@ -278,7 +282,8 @@ go-cli-sdk-template template/v0.3.1 to the design in `context/command.md`.
   the report's index to be printed. A role whose variable is unset is left out of the run, and
   with `AI_EMBEDDING_BASE_URL` unset the scenario skips.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.4.1...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.5.0...HEAD
+[v0.5.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.4.1...cmd/docinfer/v0.5.0
 [v0.4.1]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.4.0...cmd/docinfer/v0.4.1
 [v0.4.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.3.0...cmd/docinfer/v0.4.0
 [v0.3.0]: https://github.com/standards-lab/docinfer/compare/cmd/docinfer/v0.2.0...cmd/docinfer/v0.3.0

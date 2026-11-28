@@ -10,6 +10,14 @@ keeps its own.
 
 ## [Unreleased]
 
+## [v0.1.5] - 2026-11-28
+
+This release requires docinfer v0.7.0, which adds the `profile` package, with nothing to adapt.
+
+### Changed
+
+- The module requires docinfer v0.7.0.
+
 ## [v0.1.4] - 2026-11-28
 
 This release requires docinfer v0.6.0, which adds document and timeline extraction, with nothing
@@ -77,7 +85,8 @@ The first release. The module is new: the spike has no PostgreSQL cache to copy.
   value are refused, matching `docinfer.ErrRequest`, and an ended context with its own error,
   before any query.
 
-[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.4...HEAD
+[Unreleased]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.5...HEAD
+[v0.1.5]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.4...postgres/v0.1.5
 [v0.1.4]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.3...postgres/v0.1.4
 [v0.1.3]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.2...postgres/v0.1.3
 [v0.1.2]: https://github.com/standards-lab/docinfer/compare/postgres/v0.1.1...postgres/v0.1.2
